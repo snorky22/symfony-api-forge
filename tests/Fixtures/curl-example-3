@@ -1,0 +1,40 @@
+curl -X "POST" "https://api.lemonsqueezy.com/v1/checkouts" \
+  -H 'Accept: application/vnd.api+json' \
+  -H 'Content-Type: application/vnd.api+json' \
+  -H 'Authorization: Bearer {api_key}' \
+  -d $'{
+  "data": {
+    "type": "checkouts",
+    "attributes": {
+      "custom_price": 50000,
+      "product_options": {
+        "enabled_variants": [1]
+      },
+      "checkout_options": {
+        "button_color": "#7047EB"
+      },
+      "checkout_data": {
+        "discount_code": "10PERCENTOFF",
+        "custom": {
+          "user_id": 123
+        }
+      },
+      "expires_at": "2022-10-30T15:20:06Z",
+      "preview": true
+    },
+    "relationships": {
+      "store": {
+        "data": {
+          "type": "stores",
+          "id": "1"
+        }
+      },
+      "variant": {
+        "data": {
+          "type": "variants",
+          "id": "1"
+        }
+      }
+    }
+  }
+}'
