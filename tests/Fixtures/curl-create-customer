@@ -1,0 +1,24 @@
+curl -X "POST" "https://api.lemonsqueezy.com/v1/customers" \
+  -H 'Accept: application/vnd.api+json' \
+  -H 'Content-Type: application/vnd.api+json' \
+  -H 'Authorization: Bearer {api_key}' \
+  -d $'{
+  "data": {
+    "type": "customers",
+    "attributes": {
+      "name": "John Doe",
+      "email": "johndoe@example.com",
+      "city": "New York",
+      "region": "NY",
+      "country": "US"
+    },
+    "relationships": {
+      "store": {
+        "data": {
+          "type": "stores",
+          "id": "1"
+        }
+      }
+    }
+  }
+}'

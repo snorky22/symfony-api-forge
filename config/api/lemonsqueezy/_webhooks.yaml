@@ -1,0 +1,68 @@
+signature:
+    header: X-Signature
+    algorithm: sha256
+    encoding: hex
+    env: LEMONSQUEEZY_WEBHOOK_SECRET
+event_name:
+    path: meta.event_name
+meta:
+    shape: |-
+        array{
+            event_name: string,
+        }
+events:
+    order_created:
+        resource: orders
+        description: 'Occurs when a new order is successfully placed.'
+    order_refunded:
+        resource: orders
+        description: 'Occurs when a full or partial refund is made on an order.'
+    customer_updated:
+        resource: customers
+        description: 'Occurs when a customer’s data is changed or updated.'
+    subscription_created:
+        resource: subscriptions
+        description: 'Occurs when a new subscription is successfully created. An order_created event will always be sent alongside a subscription_created event.'
+    subscription_updated:
+        resource: subscriptions
+        description: 'Occurs when a subscription’s data is changed or updated. This event can be used as a “catch-all” to make sure you always have access to the latest subscription data.'
+    subscription_cancelled:
+        resource: subscriptions
+        description: 'Occurs when a subscription is cancelled manually by the customer or store owner. The subscription enters a “grace period” until the next billing date, when it will expire. It is possible for the subscription to be resumed during this period.'
+    subscription_resumed:
+        resource: subscriptions
+        description: 'Occurs when a subscription is resumed after being previously cancelled.'
+    subscription_expired:
+        resource: subscriptions
+        description: 'Occurs when a subscription has ended after being previously cancelled, or once dunning has been completed for past_due subscriptions. You can manage how long to wait before the system marks delinquent subscriptions as expired. More info'
+    subscription_paused:
+        resource: subscriptions
+        description: 'Occurs when a subscription’s payment collection is paused.'
+    subscription_unpaused:
+        resource: subscriptions
+        description: 'Occurs when a subscription’s payment collection is resumed after being previously paused.'
+    subscription_payment_success:
+        resource: subscription-invoices
+        description: 'Occurs when a subscription payment is successful.'
+    subscription_payment_failed:
+        resource: subscription-invoices
+        description: 'Occurs when a subscription renewal payment fails.'
+    subscription_payment_recovered:
+        resource: subscription-invoices
+        description: 'Occurs when a subscription has a successful payment after a failed payment. A subscription_payment_success event will always be sent alongside a subscription_payment_recovered event.'
+    subscription_payment_refunded:
+        resource: subscription-invoices
+        description: 'Occurs when a subscription payment is refunded.'
+    license_key_created:
+        resource: license-keys
+        description: 'Occurs when a license key is created from a new order. An order_created event will always be sent alongside a license_key_created event.'
+    license_key_updated:
+        resource: license-keys
+        description: 'Occurs when a license key is updated.'
+    affiliate_activated:
+        resource: affiliates
+        description: 'Occurs when an affiliate is activated.'
+review:
+    - 'signature: default scheme (HMAC-SHA256 of the raw body, hex-encoded, in the X-Signature header), check it against the API docs'
+    - 'events: resources were derived from the object names of the events doc'
+    - 'meta: the shape comes from one example, it may lack optional keys'

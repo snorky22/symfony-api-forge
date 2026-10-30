@@ -21,9 +21,37 @@ final class ArrayShapeGenerator
         return "/**\n".implode("\n", array_map(static fn (string $line) => rtrim(' * '.$line), $lines))."\n */";
     }
 
-    public function generate(mixed $data): string
+    /**
+     * @param bool $optionalKeys make the top-level keys optional (e.g. for request attributes)
+     */
+    public function generate(mixed $data, bool $optionalKeys = false): string
     {
-        return $this->render($this->infer($data), 0);
+        return $this->generateMerged([$data], $optionalKeys);
+    }
+
+    /**
+     * Generates a single shape describing all the given items, e.g. the elements of a list.
+     *
+     * @param list<mixed> $items
+     */
+    public function generateMerged(array $items, bool $optionalKeys = false): string
+    {
+        $type = null;
+        foreach ($items as $item) {
+            $type = $this->merge($type, $this->infer($item));
+        }
+        if (null === $type) {
+            return 'mixed';
+        }
+
+        if ($optionalKeys && null !== $type['shape']) {
+            foreach ($type['shape']['keys'] as &$entry) {
+                $entry['count'] = 0;
+            }
+            unset($entry);
+        }
+
+        return $this->render($type, 0);
     }
 
     /**

@@ -1,0 +1,126 @@
+<?php
+
+namespace App\Dev\Api\Import;
+
+use App\Dev\ArrayShapeGenerator;
+use App\Dev\LenientJsonDecoder;
+use Symfony\Component\String\Inflector\EnglishInflector;
+
+use function Symfony\Component\String\u;
+
+/**
+ * Reads webhook documentation: the table of event types, and example payloads.
+ */
+final class WebhookImporter
+{
+    /** Where APIs usually put the event name, by order of preference. */
+    private const EVENT_NAME_PATHS = ['meta.event_name', 'event_name', 'event_type', 'event', 'type'];
+
+    public function __construct(
+        private readonly LenientJsonDecoder $decoder,
+        private readonly ArrayShapeGenerator $shapeGenerator,
+    ) {
+    }
+
+    /**
+     * Reads a Markdown table of events, as found in API docs:
+     *
+     *     | Event Name      | Data Sent                       | Description                 |
+     *     | `order_created` | [Order object](https://...)     | Occurs when a new order ... |
+     *
+     * The resource is derived from the object name ("Subscription invoice object" gives "subscription-invoices").
+     *
+     * @return array<string, array{resource?: string, description?: string}> by event name
+     */
+    public function importEvents(string $markdown): array
+    {
+        $events = [];
+        foreach (explode("\n", $markdown) as $line) {
+            $line = trim($line);
+            if (!str_starts_with($line, '|')) {
+                continue;
+            }
+
+            $cells = array_map(fn (string $cell) => $this->plainText($cell), explode('|', trim($line, '|')));
+            if (!preg_match('/^[a-z0-9]+(?:[._:-][a-z0-9]+)*$/i', $cells[0]) || !preg_match('/[._:-]/', $cells[0])) {
+                continue; // header, separator or not an event row
+            }
+
+            $event = [];
+            if ('' !== $resource = $this->resourceName($cells[1] ?? '')) {
+                $event['resource'] = $resource;
+            }
+            if ('' !== ($cells[2] ?? '')) {
+                $event['description'] = $cells[2];
+            }
+            $events[$cells[0]] = $event;
+        }
+
+        return $events;
+    }
+
+    /**
+     * Describes an example payload.
+     *
+     * @param string $format API format, "json" or "jsonapi"
+     *
+     * @return array{event: ?string, event_path: ?string, type: ?string, meta: ?string, data: ?string, shape: ?string}
+     *                event name and its location, JSON:API type, shapes of "meta" and "data" (JSON:API),
+     *                or of the whole payload (JSON)
+     */
+    public function importPayload(string $json, string $format): array
+    {
+        try {
+            $payload = $this->decoder->decode($json, false);
+        } catch (\JsonException $e) {
+            throw new \InvalidArgumentException('The payload example is not valid JSON: '.$e->getMessage(), 0, $e);
+        }
+        if (!$payload instanceof \stdClass) {
+            throw new \InvalidArgumentException('The payload example is not a JSON object.');
+        }
+
+        $result = ['event' => null, 'event_path' => null, 'type' => null, 'meta' => null, 'data' => null, 'shape' => null];
+        foreach (self::EVENT_NAME_PATHS as $path) {
+            $value = $payload;
+            foreach (explode('.', $path) as $key) {
+                $value = $value instanceof \stdClass ? ($value->{$key} ?? null) : null;
+            }
+            if (\is_string($value) && '' !== $value) {
+                $result['event'] = $value;
+                $result['event_path'] = $path;
+                break;
+            }
+        }
+
+        $data = $payload->data ?? null;
+        if ('jsonapi' === $format && $data instanceof \stdClass && \is_string($data->type ?? null)) {
+            $result['type'] = $data->type;
+            $result['data'] = $this->shapeGenerator->generate($data);
+            $result['meta'] = isset($payload->meta) ? $this->shapeGenerator->generate($payload->meta) : null;
+        } else {
+            $result['shape'] = $this->shapeGenerator->generate($payload);
+        }
+
+        return $result;
+    }
+
+    private function plainText(string $markdown): string
+    {
+        $text = preg_replace('/\[([^\]]*)\]\([^)]*\)/', '$1', $markdown); // [text](url) → text
+
+        return trim(str_replace('`', '', $text));
+    }
+
+    private function resourceName(string $objectName): string
+    {
+        $name = trim(preg_replace('/\s+object$/i', '', trim($objectName)));
+        if ('' === $name) {
+            return '';
+        }
+
+        $words = explode('-', u($name)->snake()->replace('_', '-')->toString());
+        $words[] = (new EnglishInflector())->pluralize(array_pop($words))[0];
+
+        return implode('-', $words);
+    }
+}

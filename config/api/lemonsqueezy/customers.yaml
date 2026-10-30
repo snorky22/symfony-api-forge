@@ -1,0 +1,96 @@
+resource: customers
+type: customers
+object:
+    shape: |-
+        array{
+            type: string,
+            id: string,
+            attributes: array{
+                store_id: int,
+                name: string,
+                email: string,
+                status: string,
+                city: mixed,
+                region: mixed,
+                country: string,
+                total_revenue_currency: int,
+                mrr: int,
+                status_formatted: string,
+                country_formatted: string,
+                total_revenue_currency_formatted: string,
+                mrr_formatted: string,
+                urls: array{
+                    customer_portal: string,
+                },
+                created_at: string,
+                updated_at: string,
+                test_mode: bool,
+            },
+        }
+    review:
+        - 'object: "mixed" marks values that are null in the example, their real type is unknown'
+operations:
+    list:
+        method: GET
+        path: customers
+        query:
+            'filter[store_id]':
+                type: int
+                required: false
+                example: '1'
+        response:
+            data: list
+        review:
+            - 'no response example: assumed to be a JSON:API document of the resource'
+            - 'query parameters are assumed optional'
+    get:
+        method: GET
+        path: 'customers/{id}'
+        parameters:
+            id:
+                example: '1'
+        response:
+            data: object
+        review:
+            - 'path parameter {id} guessed from the example value "1"'
+            - 'no response example: assumed to be a JSON:API document of the resource'
+    create:
+        method: POST
+        path: customers
+        body:
+            attributes:
+                shape: |-
+                    array{
+                        name?: string,
+                        email?: string,
+                        city?: string,
+                        region?: string,
+                        country?: string,
+                    }
+            relationships:
+                store: stores
+        response:
+            data: object
+        review:
+            - 'request body: all attributes are typed as optional, remove the "?" of the required ones'
+            - 'no response example: assumed to be a JSON:API document of the resource'
+    update:
+        method: PATCH
+        path: 'customers/{id}'
+        parameters:
+            id:
+                example: '1'
+        body:
+            attributes:
+                shape: |-
+                    array{
+                        name?: string,
+                        email?: string,
+                        status?: string,
+                    }
+        response:
+            data: object
+        review:
+            - 'path parameter {id} guessed from the example value "1"'
+            - 'request body: all attributes are typed as optional, remove the "?" of the required ones'
+            - 'no response example: assumed to be a JSON:API document of the resource'

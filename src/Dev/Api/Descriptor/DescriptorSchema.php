@@ -1,0 +1,235 @@
+<?php
+
+namespace App\Dev\Api\Descriptor;
+
+use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
+use Symfony\Component\Config\Definition\Builder\NodeBuilder;
+use Symfony\Component\Config\Definition\Builder\TreeBuilder;
+use Symfony\Component\Config\Definition\NodeInterface;
+
+/**
+ * Schema of the descriptor files, the reference for their format.
+ *
+ * Keys are never normalized (no "-" to "_" conversion), as they are header, parameter or relationship names.
+ */
+final class DescriptorSchema
+{
+    public static function api(): NodeInterface
+    {
+        $tree = new TreeBuilder('api');
+        $root = $tree->getRootNode()->normalizeKeys(false);
+        $root
+            ->children()
+                ->scalarNode('base_uri')->isRequired()->cannotBeEmpty()
+                    ->validate()
+                        ->ifTrue(static fn ($uri) => !preg_match('#^https?://[^/]+/#', rtrim($uri, '/').'/'))
+                        ->thenInvalid('Must be an absolute http(s) URL, got %s.')
+                    ->end()
+                    ->validate()->always(static fn ($uri) => rtrim($uri, '/').'/')->end()
+                ->end()
+                ->enumNode('format')->values(['json', 'jsonapi'])->defaultValue('json')->end()
+                ->scalarNode('namespace')
+                    ->info('PHP namespace segment of the generated code, e.g. "LemonSqueezy"; derived from the API name when null')
+                    ->defaultNull()
+                    ->validate()
+                        ->ifTrue(static fn ($ns) => null !== $ns && !preg_match('/^[A-Z][A-Za-z0-9]*$/', $ns))
+                        ->thenInvalid('Must be a PascalCase identifier, got %s.')
+                    ->end()
+                ->end()
+                ->arrayNode('headers')->normalizeKeys(false)->useAttributeAsKey('name')->scalarPrototype()->end()->end()
+                ->arrayNode('auth')
+                    ->children()
+                        ->enumNode('type')->values(['bearer', 'basic', 'header'])->isRequired()->end()
+                        ->scalarNode('env')->isRequired()
+                            ->validate()
+                                ->ifTrue(static fn ($env) => !preg_match('/^[A-Z][A-Z0-9_]*$/', $env))
+                                ->thenInvalid('Must be an environment variable name, got %s.')
+                            ->end()
+                        ->end()
+                        ->scalarNode('header')->defaultNull()->end()
+                    ->end()
+                    ->validate()
+                        ->ifTrue(static fn ($auth) => 'header' === $auth['type'] && null === $auth['header'])
+                        ->thenInvalid('The "header" key is required for the "header" auth type.')
+                    ->end()
+                ->end()
+                ->append(self::review())
+            ->end();
+
+        return $tree->buildTree();
+    }
+
+    public static function resource(): NodeInterface
+    {
+        $tree = new TreeBuilder('resource');
+        $root = $tree->getRootNode()->normalizeKeys(false);
+        $root
+            ->children()
+                ->scalarNode('resource')->isRequired()->cannotBeEmpty()->end()
+                ->scalarNode('type')->info('JSON:API resource type')->defaultNull()->end()
+                ->arrayNode('object')
+                    ->info('Shape of one resource object, used by the JSON:API operations returning "data: object|list"')
+                    ->children()
+                        ->scalarNode('shape')->isRequired()->cannotBeEmpty()->end()
+                        ->append(self::review())
+                    ->end()
+                ->end()
+                ->append(self::review())
+                ->arrayNode('operations')
+                    ->normalizeKeys(false)
+                    ->useAttributeAsKey('name')
+                    ->arrayPrototype()
+                        ->normalizeKeys(false)
+                        ->children()
+                            ->enumNode('method')->values(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])->isRequired()
+                                ->beforeNormalization()->ifString()->then(static fn ($method) => strtoupper($method))->end()
+                            ->end()
+                            ->scalarNode('path')->isRequired()->cannotBeEmpty()->end()
+                            ->arrayNode('parameters')
+                                ->normalizeKeys(false)
+                                ->useAttributeAsKey('name')
+                                ->arrayPrototype()
+                                    ->children()
+                                        ->scalarNode('example')->defaultNull()->end()
+                                        ->scalarNode('description')->defaultNull()->end()
+                                    ->end()
+                                ->end()
+                            ->end()
+                            ->arrayNode('query')
+                                ->normalizeKeys(false)
+                                ->useAttributeAsKey('name')
+                                ->arrayPrototype()
+                                    ->children()
+                                        ->enumNode('type')->values(['string', 'int', 'float', 'bool'])->defaultValue('string')->end()
+                                        ->booleanNode('required')->defaultFalse()->end()
+                                        ->scalarNode('example')->defaultNull()->end()
+                                        ->scalarNode('description')->defaultNull()->end()
+                                    ->end()
+                                ->end()
+                            ->end()
+                            ->arrayNode('headers')->normalizeKeys(false)->useAttributeAsKey('name')->scalarPrototype()->end()->end()
+                            ->arrayNode('body')
+                                ->info('Either "shape" (JSON body), "raw" (text body), or "attributes" and "relationships" (JSON:API)')
+                                ->children()
+                                    ->scalarNode('shape')->end()
+                                    ->scalarNode('raw')->end()
+                                    ->arrayNode('attributes')
+                                        ->children()->scalarNode('shape')->isRequired()->cannotBeEmpty()->end()->end()
+                                    ->end()
+                                    ->arrayNode('relationships')
+                                        ->info('Relationship name => related type, "stores" (to-one) or "tags[]" (to-many)')
+                                        ->normalizeKeys(false)
+                                        ->useAttributeAsKey('name')
+                                        ->scalarPrototype()
+                                            ->validate()
+                                                ->ifTrue(static fn ($type) => !preg_match('/^[\w-]+(\[\])?$/', $type))
+                                                ->thenInvalid('Must be a resource type, optionally followed by "[]", got %s.')
+                                            ->end()
+                                        ->end()
+                                    ->end()
+                                ->end()
+                                ->validate()
+                                    ->ifTrue(static fn ($body) => 1 !== \count(array_filter([isset($body['shape']), isset($body['raw']), isset($body['attributes'])])))
+                                    ->thenInvalid('Exactly one of "shape", "raw" or "attributes" is required.')
+                                ->end()
+                            ->end()
+                            ->arrayNode('response')
+                                ->info('Either "shape" (full response shape) or "data" (JSON:API document of the resource object)')
+                                ->children()
+                                    ->scalarNode('shape')->end()
+                                    ->enumNode('data')->values(['object', 'list'])->end()
+                                ->end()
+                                ->validate()
+                                    ->ifTrue(static fn ($response) => isset($response['shape']) === isset($response['data']))
+                                    ->thenInvalid('Exactly one of "shape" or "data" is required.')
+                                ->end()
+                            ->end()
+                            ->append(self::review())
+                        ->end()
+                    ->end()
+                ->end()
+            ->end();
+
+        return $tree->buildTree();
+    }
+
+    public static function webhooks(): NodeInterface
+    {
+        $tree = new TreeBuilder('webhooks');
+        $root = $tree->getRootNode()->normalizeKeys(false);
+        $root
+            ->children()
+                ->arrayNode('signature')
+                    ->info('HMAC signature of the raw request body')
+                    ->isRequired()
+                    ->children()
+                        ->scalarNode('header')->isRequired()->cannotBeEmpty()->end()
+                        ->scalarNode('algorithm')->defaultValue('sha256')
+                            ->validate()
+                                ->ifNotInArray(hash_hmac_algos())
+                                ->thenInvalid('Unknown HMAC algorithm %s.')
+                            ->end()
+                        ->end()
+                        ->enumNode('encoding')->values(['hex', 'base64'])->defaultValue('hex')->end()
+                        ->scalarNode('prefix')->info('Prefix of the header value, e.g. "sha256="')->defaultValue('')->end()
+                        ->scalarNode('env')->isRequired()
+                            ->validate()
+                                ->ifTrue(static fn ($env) => !preg_match('/^[A-Z][A-Z0-9_]*$/', $env))
+                                ->thenInvalid('Must be an environment variable name, got %s.')
+                            ->end()
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('event_name')
+                    ->info('Where the event name is: "path" in the payload (dot notation) or "header"')
+                    ->isRequired()
+                    ->children()
+                        ->scalarNode('path')->defaultNull()->end()
+                        ->scalarNode('header')->defaultNull()->end()
+                    ->end()
+                    ->validate()
+                        ->ifTrue(static fn ($location) => (null === $location['path']) === (null === $location['header']))
+                        ->thenInvalid('Exactly one of "path" or "header" is required.')
+                    ->end()
+                ->end()
+                ->arrayNode('event_id')
+                    ->info('Where a unique delivery id is, if any; the id defaults to a hash of the body')
+                    ->children()
+                        ->scalarNode('path')->defaultNull()->end()
+                        ->scalarNode('header')->defaultNull()->end()
+                    ->end()
+                ->end()
+                ->arrayNode('meta')
+                    ->info('Shape of the "meta" member of JSON:API payloads')
+                    ->children()->scalarNode('shape')->isRequired()->cannotBeEmpty()->end()->end()
+                ->end()
+                ->arrayNode('events')
+                    ->normalizeKeys(false)
+                    ->useAttributeAsKey('name')
+                    ->arrayPrototype()
+                        ->info('Either "resource" (JSON:API: data is an object of this resource) or "shape" (whole payload)')
+                        ->children()
+                            ->scalarNode('resource')->defaultNull()->end()
+                            ->scalarNode('shape')->defaultNull()->end()
+                            ->scalarNode('description')->defaultNull()->end()
+                            ->append(self::review())
+                        ->end()
+                        ->validate()
+                            ->ifTrue(static fn ($event) => null !== $event['resource'] && null !== $event['shape'])
+                            ->thenInvalid('"resource" and "shape" cannot be used together.')
+                        ->end()
+                    ->end()
+                ->end()
+                ->append(self::review())
+            ->end();
+
+        return $tree->buildTree();
+    }
+
+    private static function review(): ArrayNodeDefinition
+    {
+        return (new NodeBuilder())->arrayNode('review')
+            ->info('Notes left by the importer, to check and delete')
+            ->scalarPrototype()->end();
+    }
+}
