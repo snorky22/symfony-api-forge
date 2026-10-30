@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Command;
+namespace Snorky22\ApiForge\Command;
 
-use App\Dev\Api\Descriptor\DescriptorStore;
-use App\Dev\Api\Import\DescriptorMerger;
-use App\Dev\Api\Import\WebhookImporter;
-use App\Dev\Api\Import\WebhookMerger;
+use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
+use Snorky22\ApiForge\Dev\Api\Import\DescriptorMerger;
+use Snorky22\ApiForge\Dev\Api\Import\WebhookImporter;
+use Snorky22\ApiForge\Dev\Api\Import\WebhookMerger;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
@@ -13,7 +13,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'app:api:import-webhook',
+    name: 'api-forge:import-webhook',
     description: 'Imports webhook documentation (events table, payload examples) into the API descriptors',
     help: <<<'HELP'
         Writes or updates <comment>config/api/<api>/_webhooks.yaml</comment>:
@@ -46,7 +46,7 @@ final class ApiImportWebhookCommand
         #[Option('Markdown file with the table of events')] ?string $events = null,
         #[Option('File with an example payload (repeatable)')] array $payload = [],
         #[Option('Event name of the payload, when it cannot be read from it')] ?string $event = null,
-        #[Option('Descriptor directory (default: config/api)')] ?string $dir = null,
+        #[Option('Descriptor directory (default: api_forge.descriptor_dir, config/api)')] ?string $dir = null,
     ): int {
         if (null === $events && [] === $payload) {
             $io->error('Give --events and/or --payload.');
@@ -81,7 +81,7 @@ final class ApiImportWebhookCommand
                     $descriptor = $this->store->loadResource($api, $resource, $dir);
                     if (isset($descriptor['object'])) {
                         if ($descriptor['object']['shape'] !== $description['data']) {
-                            $review[] = \sprintf('payload data differs from the "%s" object shape: merge both examples into the object shape with app:api:import-object --force, or edit it', $resource);
+                            $review[] = \sprintf('payload data differs from the "%s" object shape: merge both examples into the object shape with api-forge:import-object --force, or edit it', $resource);
                         }
                     } else {
                         $merged = $this->descriptorMerger->mergeObject($descriptor, $resource, $description['type'], ['shape' => $description['data']]);

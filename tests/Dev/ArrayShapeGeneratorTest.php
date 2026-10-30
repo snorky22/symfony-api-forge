@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Tests\Dev;
+namespace Snorky22\ApiForge\Tests\Dev;
 
-use App\Dev\ArrayShapeGenerator;
 use PHPUnit\Framework\TestCase;
+use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 
 final class ArrayShapeGeneratorTest extends TestCase
 {

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Dev\Api;
+namespace Snorky22\ApiForge\Dev\Api;
 
 use Symfony\Component\String\Inflector\EnglishInflector;
 

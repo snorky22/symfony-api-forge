@@ -3,23 +3,23 @@
 ## Adding an endpoint
 
 1. Copy the curl example from the API docs into a file, and the example response (if any) into
-   another one. Fixtures used by tests live in `tests/Fixtures/`.
+   another one.
 2. Import it:
    ```bash
-   bin/console app:api:import lemonsqueezy path/to/curl --response=path/to/response.json
+   bin/console api-forge:import lemonsqueezy path/to/curl --response=path/to/response.json
    ```
    The command shows the resource, the operation name and the path template it inferred, and the
    points to review.
 3. If the docs describe the resource object on its own ("The customer object"), import it as well.
    It types all the operations of the resource, including those without a response example:
    ```bash
-   bin/console app:api:import-object lemonsqueezy customers path/to/customer-object.json
+   bin/console api-forge:import-object lemonsqueezy customers path/to/customer-object.json
    ```
 4. Review the descriptor in `config/api/<api>/<resource>.yaml` (see below), then delete the
    `review` notes you have dealt with.
 5. Regenerate:
    ```bash
-   bin/console app:api:generate lemonsqueezy
+   bin/console api-forge:generate lemonsqueezy
    ```
 6. Commit the descriptors and the generated files together: the diff of the generated code shows
    the effect of the descriptor changes.
@@ -32,7 +32,7 @@ query parameters to the existing operation (e.g. `curl-list-customers-1` then `c
 1. Copy the table of event types from the docs into a Markdown file, and the payload examples into
    JSON files. Import them:
    ```bash
-   bin/console app:api:import-webhook lemonsqueezy --events=path/to/events.md \
+   bin/console api-forge:import-webhook lemonsqueezy --events=path/to/events.md \
        --payload=path/to/order-created-payload.json
    ```
    The first import creates `config/api/<api>/_webhooks.yaml`.
@@ -42,8 +42,8 @@ query parameters to the existing operation (e.g. `curl-list-customers-1` then `c
    `subtotal: 1499.985` in webhooks, an integer in the order object). The importer reports it; merge
    all the examples into the object shape:
    ```bash
-   bin/console app:api:import-object lemonsqueezy orders tests/Fixtures/order-object.json \
-       tests/Fixtures/order-created-payload.json --force
+   bin/console api-forge:import-object lemonsqueezy orders path/to/order-object.json \
+       path/to/order-created-payload.json --force
    ```
    This gives `subtotal: int|float`, `refunded: ?bool`, and makes optional the keys missing from some
    examples.
@@ -74,24 +74,24 @@ The importer lists its guesses under `review`. The usual ones:
 | `query parameters are assumed optional` | Set `required: true` where needed |
 | `no response example: assumed to be a JSON:API document of the resource` | Check the docs |
 | `signature: default scheme ...` | Check the signing scheme in the API docs |
-| `payload data differs from the "orders" object shape` | Merge the examples with `app:api:import-object --force` |
-| `the resource "subscriptions" has no object shape` (shown by `app:api:generate`) | Import the resource object |
+| `payload data differs from the "orders" object shape` | Merge the examples with `api-forge:import-object --force` |
+| `the resource "subscriptions" has no object shape` (shown by `api-forge:generate`) | Import the resource object |
 
-`app:api:generate` lists the notes left, and `--strict` makes it fail while any remain.
+`api-forge:generate` lists the notes left, and `--strict` makes it fail while any remain.
 
 Note: re-importing rewrites the YAML file, so YAML comments are lost. Keep notes in `review` entries.
 
 ## Keeping generated code up to date
 
-`tests/Command/ApiGenerateCommandTest.php` runs `app:api:generate lemonsqueezy --check`, so the test
-suite fails if the committed generated code does not match the descriptors. Add the same check for
-each new API.
+Run `api-forge:generate <api> --check` in CI or in a test: it fails if the committed generated code does
+not match the descriptors. In the bundle, `tests/Command/ApiGenerateCommandTest.php` runs it on the
+Lemon Squeezy example.
 
 ## Converting a single JSON example
 
 To look at a JSON example as PHP, or to get its PHPDoc shape (e.g. for test fixtures):
 
 ```bash
-bin/console app:json-to-php tests/Fixtures/json-example.json --shape
-pbpaste | bin/console app:json-to-php --shape-only --tag='phpstan-type Order'
+bin/console api-forge:json-to-php path/to/example.json --shape
+pbpaste | bin/console api-forge:json-to-php --shape-only --tag='phpstan-type Order'
 ```

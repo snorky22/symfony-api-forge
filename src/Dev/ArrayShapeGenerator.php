@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Dev;
+namespace Snorky22\ApiForge\Dev;
 
 /**
  * Infers a PHPDoc array shape (PHPStan / Psalm / PhpStorm syntax) from example data.

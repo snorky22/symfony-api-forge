@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Dev\Api\Import;
+namespace Snorky22\ApiForge\Dev\Api\Import;
 
-use App\Dev\ArrayShapeGenerator;
-use App\Dev\LenientJsonDecoder;
+use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
+use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 use Symfony\Component\String\Inflector\EnglishInflector;
 
 use function Symfony\Component\String\u;

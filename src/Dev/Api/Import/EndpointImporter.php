@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Dev\Api\Import;
+namespace Snorky22\ApiForge\Dev\Api\Import;
 
-use App\Dev\Api\Curl\CurlRequest;
-use App\Dev\ArrayShapeGenerator;
-use App\Dev\LenientJsonDecoder;
+use Snorky22\ApiForge\Dev\Api\Curl\CurlRequest;
+use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
+use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 
 use function Symfony\Component\String\u;
 

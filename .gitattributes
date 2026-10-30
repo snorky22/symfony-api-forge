@@ -1,0 +1,7 @@
+# Not shipped in the Composer package (dist archives)
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/.editorconfig export-ignore
+/phpunit.dist.xml export-ignore
+/tests export-ignore
+/examples export-ignore

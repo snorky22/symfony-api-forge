@@ -1,8 +1,7 @@
 <?php
 
-namespace App\Dev\Api\Descriptor;
+namespace Snorky22\ApiForge\Dev\Api\Descriptor;
 
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Yaml\Yaml;
 
@@ -16,8 +15,10 @@ final class DescriptorStore
     private const API_FILE = '_api';
     private const WEBHOOKS_FILE = '_webhooks';
 
+    /**
+     * @param string $directory default descriptor directory
+     */
     public function __construct(
-        #[Autowire('%kernel.project_dir%/config/api')]
         private readonly string $directory,
         private readonly Filesystem $filesystem = new Filesystem(),
     ) {

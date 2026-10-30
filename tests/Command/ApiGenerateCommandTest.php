@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Tests\Command;
+namespace Snorky22\ApiForge\Tests\Command;
 
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -11,6 +11,8 @@ use Symfony\Component\Yaml\Yaml;
 
 final class ApiGenerateCommandTest extends KernelTestCase
 {
+    private const EXAMPLE = __DIR__.'/../../examples/lemonsqueezy';
+
     private string $dir;
 
     protected function setUp(): void
@@ -33,13 +35,16 @@ final class ApiGenerateCommandTest extends KernelTestCase
 
     private function generate(array $options = [], string $api = 'shop'): CommandTester
     {
-        $tester = new CommandTester((new Application(self::bootKernel()))->find('app:api:generate'));
-        $tester->execute(['api' => $api] + ('shop' === $api ? ['--dir' => $this->dir.'/descriptors', '--output' => $this->dir.'/project'] : []) + $options);
+        $tester = new CommandTester((new Application(self::bootKernel()))->find('api-forge:generate'));
+        $paths = 'shop' === $api
+            ? ['--dir' => $this->dir.'/descriptors', '--output' => $this->dir.'/project']
+            : ['--dir' => self::EXAMPLE.'/config/api', '--output' => self::EXAMPLE];
+        $tester->execute(['api' => $api] + $paths + $options);
 
         return $tester;
     }
 
-    public function testCommittedLemonSqueezyCodeIsUpToDate(): void
+    public function testLemonSqueezyExampleIsUpToDate(): void
     {
         $tester = $this->generate(['--check' => true], 'lemonsqueezy');
 

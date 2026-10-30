@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Command;
+namespace Snorky22\ApiForge\Command;
 
-use App\Dev\ArrayShapeGenerator;
-use App\Dev\LenientJsonDecoder;
+use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
+use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
@@ -15,7 +15,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\VarExporter\VarExporter;
 
 #[AsCommand(
-    name: 'app:json-to-php',
+    name: 'api-forge:json-to-php',
     description: 'Converts a JSON example (e.g. from API docs) to a PHP array literal and/or a PHPDoc array shape',
     help: <<<'HELP'
         Reads JSON from a file, or from stdin when no file is given:

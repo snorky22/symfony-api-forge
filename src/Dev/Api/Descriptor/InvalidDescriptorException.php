@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Dev\Api\Descriptor;
+namespace Snorky22\ApiForge\Dev\Api\Descriptor;
 
 final class InvalidDescriptorException extends \InvalidArgumentException
 {

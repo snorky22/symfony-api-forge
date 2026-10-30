@@ -1,23 +1,8 @@
-
-###> symfony/framework-bundle ###
-/.env.local
-/.env.local.php
-/.env.*.local
-/config/secrets/prod/prod.decrypt.private.php
-/public/bundles/
-/var/
 /vendor/
-###< symfony/framework-bundle ###
-
-###> phpunit/phpunit ###
+/composer.lock
 /phpunit.xml
 /.phpunit.cache/
-###< phpunit/phpunit ###
-
-###> symfony/asset-mapper ###
-/public/assets/
-/assets/vendor/
-###< symfony/asset-mapper ###
+/var/
 
 ###> PhpStorm ###
 /.idea/

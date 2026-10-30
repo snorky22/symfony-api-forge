@@ -79,8 +79,8 @@ $api->checkouts->create(['custom_price' => 50000], ['store' => 1, 'variant' => 1
 
 | Situation | Exception |
 |---|---|
-| The API answers with a 4xx or 5xx status | `App\Api\Core\ApiException` |
-| The response is not valid JSON | `App\Api\Core\ApiException` |
+| The API answers with a 4xx or 5xx status | `Snorky22\ApiForge\Core\ApiException` |
+| The response is not valid JSON | `Snorky22\ApiForge\Core\ApiException` |
 | A network error | `Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface` |
 
 `ApiException` has the HTTP status (`statusCode`), the decoded error response (`content`), and a
@@ -95,9 +95,9 @@ try {
 }
 ```
 
-## Runtime layer (`src/Api/Core/`)
+## Runtime layer (`Snorky22\ApiForge\Core`)
 
-Hand-written code shared by all generated classes:
+Classes of the package shared by all generated classes:
 
 - `AbstractResource::request()` fills the path placeholders, drops `null` query values, sends the
   request through the scoped client, decodes the response and converts errors to `ApiException`.
@@ -116,12 +116,12 @@ Never edit generated files: they are overwritten. Instead:
 Build the resources with a mock client:
 
 ```php
-use App\Dev\LenientJsonDecoder;
+use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\JsonMockResponse;
 
 // The lenient decoder accepts documentation JSON ({...} placeholders, trailing commas)
-$response = new JsonMockResponse((new LenientJsonDecoder())->decode(file_get_contents('tests/Fixtures/json-example.json')));
+$response = new JsonMockResponse((new LenientJsonDecoder())->decode(file_get_contents('path/to/orders-example.json')));
 $orders = new Orders(new MockHttpClient($response, 'https://api.lemonsqueezy.com/v1/'));
 
 $orders->list();

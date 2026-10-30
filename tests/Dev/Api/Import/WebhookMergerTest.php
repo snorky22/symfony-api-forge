@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Tests\Dev\Api\Import;
+namespace Snorky22\ApiForge\Tests\Dev\Api\Import;
 
-use App\Dev\Api\Import\WebhookMerger;
 use PHPUnit\Framework\TestCase;
+use Snorky22\ApiForge\Dev\Api\Import\WebhookMerger;
 
 final class WebhookMergerTest extends TestCase
 {

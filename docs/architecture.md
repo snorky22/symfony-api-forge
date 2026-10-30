@@ -31,40 +31,53 @@ Webhooks follow the same principle: the events and payload examples of the docs 
 `_webhooks.yaml`, from which the request parser, the event constants, the payload types and a base
 consumer are generated. The application only writes the consumer methods of the events it handles.
 
-## Components
+## The package
 
 ```
-src/
-├── Api/
-│   ├── Core/                    Runtime, hand-written, shared by all APIs
-│   │   ├── AbstractResource.php         request(), error handling
-│   │   ├── AbstractJsonApiResource.php  JSON:API documents, pagination
-│   │   ├── ApiException.php
-│   │   └── Webhook/
-│   │       ├── AbstractSignedRequestParser.php  HMAC signature, event name and id
-│   │       └── AbstractWebhookConsumer.php      calls the method of each event
-│   └── LemonSqueezy/Generated/  Generated, never edit
-│       ├── LemonSqueezyApi.php          entry point, one property per resource
-│       ├── Resource/*.php               one service per resource
-│       └── Webhook/                     request parser, event constants and payload types, base consumer
-├── Webhook/                     Webhook consumers, hand-written (application code)
-├── Command/                     Console commands (see commands.md)
-└── Dev/                         Development tools, not used at runtime
-    ├── LenientJsonDecoder.php           JSON from docs: comments, {...}, trailing commas
-    ├── ArrayShapeGenerator.php          JSON example → PHPDoc array shape
+src/                                     namespace Snorky22\ApiForge
+├── ApiForgeBundle.php                   registers the commands, "api_forge" configuration
+├── Core/                                Runtime, used by the generated code
+│   ├── AbstractResource.php                 request(), error handling
+│   ├── AbstractJsonApiResource.php          JSON:API documents, pagination
+│   ├── ApiException.php
+│   └── Webhook/
+│       ├── AbstractSignedRequestParser.php  HMAC signature, event name and id
+│       └── AbstractWebhookConsumer.php      calls the method of each event
+├── Command/                             Console commands (see commands.md)
+└── Dev/                                 Development tools, not used at runtime
+    ├── LenientJsonDecoder.php               JSON from docs: comments, {...}, trailing commas
+    ├── ArrayShapeGenerator.php              JSON example → PHPDoc array shape
     └── Api/
-        ├── Curl/                        curl command parser
-        ├── Import/                      importers (endpoints, objects, webhooks) and merge rules
-        ├── Descriptor/                  YAML storage, schema, strict loader, shape validator
-        ├── Generator/                   descriptor → PHP and YAML
-        └── Naming.php                   descriptor names → PHP names
+        ├── Curl/                            curl command parser
+        ├── Import/                          importers (endpoints, objects, webhooks) and merge rules
+        ├── Descriptor/                      YAML storage, schema, strict loader, shape validator
+        ├── Generator/                       descriptor → PHP and YAML
+        └── Naming.php                       descriptor names → PHP names
+examples/lemonsqueezy/                   An application's files for Lemon Squeezy (see below)
+tests/                                   Tests, test application (tests/App/TestKernel.php, tests/console)
+```
 
+The generated code depends on `Core` only, not on the bundle: the bundle is a development tool.
+
+## In an application
+
+With the default configuration (see the README), an application has:
+
+```
 config/
 ├── api/<api>/                   Descriptors (source of truth)
 ├── packages/api_<api>.yaml      Generated: scoped HTTP client, webhook routing
-├── packages/messenger.yaml      Webhook events routed to the "async" transport
-└── routes/webhook.yaml          /webhook/{type} route (Symfony recipe)
+├── packages/messenger.yaml      Webhook events routed to the "async" transport (application's choice)
+└── routes/webhook.yaml          /webhook/{type} route (recipe of symfony/webhook)
+src/
+├── Api/<Namespace>/Generated/   Generated, never edit
+│   ├── <Namespace>Api.php           entry point, one property per resource
+│   ├── Resource/*.php               one service per resource
+│   └── Webhook/                     request parser, event constants and payload types, base consumer
+└── Webhook/                     Webhook consumers, hand-written
 ```
+
+`examples/lemonsqueezy/` contains these files for Lemon Squeezy.
 
 ## Data types
 
@@ -80,8 +93,8 @@ from the same shapes.
 | `symfony/http-client` | HTTP requests, scoped clients (base URI, auth, headers) |
 | `symfony/config` | Descriptor schema and validation |
 | `symfony/yaml` | Descriptor files |
-| `symfony/var-exporter` | PHP array literals (`app:json-to-php`) |
+| `symfony/var-exporter` | PHP array literals (`api-forge:json-to-php`) |
 | `symfony/filesystem`, `symfony/finder` | Writing generated files, finding stale ones |
 | `phpstan/phpdoc-parser` | Validating the PHPDoc shapes of descriptors |
 | `symfony/webhook`, `symfony/remote-event` | Webhook endpoint, request parsers, consumers |
-| `symfony/messenger` | Asynchronous processing of webhook events |
+| `symfony/messenger` | Asynchronous processing of webhook events (required by Webhook) |

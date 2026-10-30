@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Tests\Command;
+namespace Snorky22\ApiForge\Tests\Command;
 
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -11,7 +11,7 @@ final class JsonToPhpCommandTest extends KernelTestCase
 {
     private function tester(): CommandTester
     {
-        return new CommandTester((new Application(self::bootKernel()))->find('app:json-to-php'));
+        return new CommandTester((new Application(self::bootKernel()))->find('api-forge:json-to-php'));
     }
 
     public function testConvertsDocumentationExampleFile(): void

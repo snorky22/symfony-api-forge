@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Command;
+namespace Snorky22\ApiForge\Command;
 
-use App\Dev\Api\Descriptor\DescriptorStore;
-use App\Dev\Api\Import\DescriptorMerger;
-use App\Dev\Api\Import\EndpointImporter;
+use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
+use Snorky22\ApiForge\Dev\Api\Import\DescriptorMerger;
+use Snorky22\ApiForge\Dev\Api\Import\EndpointImporter;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
@@ -12,7 +12,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'app:api:import-object',
+    name: 'api-forge:import-object',
     description: 'Imports a resource object example (e.g. "The customer object" in API docs) into a resource descriptor',
     help: <<<'HELP'
         Sets the "object" shape of <comment>config/api/<api>/<resource>.yaml</comment>, used by all its operations:
@@ -44,7 +44,7 @@ final class ApiImportObjectCommand
         #[Argument('Resource name, e.g. "customers"')] string $resource,
         #[Argument('Files containing example objects')] array $files,
         #[Option('Replace an existing object shape')] bool $force = false,
-        #[Option('Descriptor directory (default: config/api)')] ?string $dir = null,
+        #[Option('Descriptor directory (default: api_forge.descriptor_dir, config/api)')] ?string $dir = null,
     ): int {
         $json = [];
         foreach ($files as $file) {

@@ -2,13 +2,14 @@
 
 ## Done
 
-- `app:json-to-php`: JSON example → PHP array and PHPDoc shape
-- Curl parser and `app:api:import`, `app:api:import-object`: documentation → descriptors
-- Strict descriptor validation, runtime layer, `app:api:generate`
-- Webhooks: `app:api:import-webhook`, signed request parser, typed event consumers, asynchronous
+- `api-forge:json-to-php`: JSON example → PHP array and PHPDoc shape
+- Curl parser and `api-forge:import`, `api-forge:import-object`: documentation → descriptors
+- Strict descriptor validation, runtime layer, `api-forge:generate`
+- Webhooks: `api-forge:import-webhook`, signed request parser, typed event consumers, asynchronous
   processing with Messenger
-- Lemon Squeezy: customers, orders, checkouts, and the 17 webhook events (from the examples in
-  `tests/Fixtures/`)
+- Lemon Squeezy example: customers, orders, checkouts, and the 17 webhook events
+  (`examples/lemonsqueezy/`)
+- Symfony bundle `snorky22/symfony-api-forge`, MIT license, version 0.1.0
 
 ## Next
 

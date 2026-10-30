@@ -7,18 +7,19 @@
          failOnDeprecation="true"
          failOnNotice="true"
          failOnWarning="true"
-         bootstrap="tests/bootstrap.php"
+         bootstrap="vendor/autoload.php"
          cacheDirectory=".phpunit.cache"
 >
     <php>
         <ini name="display_errors" value="1" />
         <ini name="error_reporting" value="-1" />
         <server name="APP_ENV" value="test" force="true" />
+        <server name="KERNEL_CLASS" value="Snorky22\ApiForge\Tests\App\TestKernel" />
         <server name="SHELL_VERBOSITY" value="-1" />
     </php>
 
     <testsuites>
-        <testsuite name="Project Test Suite">
+        <testsuite name="symfony-api-forge">
             <directory>tests</directory>
         </testsuite>
     </testsuites>
@@ -33,12 +34,7 @@
         </include>
 
         <deprecationTrigger>
-            <method>Doctrine\Deprecations\Deprecation::trigger</method>
-            <method>Doctrine\Deprecations\Deprecation::delegateTriggerToBackend</method>
             <function>trigger_deprecation</function>
         </deprecationTrigger>
     </source>
-
-    <extensions>
-    </extensions>
 </phpunit>

@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Command;
+namespace Snorky22\ApiForge\Command;
 
-use App\Dev\Api\Curl\CurlParser;
-use App\Dev\Api\Descriptor\DescriptorStore;
-use App\Dev\Api\Import\DescriptorMerger;
-use App\Dev\Api\Import\EndpointImporter;
+use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
+use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
+use Snorky22\ApiForge\Dev\Api\Import\DescriptorMerger;
+use Snorky22\ApiForge\Dev\Api\Import\EndpointImporter;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
@@ -13,7 +13,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'app:api:import',
+    name: 'api-forge:import',
     description: 'Imports an endpoint from a documented curl command (and example response) into the API descriptors',
     help: <<<'HELP'
         Writes or updates <comment>config/api/<api>/_api.yaml</comment> and <comment>config/api/<api>/<resource>.yaml</comment>:
@@ -44,7 +44,7 @@ final class ApiImportCommand
         #[Option('Resource name (default: first path segment)')] ?string $resource = null,
         #[Option('Operation name (default: inferred from method and path)')] ?string $operation = null,
         #[Option('Replace an existing operation with the same name')] bool $force = false,
-        #[Option('Descriptor directory (default: config/api)')] ?string $dir = null,
+        #[Option('Descriptor directory (default: api_forge.descriptor_dir, config/api)')] ?string $dir = null,
     ): int {
         try {
             $request = $this->curlParser->parse($this->read($curl));

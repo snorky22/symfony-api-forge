@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Tests\Dev\Api\Import;
+namespace Snorky22\ApiForge\Tests\Dev\Api\Import;
 
-use App\Dev\Api\Import\DescriptorMerger;
-use App\Dev\Api\Import\ImportedEndpoint;
 use PHPUnit\Framework\TestCase;
+use Snorky22\ApiForge\Dev\Api\Import\DescriptorMerger;
+use Snorky22\ApiForge\Dev\Api\Import\ImportedEndpoint;
 
 final class DescriptorMergerTest extends TestCase
 {

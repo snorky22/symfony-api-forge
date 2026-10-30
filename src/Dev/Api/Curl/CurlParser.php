@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Dev\Api\Curl;
+namespace Snorky22\ApiForge\Dev\Api\Curl;
 
 /**
  * Parses curl commands as found in API documentation.

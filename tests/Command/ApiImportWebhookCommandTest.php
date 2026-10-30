@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Tests\Command;
+namespace Snorky22\ApiForge\Tests\Command;
 
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -37,7 +37,7 @@ final class ApiImportWebhookCommandTest extends KernelTestCase
 
     public function testPayloadGivesObjectOfUndescribedResource(): void
     {
-        $this->execute('app:api:import-webhook', [
+        $this->execute('api-forge:import-webhook', [
             '--events' => self::FIXTURES.'Docs Event Types • Lemon Squeezy.md',
             '--payload' => [self::FIXTURES.'order-created-payload.json'],
         ])->assertCommandIsSuccessful();
@@ -54,9 +54,9 @@ final class ApiImportWebhookCommandTest extends KernelTestCase
 
     public function testPayloadDifferingFromObjectIsReported(): void
     {
-        $this->execute('app:api:import-object', ['resource' => 'orders', 'files' => [self::FIXTURES.'order-object.json']])->assertCommandIsSuccessful();
+        $this->execute('api-forge:import-object', ['resource' => 'orders', 'files' => [self::FIXTURES.'order-object.json']])->assertCommandIsSuccessful();
 
-        $tester = $this->execute('app:api:import-webhook', ['--payload' => [self::FIXTURES.'order-created-payload.json']]);
+        $tester = $this->execute('api-forge:import-webhook', ['--payload' => [self::FIXTURES.'order-created-payload.json']]);
 
         $tester->assertCommandIsSuccessful();
         $webhooks = Yaml::parseFile($this->dir.'/lemonsqueezy/_webhooks.yaml');
@@ -65,7 +65,7 @@ final class ApiImportWebhookCommandTest extends KernelTestCase
 
     public function testMergedObjectCoversAllExamples(): void
     {
-        $this->execute('app:api:import-object', [
+        $this->execute('api-forge:import-object', [
             'resource' => 'orders',
             'files' => [self::FIXTURES.'order-object.json', self::FIXTURES.'order-created-payload.json'],
         ])->assertCommandIsSuccessful();
@@ -78,6 +78,6 @@ final class ApiImportWebhookCommandTest extends KernelTestCase
 
     public function testRequiresInput(): void
     {
-        self::assertSame(Command::FAILURE, $this->execute('app:api:import-webhook', [])->getStatusCode());
+        self::assertSame(Command::FAILURE, $this->execute('api-forge:import-webhook', [])->getStatusCode());
     }
 }

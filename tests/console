@@ -1,0 +1,11 @@
+#!/usr/bin/env php
+<?php
+
+// Console of the test application, for the development of the bundle: php tests/console list
+
+use Snorky22\ApiForge\Tests\App\TestKernel;
+use Symfony\Bundle\FrameworkBundle\Console\Application;
+
+require dirname(__DIR__).'/vendor/autoload.php';
+
+exit((new Application(new TestKernel('test', true)))->run());

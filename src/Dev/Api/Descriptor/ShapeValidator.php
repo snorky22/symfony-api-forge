@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Dev\Api\Descriptor;
+namespace Snorky22\ApiForge\Dev\Api\Descriptor;
 
 use PHPStan\PhpDocParser\Lexer\Lexer;
 use PHPStan\PhpDocParser\Parser\ConstExprParser;

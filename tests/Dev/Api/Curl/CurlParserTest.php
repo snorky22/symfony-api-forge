@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Tests\Dev\Api\Curl;
+namespace Snorky22\ApiForge\Tests\Dev\Api\Curl;
 
-use App\Dev\Api\Curl\CurlParser;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
 
 final class CurlParserTest extends TestCase
 {

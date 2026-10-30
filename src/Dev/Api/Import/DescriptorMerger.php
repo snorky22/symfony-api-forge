@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Dev\Api\Import;
+namespace Snorky22\ApiForge\Dev\Api\Import;
 
 /**
  * Merges an imported endpoint into existing descriptors.

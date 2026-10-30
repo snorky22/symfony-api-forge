@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Tests\Dev\Api\Import;
+namespace Snorky22\ApiForge\Tests\Dev\Api\Import;
 
-use App\Dev\Api\Curl\CurlParser;
-use App\Dev\Api\Import\EndpointImporter;
-use App\Dev\Api\Import\ImportedEndpoint;
-use App\Dev\ArrayShapeGenerator;
-use App\Dev\LenientJsonDecoder;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
+use Snorky22\ApiForge\Dev\Api\Import\EndpointImporter;
+use Snorky22\ApiForge\Dev\Api\Import\ImportedEndpoint;
+use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
+use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 
 final class EndpointImporterTest extends TestCase
 {

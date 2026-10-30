@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Tests\Command;
+namespace Snorky22\ApiForge\Tests\Command;
 
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -28,7 +28,7 @@ final class ApiImportCommandTest extends KernelTestCase
 
     private function import(string $curl, array $options = []): CommandTester
     {
-        $tester = new CommandTester((new Application(self::bootKernel()))->find('app:api:import'));
+        $tester = new CommandTester((new Application(self::bootKernel()))->find('api-forge:import'));
         $tester->execute(['api' => 'lemonsqueezy', 'curl' => self::FIXTURES.$curl, '--dir' => $this->dir] + $options);
 
         return $tester;
@@ -57,7 +57,7 @@ final class ApiImportCommandTest extends KernelTestCase
 
     public function testImportsObject(): void
     {
-        $tester = new CommandTester((new Application(self::bootKernel()))->find('app:api:import-object'));
+        $tester = new CommandTester((new Application(self::bootKernel()))->find('api-forge:import-object'));
         $tester->execute(['api' => 'lemonsqueezy', 'resource' => 'customers', 'files' => [self::FIXTURES.'customer-object.json'], '--dir' => $this->dir]);
         $tester->assertCommandIsSuccessful();
         $this->import('curl-customer-retrieve')->assertCommandIsSuccessful();

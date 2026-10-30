@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Tests\Dev;
+namespace Snorky22\ApiForge\Tests\Dev;
 
-use App\Dev\LenientJsonDecoder;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 
 final class LenientJsonDecoderTest extends TestCase
 {

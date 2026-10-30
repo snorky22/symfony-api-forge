@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Tests\Dev\Api\Import;
+namespace Snorky22\ApiForge\Tests\Dev\Api\Import;
 
-use App\Dev\Api\Import\WebhookImporter;
-use App\Dev\ArrayShapeGenerator;
-use App\Dev\LenientJsonDecoder;
 use PHPUnit\Framework\TestCase;
+use Snorky22\ApiForge\Dev\Api\Import\WebhookImporter;
+use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
+use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 
 final class WebhookImporterTest extends TestCase
 {

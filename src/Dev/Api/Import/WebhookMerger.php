@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Dev\Api\Import;
+namespace Snorky22\ApiForge\Dev\Api\Import;
 
 use function Symfony\Component\String\u;
 

@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Tests\Dev\Api\Descriptor;
+namespace Snorky22\ApiForge\Tests\Dev\Api\Descriptor;
 
-use App\Dev\Api\Descriptor\ApiDefinition;
-use App\Dev\Api\Descriptor\DescriptorLoader;
-use App\Dev\Api\Descriptor\DescriptorStore;
-use App\Dev\Api\Descriptor\InvalidDescriptorException;
-use App\Dev\Api\Descriptor\ShapeValidator;
 use PHPUnit\Framework\TestCase;
+use Snorky22\ApiForge\Dev\Api\Descriptor\ApiDefinition;
+use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorLoader;
+use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
+use Snorky22\ApiForge\Dev\Api\Descriptor\InvalidDescriptorException;
+use Snorky22\ApiForge\Dev\Api\Descriptor\ShapeValidator;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Yaml\Yaml;
 
@@ -171,7 +171,7 @@ final class DescriptorLoaderTest extends TestCase
         self::assertSame(['resource' => 'orders', 'description' => 'New order', 'shape' => null, 'review' => []], $definition->webhooks['events']['order_created']);
         self::assertSame([
             '_webhooks.yaml: check signature',
-            '_webhooks.yaml: the resource "subscriptions" has no object shape: the payload data of 2 events is untyped (import the resource object with app:api:import-object)',
+            '_webhooks.yaml: the resource "subscriptions" has no object shape: the payload data of 2 events is untyped (import the resource object with api-forge:import-object)',
         ], array_map(fn (string $note) => str_replace($this->dir.'/shop/', '', $note), $definition->review));
     }
 

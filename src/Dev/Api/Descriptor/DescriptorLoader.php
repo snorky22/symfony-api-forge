@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Dev\Api\Descriptor;
+namespace Snorky22\ApiForge\Dev\Api\Descriptor;
 
-use App\Dev\Api\Naming;
+use Snorky22\ApiForge\Dev\Api\Naming;
 use Symfony\Component\Config\Definition\Exception\Exception as ConfigException;
 use Symfony\Component\Config\Definition\NodeInterface;
 use Symfony\Component\Config\Definition\Processor;
@@ -140,7 +140,7 @@ final class DescriptorLoader
 
         foreach ($untyped as $resource => $events) {
             $review[] = \sprintf(
-                '%s: the resource "%s" has no object shape: the payload data of %s is untyped (import the resource object with app:api:import-object)',
+                '%s: the resource "%s" has no object shape: the payload data of %s is untyped (import the resource object with api-forge:import-object)',
                 $file, $resource, 1 === \count($events) ? '"'.$events[0].'"' : \count($events).' events',
             );
         }

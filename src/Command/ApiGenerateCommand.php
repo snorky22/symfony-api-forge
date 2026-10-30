@@ -1,25 +1,24 @@
 <?php
 
-namespace App\Command;
+namespace Snorky22\ApiForge\Command;
 
-use App\Dev\Api\Descriptor\DescriptorLoader;
-use App\Dev\Api\Descriptor\InvalidDescriptorException;
-use App\Dev\Api\Generator\ServiceGenerator;
+use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorLoader;
+use Snorky22\ApiForge\Dev\Api\Descriptor\InvalidDescriptorException;
+use Snorky22\ApiForge\Dev\Api\Generator\ServiceGenerator;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Filesystem\Path;
 use Symfony\Component\Finder\Finder;
 
 #[AsCommand(
-    name: 'app:api:generate',
+    name: 'api-forge:generate',
     description: 'Generates the Symfony services of an API from its descriptors',
     help: <<<'HELP'
-        Validates <comment>config/api/<api>/*.yaml</comment> and generates:
+        Validates <comment>config/api/<api>/*.yaml</comment> and generates (default paths, see the api_forge configuration):
 
           - <comment>src/Api/<Namespace>/Generated/Resource/*.php</comment>, one service per resource
           - <comment>src/Api/<Namespace>/Generated/<Namespace>Api.php</comment>, the entry point
@@ -36,8 +35,8 @@ final class ApiGenerateCommand
     public function __construct(
         private readonly DescriptorLoader $loader,
         private readonly ServiceGenerator $generator,
-        #[Autowire('%kernel.project_dir%')]
         private readonly string $projectDir,
+        private readonly string $descriptorDir,
         private readonly Filesystem $filesystem = new Filesystem(),
     ) {
     }
@@ -45,7 +44,7 @@ final class ApiGenerateCommand
     public function __invoke(
         SymfonyStyle $io,
         #[Argument('API name, e.g. "lemonsqueezy"')] string $api,
-        #[Option('Descriptor directory (default: config/api)')] ?string $dir = null,
+        #[Option('Descriptor directory (default: api_forge.descriptor_dir, config/api)')] ?string $dir = null,
         #[Option('Project directory to generate into (default: this project)')] ?string $output = null,
         #[Option('Fail if the descriptors still contain review notes')] bool $strict = false,
         #[Option('Do not write anything, fail if the generated files are not up to date')] bool $check = false,
@@ -67,7 +66,7 @@ final class ApiGenerateCommand
             }
         }
 
-        $descriptorDir = Path::canonicalize(($dir ?? $this->projectDir.'/config/api').'/'.$api);
+        $descriptorDir = Path::canonicalize(($dir ?? $this->descriptorDir).'/'.$api);
         if (Path::isBasePath($this->projectDir, $descriptorDir)) {
             $descriptorDir = Path::makeRelative($descriptorDir, $this->projectDir);
         }
@@ -86,7 +85,7 @@ final class ApiGenerateCommand
             }
         }
 
-        foreach ($this->staleFiles($output.'/src/Api/'.$definition->namespace.'/Generated', $output, $files) as $file) {
+        foreach ($this->staleFiles($output.'/'.$this->generator->generatedDirectory($definition), $output, $files) as $file) {
             $changes[] = ['removed', $file];
             if (!$check) {
                 $this->filesystem->remove($output.'/'.$file);
@@ -101,7 +100,7 @@ final class ApiGenerateCommand
 
         $io->table(['Change', 'File'], $changes);
         if ($check) {
-            $io->error('The generated files are not up to date: run app:api:generate.');
+            $io->error('The generated files are not up to date: run api-forge:generate.');
 
             return Command::FAILURE;
         }

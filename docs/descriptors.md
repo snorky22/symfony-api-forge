@@ -3,7 +3,7 @@
 Descriptors live in `config/api/<api>/`: `_api.yaml` for the API-wide settings, `_webhooks.yaml` for
 webhooks (optional), and one `<resource>.yaml` per resource. File names starting with `_` are not
 resources. The schema is defined in
-`src/Dev/Api/Descriptor/DescriptorSchema.php`, and checked by `app:api:generate`.
+`src/Dev/Api/Descriptor/DescriptorSchema.php`, and checked by `api-forge:generate`.
 
 Keys are never normalized: header, parameter and relationship names are kept as written.
 
@@ -138,7 +138,7 @@ review: []
 
 Each event gives a constant (`ORDER_CREATED`), a payload type (`OrderCreatedPayload`) and a consumer
 method (`onOrderCreated`); these names must be unique. An event whose resource has no object shape
-has untyped payload data, which `app:api:generate` reports.
+has untyped payload data, which `api-forge:generate` reports.
 
 ## Shapes
 

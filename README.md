@@ -1,13 +1,13 @@
 # symfony-api-forge
 
-Generates Symfony services for REST APIs and their webhooks from their documentation: the curl
-examples and the JSON examples found in the API owner's docs.
+Symfony bundle that generates services for REST APIs and their webhooks from their documentation: the
+curl examples and the JSON examples found in the API owner's docs.
 
 ```
-curl + JSON ────app:api:import──────────┐
-object JSON ────app:api:import-object───┤
-events table,  ─app:api:import-webhook──┼──> config/api/<api>/*.yaml ──app:api:generate──> src/Api/<Namespace>/Generated/
-payload JSON                            │    descriptors, edited by hand                   config/packages/api_<api>.yaml
+curl + JSON ────api-forge:import──────────┐
+object JSON ────api-forge:import-object───┤
+events table,  ─api-forge:import-webhook──┼──> config/api/<api>/*.yaml ──api-forge:generate──> src/Api/<Namespace>/Generated/
+payload JSON                              │    descriptors, edited by hand                     config/packages/api_<api>.yaml
 ```
 
 - **Lenient import, strict generation**: documentation examples become editable YAML descriptors, with
@@ -19,34 +19,62 @@ payload JSON                            │    descriptors, edited by hand      
 
 ## Requirements
 
-- PHP 8.2 or later, Composer
+- PHP 8.2 or later
 - Symfony 7.4
 
 ## Installation
 
 ```bash
-git clone git@github.com:snorky22/symfony-api-forge.git
-cd symfony-api-forge
-composer install
-bin/phpunit
+composer require snorky22/symfony-api-forge
 ```
 
-Secrets go in `.env.local` (not committed), e.g. `LEMONSQUEEZY_API_KEY` and
-`LEMONSQUEEZY_WEBHOOK_SECRET`.
+With Symfony Flex, the bundle is registered automatically. Otherwise, add it to `config/bundles.php`:
+
+```php
+return [
+    // ...
+    Snorky22\ApiForge\ApiForgeBundle::class => ['all' => true],
+];
+```
+
+The bundle provides the `api-forge:*` commands. The generated code only depends on the runtime classes of
+the package (`Snorky22\ApiForge\Core`), so the bundle can be enabled in the dev environment only
+(`['dev' => true]`).
+
+To receive webhooks, the `/webhook/{type}` route of the Symfony Webhook component must be imported; the
+Flex recipe of `symfony/webhook` adds it (`config/routes/webhook.yaml`). For asynchronous processing,
+install `symfony/messenger`, see [Webhooks](docs/webhooks.md).
+
+## Configuration
+
+All the options are optional; these are the defaults:
+
+```yaml
+# config/packages/api_forge.yaml
+api_forge:
+    descriptor_dir: '%kernel.project_dir%/config/api'   # descriptors
+    namespace: 'App\Api'                                # namespace of the generated code
+    source_dir: 'src/Api'                               # its directory, relative to the project
+    config_dir: 'config/packages'                       # generated configuration, relative to the project
+```
 
 ## Quick start
 
 ```bash
-# 1. Import documented requests (and example responses) into descriptors
-bin/console app:api:import lemonsqueezy tests/Fixtures/curl-list-customers-1
-bin/console app:api:import-object lemonsqueezy customers tests/Fixtures/customer-object.json
-bin/console app:api:import-webhook lemonsqueezy --events=events.md --payload=tests/Fixtures/order-created-payload.json
+# 1. Import documented requests (and example responses), objects and webhooks into descriptors
+bin/console api-forge:import lemonsqueezy docs-examples/curl-list-customers
+bin/console api-forge:import-object lemonsqueezy customers docs-examples/customer-object.json
+bin/console api-forge:import-webhook lemonsqueezy --events=docs-examples/events.md \
+    --payload=docs-examples/order-created-payload.json
 
 # 2. Review config/api/lemonsqueezy/*.yaml, fix the guesses listed under "review"
 
 # 3. Generate the services
-bin/console app:api:generate lemonsqueezy
+bin/console api-forge:generate lemonsqueezy
 ```
+
+Secrets go in `.env.local`, under the names given in the descriptors (e.g. `LEMONSQUEEZY_API_KEY`,
+`LEMONSQUEEZY_WEBHOOK_SECRET`).
 
 ```php
 public function __construct(private LemonSqueezyApi $lemonSqueezy) {}
@@ -62,11 +90,14 @@ final class LemonSqueezyWebhookConsumer extends AbstractLemonSqueezyWebhookConsu
 }
 ```
 
+[`examples/lemonsqueezy/`](examples/lemonsqueezy/) shows the result for Lemon Squeezy: descriptors,
+generated code and configuration, and a webhook consumer.
+
 ## Documentation
 
 | Page | Content |
 |---|---|
-| [Architecture](docs/architecture.md) | Pipeline, design choices, directory layout |
+| [Architecture](docs/architecture.md) | Pipeline, design choices, package layout |
 | [Workflow](docs/workflow.md) | Adding an API or an endpoint, step by step |
 | [Descriptors](docs/descriptors.md) | Reference of the descriptor format (`config/api/`) |
 | [Commands](docs/commands.md) | Console commands and their options |
@@ -74,8 +105,22 @@ final class LemonSqueezyWebhookConsumer extends AbstractLemonSqueezyWebhookConsu
 | [Webhooks](docs/webhooks.md) | Receiving webhooks: setup, consumers, payload types, testing |
 | [Roadmap](docs/roadmap.md) | Known limitations and next steps |
 
-## Supported APIs
+## Development
 
-| API | Descriptors | Generated code | Webhook endpoint |
-|---|---|---|---|
-| Lemon Squeezy | `config/api/lemonsqueezy/` | `src/Api/LemonSqueezy/Generated/` | `/webhook/lemonsqueezy` |
+```bash
+git clone git@github.com:snorky22/symfony-api-forge.git
+cd symfony-api-forge
+composer install
+vendor/bin/phpunit
+```
+
+The tests run a small application (`tests/App/TestKernel.php`) with the bundle and the Lemon Squeezy
+example. After changing the generator, regenerate the example, which a test checks:
+
+```bash
+php tests/console api-forge:generate lemonsqueezy --dir=examples/lemonsqueezy/config/api --output=examples/lemonsqueezy
+```
+
+## License
+
+MIT, see [LICENSE](LICENSE).

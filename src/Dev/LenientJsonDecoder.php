@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Dev;
+namespace Snorky22\ApiForge\Dev;
 
 /**
  * Decodes JSON copied from API documentation, which is often not strictly valid:
