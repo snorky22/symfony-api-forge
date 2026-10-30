@@ -1,4 +1,4 @@
-# API services generator
+# symfony-api-forge
 
 Generates Symfony services for REST APIs and their webhooks from their documentation: the curl
 examples and the JSON examples found in the API owner's docs.
@@ -10,17 +10,29 @@ events table,  ─app:api:import-webhook──┼──> config/api/<api>/*.yaml
 payload JSON                            │    descriptors, edited by hand                   config/packages/api_<api>.yaml
 ```
 
-## Documentation
+- **Lenient import, strict generation**: documentation examples become editable YAML descriptors, with
+  every guess listed for review; the code is regenerated from the descriptors, so manual fixes survive.
+- **Typed REST clients**: one service per resource on a scoped HttpClient, JSON:API request bodies and
+  pagination, PHPStan / PhpStorm array shapes for every response.
+- **Signed webhooks**: request parser checking the HMAC signature (Symfony Webhook), typed consumer
+  methods per event (RemoteEvent), asynchronous processing with Messenger.
 
-| Page | Content |
-|---|---|
-| [Architecture](architecture.md) | Pipeline, design choices, directory layout |
-| [Workflow](workflow.md) | Adding an API or an endpoint, step by step |
-| [Descriptors](descriptors.md) | Reference of the descriptor format (`config/api/`) |
-| [Commands](commands.md) | Console commands and their options |
-| [Generated services](generated-services.md) | Using the generated code, the runtime layer, errors, pagination |
-| [Webhooks](webhooks.md) | Receiving webhooks: setup, consumers, payload types, testing |
-| [Roadmap](roadmap.md) | Known limitations and next steps |
+## Requirements
+
+- PHP 8.2 or later, Composer
+- Symfony 7.4
+
+## Installation
+
+```bash
+git clone git@github.com:snorky22/symfony-api-forge.git
+cd symfony-api-forge
+composer install
+bin/phpunit
+```
+
+Secrets go in `.env.local` (not committed), e.g. `LEMONSQUEEZY_API_KEY` and
+`LEMONSQUEEZY_WEBHOOK_SECRET`.
 
 ## Quick start
 
@@ -49,6 +61,18 @@ final class LemonSqueezyWebhookConsumer extends AbstractLemonSqueezyWebhookConsu
     protected function onOrderCreated(array $payload, RemoteEvent $event): void { /* ... */ }
 }
 ```
+
+## Documentation
+
+| Page | Content |
+|---|---|
+| [Architecture](docs/architecture.md) | Pipeline, design choices, directory layout |
+| [Workflow](docs/workflow.md) | Adding an API or an endpoint, step by step |
+| [Descriptors](docs/descriptors.md) | Reference of the descriptor format (`config/api/`) |
+| [Commands](docs/commands.md) | Console commands and their options |
+| [Generated services](docs/generated-services.md) | Using the generated code, the runtime layer, errors, pagination |
+| [Webhooks](docs/webhooks.md) | Receiving webhooks: setup, consumers, payload types, testing |
+| [Roadmap](docs/roadmap.md) | Known limitations and next steps |
 
 ## Supported APIs
 

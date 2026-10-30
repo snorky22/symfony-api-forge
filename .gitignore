@@ -18,3 +18,18 @@
 /public/assets/
 /assets/vendor/
 ###< symfony/asset-mapper ###
+
+###> PhpStorm ###
+/.idea/
+*.iml
+###< PhpStorm ###
+
+###> macOS ###
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+###< macOS ###
