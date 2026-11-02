@@ -9,6 +9,9 @@ meta:
     shape: |-
         array{
             event_name: string,
+            test_mode?: bool,
+            webhook_id?: string,
+            custom_data?: array<string, mixed>,
         }
 events:
     order_created:
@@ -63,6 +66,5 @@ events:
         resource: affiliates
         description: 'Occurs when an affiliate is activated.'
 review:
-    - 'signature: default scheme (HMAC-SHA256 of the raw body, hex-encoded, in the X-Signature header), check it against the API docs'
     - 'events: resources were derived from the object names of the events doc'
-    - 'meta: the shape comes from one example, it may lack optional keys'
+    - 'meta: test_mode and webhook_id come from real deliveries (absent from the docs example); webhook_id identifies the webhook configuration, not the delivery; custom_data is only sent when the checkout had custom data'

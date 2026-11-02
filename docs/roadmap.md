@@ -7,15 +7,14 @@
 - Strict descriptor validation, runtime layer, `api-forge:generate`
 - Webhooks: `api-forge:import-webhook`, signed request parser, typed event consumers, asynchronous
   processing with Messenger
-- Lemon Squeezy example: customers, orders, checkouts, and the 17 webhook events
+- Lemon Squeezy example: customers, orders, checkouts, subscriptions, subscription invoices, license keys,
+  and the 17 webhook events (16 with typed payloads); signing scheme checked against the docs
   (`examples/lemonsqueezy/`)
 - Symfony bundle `snorky22/symfony-api-forge`, MIT license, version 0.1.0
 
 ## Next
 
-- Lemon Squeezy: import the subscription, subscription invoice, license key and affiliate objects, to
-  type the payloads of their webhook events.
-- Check the webhook signing scheme against the Lemon Squeezy docs (currently the importer's default).
+- Lemon Squeezy: import the affiliate object, to type the payload of `affiliate_activated`.
 
 ## Known limitations
 

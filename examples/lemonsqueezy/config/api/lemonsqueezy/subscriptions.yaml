@@ -1,0 +1,53 @@
+resource: subscriptions
+type: subscriptions
+object:
+    shape: |-
+        array{
+            type: string,
+            id: string,
+            attributes: array{
+                store_id: int,
+                customer_id: int,
+                order_id: int,
+                order_item_id: int,
+                product_id: int,
+                variant_id: int,
+                product_name: string,
+                variant_name: string,
+                user_name: string,
+                user_email: string,
+                status: 'on_trial'|'active'|'paused'|'past_due'|'unpaid'|'cancelled'|'expired',
+                status_formatted: string,
+                card_brand: 'visa'|'mastercard'|'amex'|'discover'|'jcb'|'diners'|'unionpay'|'',
+                card_last_four: string,
+                payment_processor: 'stripe'|'paypal',
+                pause: null|array{
+                    mode: 'void'|'free',
+                    resumes_at: string|null,
+                },
+                cancelled: bool,
+                trial_ends_at: string|null,
+                billing_anchor: int,
+                first_subscription_item: null|array{
+                    id: int,
+                    subscription_id: int,
+                    price_id: int,
+                    quantity: int,
+                    created_at: string,
+                    updated_at: string,
+                },
+                urls: array{
+                    update_payment_method: string,
+                    customer_portal: string,
+                    customer_portal_update_subscription: string|null,
+                },
+                renews_at: string,
+                ends_at: string|null,
+                created_at: string,
+                updated_at: string,
+                test_mode: bool,
+            },
+        }
+    review:
+        - 'object: nullable values, enums and "pause" typed from the attribute docs; resumes_at nullability assumed'
+operations: {  }

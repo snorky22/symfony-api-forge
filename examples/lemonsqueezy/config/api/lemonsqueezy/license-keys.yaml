@@ -1,0 +1,30 @@
+resource: license-keys
+type: license-keys
+object:
+    shape: |-
+        array{
+            type: string,
+            id: string,
+            attributes: array{
+                store_id: int,
+                customer_id: int,
+                order_id: int,
+                order_item_id: int,
+                product_id: int,
+                user_name: string,
+                user_email: string,
+                key: string,
+                key_short: string,
+                activation_limit: int,
+                instances_count: int,
+                disabled: bool|int,
+                status: 'inactive'|'active'|'expired'|'disabled',
+                status_formatted: string,
+                expires_at: string|null,
+                created_at: string,
+                updated_at: string,
+            },
+        }
+    review:
+        - 'object: "disabled" is documented as a boolean but is 0 in the example'
+operations: {  }

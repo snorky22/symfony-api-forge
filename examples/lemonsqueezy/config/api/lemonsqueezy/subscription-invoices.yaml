@@ -1,0 +1,80 @@
+resource: subscription-invoices
+type: subscription-invoices
+object:
+    shape: |-
+        array{
+            type: string,
+            id: string,
+            attributes: array{
+                store_id: int,
+                subscription_id: int,
+                customer_id: int,
+                affiliate_id: int|null,
+                referral_amount: int|null,
+                user_name: string,
+                user_email: string,
+                billing_reason: 'initial'|'renewal'|'updated',
+                card_brand: 'visa'|'mastercard'|'amex'|'discover'|'jcb'|'diners'|'unionpay'|'',
+                card_last_four: string,
+                currency: string,
+                currency_rate: string,
+                status: 'pending'|'paid'|'void'|'refunded'|'partial_refund',
+                status_formatted: string,
+                refunded: bool,
+                refunded_at: string|null,
+                subtotal: int,
+                discount_total: int,
+                tax: int,
+                tax_inclusive: bool,
+                total: int,
+                refunded_amount: int,
+                subtotal_usd: int,
+                discount_total_usd: int,
+                tax_usd: int,
+                total_usd: int,
+                refunded_amount_usd: int,
+                subtotal_formatted: string,
+                discount_total_formatted: string,
+                tax_formatted: string,
+                total_formatted: string,
+                refunded_amount_formatted: string,
+                urls: array{
+                    invoice_url: string|null,
+                },
+                created_at: string,
+                updated_at: string,
+                test_mode: bool,
+            },
+            relationships: array{
+                store: array{
+                    links: array{
+                        related: string,
+                        self: string,
+                    },
+                },
+                subscription: array{
+                    links: array{
+                        related: string,
+                        self: string,
+                    },
+                },
+                customer: array{
+                    links: array{
+                        related: string,
+                        self: string,
+                    },
+                },
+                affiliate: array{
+                    links: array{
+                        related: string,
+                        self: string,
+                    },
+                },
+            },
+            links: array{
+                self: string,
+            },
+        }
+    review:
+        - 'object: nullable values and enums typed from the attribute docs'
+operations: {  }

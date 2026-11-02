@@ -10,8 +10,14 @@ namespace App\Api\LemonSqueezy\Generated\Webhook;
  *
  * @phpstan-import-type Order from \App\Api\LemonSqueezy\Generated\Resource\Orders
  * @phpstan-import-type Customer from \App\Api\LemonSqueezy\Generated\Resource\Customers
+ * @phpstan-import-type Subscription from \App\Api\LemonSqueezy\Generated\Resource\Subscriptions
+ * @phpstan-import-type SubscriptionInvoice from \App\Api\LemonSqueezy\Generated\Resource\SubscriptionInvoices
+ * @phpstan-import-type LicenseKey from \App\Api\LemonSqueezy\Generated\Resource\LicenseKeys
  * @phpstan-type WebhookMeta array{
  *     event_name: string,
+ *     test_mode?: bool,
+ *     webhook_id?: string,
+ *     custom_data?: array<string, mixed>,
  * }
  * @phpstan-type OrderCreatedPayload array{
  *     meta: WebhookMeta,
@@ -27,55 +33,55 @@ namespace App\Api\LemonSqueezy\Generated\Webhook;
  * }
  * @phpstan-type SubscriptionCreatedPayload array{
  *     meta: WebhookMeta,
- *     data: array<string, mixed>,
+ *     data: Subscription,
  * }
  * @phpstan-type SubscriptionUpdatedPayload array{
  *     meta: WebhookMeta,
- *     data: array<string, mixed>,
+ *     data: Subscription,
  * }
  * @phpstan-type SubscriptionCancelledPayload array{
  *     meta: WebhookMeta,
- *     data: array<string, mixed>,
+ *     data: Subscription,
  * }
  * @phpstan-type SubscriptionResumedPayload array{
  *     meta: WebhookMeta,
- *     data: array<string, mixed>,
+ *     data: Subscription,
  * }
  * @phpstan-type SubscriptionExpiredPayload array{
  *     meta: WebhookMeta,
- *     data: array<string, mixed>,
+ *     data: Subscription,
  * }
  * @phpstan-type SubscriptionPausedPayload array{
  *     meta: WebhookMeta,
- *     data: array<string, mixed>,
+ *     data: Subscription,
  * }
  * @phpstan-type SubscriptionUnpausedPayload array{
  *     meta: WebhookMeta,
- *     data: array<string, mixed>,
+ *     data: Subscription,
  * }
  * @phpstan-type SubscriptionPaymentSuccessPayload array{
  *     meta: WebhookMeta,
- *     data: array<string, mixed>,
+ *     data: SubscriptionInvoice,
  * }
  * @phpstan-type SubscriptionPaymentFailedPayload array{
  *     meta: WebhookMeta,
- *     data: array<string, mixed>,
+ *     data: SubscriptionInvoice,
  * }
  * @phpstan-type SubscriptionPaymentRecoveredPayload array{
  *     meta: WebhookMeta,
- *     data: array<string, mixed>,
+ *     data: SubscriptionInvoice,
  * }
  * @phpstan-type SubscriptionPaymentRefundedPayload array{
  *     meta: WebhookMeta,
- *     data: array<string, mixed>,
+ *     data: SubscriptionInvoice,
  * }
  * @phpstan-type LicenseKeyCreatedPayload array{
  *     meta: WebhookMeta,
- *     data: array<string, mixed>,
+ *     data: LicenseKey,
  * }
  * @phpstan-type LicenseKeyUpdatedPayload array{
  *     meta: WebhookMeta,
- *     data: array<string, mixed>,
+ *     data: LicenseKey,
  * }
  * @phpstan-type AffiliateActivatedPayload array{
  *     meta: WebhookMeta,

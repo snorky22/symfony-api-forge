@@ -3,6 +3,12 @@
 All notable changes are documented in this file. The project follows [Semantic Versioning](https://semver.org);
 until 1.0, minor versions may contain breaking changes.
 
+## Unreleased
+
+- Example: Lemon Squeezy subscriptions, subscription invoices and license keys (object shapes reviewed
+  against the attribute docs), which types the payloads of 13 more webhook events; webhook `meta` shape
+  completed (`test_mode`, `webhook_id`, `custom_data`); signing scheme checked against the docs
+
 ## 0.1.0 - 2026-10-30
 
 First release.

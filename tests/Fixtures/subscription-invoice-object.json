@@ -1,0 +1,73 @@
+{
+    "type": "subscription-invoices",
+    "id": "1",
+    "attributes": {
+        "store_id": 1,
+        "subscription_id": 1,
+        "customer_id": 1,
+        "affiliate_id": 1,
+        "referral_amount": 250,
+        "user_name": "John Doe",
+        "user_email": "johndoe@example.com",
+        "billing_reason": "initial",
+        "card_brand": "visa",
+        "card_last_four": "4242",
+        "currency": "USD",
+        "currency_rate": "1.00000000",
+        "status": "paid",
+        "status_formatted": "Paid",
+        "refunded": false,
+        "refunded_at": null,
+        "subtotal": 999,
+        "discount_total": 0,
+        "tax": 0,
+        "tax_inclusive": false,
+        "total": 999,
+        "refunded_amount": 100,
+        "subtotal_usd": 999,
+        "discount_total_usd": 0,
+        "tax_usd": 0,
+        "total_usd": 999,
+        "refunded_amount_usd": 100,
+        "subtotal_formatted": "$9.99",
+        "discount_total_formatted": "$0.00",
+        "tax_formatted": "$0.00",
+        "total_formatted": "$9.99",
+        "refunded_amount_formatted": "$1.00",
+        "urls": {
+            "invoice_url": "https://app.lemonsqueezy.com/my-orders/.../subscription-invoice/..."
+        },
+        "created_at": "2023-01-18T12:16:24.000000Z",
+        "updated_at": "2023-01-18T12:16:24.000000Z",
+        "test_mode": false
+    },
+    "relationships": {
+        "store": {
+            "links": {
+                "related": "https://api.lemonsqueezy.com/v1/subscription-invoices/1/store",
+                "self": "https://api.lemonsqueezy.com/v1/subscription-invoices/1/relationships/store"
+            }
+        },
+        "subscription": {
+            "links": {
+                "related": "https://api.lemonsqueezy.com/v1/subscription-invoices/1/subscription",
+                "self": "https://api.lemonsqueezy.com/v1/subscription-invoices/1/relationships/subscription"
+            }
+        },
+        "customer": {
+            "links": {
+                "related": "https://api.lemonsqueezy.com/v1/subscription-invoices/1/customer",
+                "self": "https://api.lemonsqueezy.com/v1/subscription-invoices/1/relationships/customer"
+            }
+        },
+        "affiliate": {
+            "links": {
+                "related": "https://api.lemonsqueezy.com/v1/subscription-invoices/1/affiliate",
+                "self": "https://api.lemonsqueezy.com/v1/subscription-invoices/1/relationships/affiliate"
+            }
+        }
+    },
+    "links": {
+        "self": "https://api.lemonsqueezy.com/v1/subscription-invoices/1"
+    }
+}

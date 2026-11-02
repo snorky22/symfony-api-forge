@@ -13,7 +13,10 @@ final class LemonSqueezyApi
     public function __construct(
         public readonly Resource\Checkouts $checkouts,
         public readonly Resource\Customers $customers,
+        public readonly Resource\LicenseKeys $licenseKeys,
         public readonly Resource\Orders $orders,
+        public readonly Resource\SubscriptionInvoices $subscriptionInvoices,
+        public readonly Resource\Subscriptions $subscriptions,
     ) {
     }
 }
