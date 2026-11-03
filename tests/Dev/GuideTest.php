@@ -45,8 +45,27 @@ final class GuideTest extends KernelTestCase
 
         $status = self::getContainer()->get(Guide::class)->status('shop', self::EXAMPLE.'/config/api');
 
-        self::assertStringStartsWith('Import a first documented request: api-forge:import shop tests/Fixtures/shop/get-<resource>.curl', $status['next']);
+        self::assertStringStartsWith('Import a first documented request: php bin/console api-forge:import shop tests/Fixtures/shop/get-<resource>.curl', $status['next']);
         self::assertSame('none in tests/Fixtures/shop', array_column($status['state'], 1, 0)['Examples']);
+    }
+
+    public function testExamplesNotImportedYet(): void
+    {
+        self::bootKernel();
+        $fixtures = sys_get_temp_dir().'/guide-test-'.bin2hex(random_bytes(4));
+        mkdir($fixtures);
+        file_put_contents($fixtures.'/list-customers.curl', 'curl "https://api.lemonsqueezy.com/v1/customers" -H "Accept: application/vnd.api+json"');
+        file_put_contents($fixtures.'/list-stores.curl', 'curl "https://api.lemonsqueezy.com/v1/stores" -H "Accept: application/vnd.api+json"');
+        file_put_contents($fixtures.'/list-stores.json', '{"data": []}');
+
+        $status = self::getContainer()->get(Guide::class)->status('lemonsqueezy', self::EXAMPLE.'/config/api', self::EXAMPLE, $fixtures, 'php tests/console');
+
+        // customers.list is an operation already (same method and path): only the stores are pending
+        self::assertSame('list-stores.curl', array_column($status['state'], 1, 0)['Not imported']);
+        self::assertStringStartsWith("Import the examples not imported yet:\nphp tests/console api-forge:import lemonsqueezy ", $status['next']);
+        self::assertStringEndsWith('/list-stores.curl --response='.substr($fixtures, 1).'/list-stores.json', str_replace('../', '', $status['next']));
+        array_map('unlink', glob($fixtures.'/*'));
+        rmdir($fixtures);
     }
 
     public function testCommand(): void

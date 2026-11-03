@@ -36,7 +36,7 @@ final class GuideCommand
         #[Option('Directory of the documentation examples (default: tests/Fixtures/<api>)')] ?string $fixtures = null,
     ): int {
         if (null !== $api) {
-            $status = $this->guide->status($api, $dir, $output, $fixtures);
+            $status = $this->guide->status($api, $dir, $output, $fixtures, self::console());
             $io->title($api);
             $io->definitionList(...array_map(static fn (array $row) => [$row[0] => $row[1]], $status['state']));
             $io->section('Next step');
@@ -52,8 +52,22 @@ final class GuideCommand
         $io->table(['File', 'Content', 'Examples'], Guide::FIXTURES);
         $io->section('APIs');
         $apis = $this->guide->apis($dir);
-        $io->text([] !== $apis ? array_map(static fn (string $api) => '- '.$api.' (php bin/console api-forge:guide '.$api.')', $apis) : 'None yet: import a first documented request.');
+        $io->text([] !== $apis ? array_map(static fn (string $api) => '- '.$api.' ('.self::console().' api-forge:guide '.$api.')', $apis) : 'None yet: import a first documented request.');
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * How this console was run, e.g. "php bin/console" or "php tests/console", to write commands to copy.
+     */
+    private static function console(): string
+    {
+        $script = $_SERVER['argv'][0] ?? 'bin/console';
+        $cwd = getcwd();
+        if (false !== $cwd && str_starts_with($script, $cwd.'/')) {
+            $script = substr($script, \strlen($cwd) + 1);
+        }
+
+        return 'php '.$script;
     }
 }

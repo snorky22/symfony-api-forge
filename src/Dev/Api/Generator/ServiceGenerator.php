@@ -263,6 +263,12 @@ final class ServiceGenerator
             $parentArguments[] = $this->export($name).' => $env'.$i;
             $usesAutowire = true;
         }
+        $baseUriArgument = '';
+        if (null !== ($definition->api['base_uri_env'] ?? null)) {
+            $arguments[] = "        #[Autowire('%env({$definition->api['base_uri_env']})%')] string \$baseUri,";
+            $baseUriArgument = ', $baseUri';
+            $usesAutowire = true;
+        }
 
         $probe = $definition->api['doctor']['probe'] ?? null;
         $probeMethod = '';
@@ -312,7 +318,7 @@ final class ServiceGenerator
         $constructor = '';
         if ([] !== $arguments) {
             $constructor = "\n    public function __construct(\n".implode("\n", $arguments)."\n    ) {\n"
-                .'        parent::__construct(['.implode(', ', $parentArguments)."]);\n    }\n";
+                .'        parent::__construct(['.implode(', ', $parentArguments).']'.$baseUriArgument.");\n    }\n";
         }
 
         $envConstant = [] === $env ? '[]' : "[\n".implode('', array_map(fn ($name, $role) => '        '.$this->export($name).' => '.$this->export($role).",\n", array_keys($env), $env)).'    ]';
@@ -326,6 +332,8 @@ final class ServiceGenerator
             .'    public const API = '.$this->export($definition->name).";\n"
             .'    protected const BASE_URI = '.$this->export($definition->api['base_uri']).";\n"
             .'    protected const ENV = '.$envConstant.";\n"
+            .(null !== ($definition->api['base_uri_env'] ?? null) ? '    protected const BASE_URI_ENV = '.$this->export($definition->api['base_uri_env']).";\n"
+                .'    protected const ENVIRONMENTS = ['.implode(', ', array_map(fn ($name, $uri) => $this->export((string) $name).' => '.$this->export($uri), array_keys($definition->api['environments'] ?? []), $definition->api['environments'] ?? []))."];\n" : '')
             .'    protected const PROBE = '.(null !== $probe ? $this->export($probe) : 'null').";\n"
             .(null !== $contract ? '    protected const PROBE_SHAPE = '.$this->export($contract[0]).";\n"
                 .'    protected const PROBE_PATH = '.(null !== $contract[1] ? $this->export($contract[1]) : 'null').";\n"
@@ -377,10 +385,15 @@ final class ServiceGenerator
     {
         $api = $definition->api;
         $client = ['base_uri' => $api['base_uri']];
+        $parameters = [];
+        if (null !== ($api['base_uri_env'] ?? null)) {
+            // The host is chosen at runtime (sandbox, live…), base_uri by default
+            $client['base_uri'] = '%env('.$api['base_uri_env'].')%';
+            $parameters['env('.$api['base_uri_env'].')'] = $api['base_uri'];
+        }
         // "%" starts a container parameter: literal ones are doubled.
         $headers = array_map(static fn (string $value) => str_replace('%', '%%', $value), $api['headers']);
 
-        $parameters = [];
         if (isset($api['auth'])) {
             $env = '%env('.$api['auth']['env'].')%';
             $parameters['env('.$api['auth']['env'].')'] = '';

@@ -78,6 +78,24 @@ final class EndpointImporterTest extends TestCase
         self::assertArrayNotHasKey('id', $this->import(file_get_contents(self::FIXTURES.'curl-example-3'))->operation['body']);
     }
 
+    public function testSandboxAndLiveHosts(): void
+    {
+        $importer = new EndpointImporter(new LenientJsonDecoder(), new ArrayShapeGenerator());
+        $curl = (new CurlParser())->parse('curl https://sandbox-api.paddle.com/products -H "Authorization: Bearer KEY"');
+
+        // A first import from the sandbox: the live host is suggested
+        $endpoint = $importer->import($curl, 'paddle');
+        self::assertSame('https://sandbox-api.paddle.com/', $endpoint->api['base_uri']);
+        self::assertContains('base URI: "https://sandbox-api.paddle.com/" looks like a sandbox: set the live host as base_uri, this one under environments, and base_uri_env to choose at runtime', $endpoint->operation['review'] ?? []);
+
+        // The sandbox listed under environments: its URLs are imported against it
+        $endpoint = $importer->import($curl, 'paddle', null, ['https://api.paddle.com/', 'https://sandbox-api.paddle.com/']);
+        self::assertSame('products', $endpoint->operation['path']);
+
+        $this->expectExceptionMessage('does not start with a base URI of the API: https://api.paddle.com/ (other hosts go under "environments" in _api.yaml)');
+        $importer->import($curl, 'paddle', null, 'https://api.paddle.com/');
+    }
+
     public function testToManyRelationship(): void
     {
         $curl = <<<'CURL'

@@ -7,6 +7,10 @@ bin/console api-forge:guide              # the workflow, the conventions, the AP
 bin/console api-forge:guide lemonsqueezy # examples, descriptors, review notes, doctor probe, generated code
 ```
 
+The next step comes with the commands to copy: the examples of `tests/Fixtures/<api>/` not imported yet (a
+curl whose method and path are no operation of the descriptors) with their exact `api-forge:import`
+command, then `api-forge:generate` when the generated code is out of date, then `api-forge:doctor`.
+
 ## Documentation examples
 
 Keep the examples copied from the API docs in `tests/Fixtures/<api>/`: they are the input of the imports,

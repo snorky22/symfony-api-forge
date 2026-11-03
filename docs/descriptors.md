@@ -29,6 +29,24 @@ review: []                                     # notes left by the importer
 | `basic` | `Authorization: Basic ...` | `user:password` |
 | `header` | `<header>: <value>` | the key |
 
+### Hosts: sandbox and live
+
+APIs with a sandbox serve the same paths on another host. List the other hosts, and the environment
+variable choosing the host at runtime:
+
+```yaml
+base_uri: 'https://api.paddle.com/'                # the default, usually the live host
+environments:
+    sandbox: 'https://sandbox-api.paddle.com/'
+base_uri_env: PADDLE_BASE_URI                      # required with "environments"
+```
+
+The generated HTTP client uses `%env(PADDLE_BASE_URI)%`, `base_uri` by default; set
+`PADDLE_BASE_URI=https://sandbox-api.paddle.com/` in `.env.local` to call the sandbox. `api-forge:import`
+accepts the URLs of every listed host, so the curl examples of the sandbox import as well; a first import
+from a host that looks like a sandbox leaves a review note suggesting this setup. The doctor tells the host
+in use.
+
 ### Doctor
 
 ```yaml

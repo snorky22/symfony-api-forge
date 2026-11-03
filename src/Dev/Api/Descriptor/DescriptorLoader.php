@@ -89,6 +89,10 @@ final class DescriptorLoader
             }
         }
 
+        if ([] !== $api['environments'] && null === $api['base_uri_env']) {
+            $errors[] = $apiFile.': "environments" needs "base_uri_env", the environment variable choosing the host at runtime.';
+        }
+
         if (isset($api['doctor'])) {
             $this->checkDoctor($apiFile, $api['doctor'], $resources, $errors);
             $review = array_merge($review, $this->review($apiFile.': doctor', $api['doctor']['review'] ?? []));

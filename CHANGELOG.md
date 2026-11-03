@@ -5,9 +5,14 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- Hosts chosen at runtime: `environments` (other hosts of the API, e.g. a sandbox) and `base_uri_env` in
+  `_api.yaml`; the generated client uses the environment variable, `base_uri` by default; the importer
+  accepts the URLs of every listed host and suggests this setup for a first import from a sandbox host;
+  the doctor tells the host in use
+
 - `api-forge:guide`: the workflow, the naming of the documentation examples (`tests/Fixtures/<api>/`,
   `<operation>-<resource>.curl` / `.json`…, documented in `docs/workflow.md`), and the state of an API with
-  its next step
+  its next step and the commands to copy (examples not imported yet, generation, doctor)
 
 - Generated doctors: `Generated/<Namespace>Doctor.php`, regenerated with the services, checks the
   environment variables of the API and calls its probe (`doctor.probe` in `_api.yaml`, a harmless `GET`,

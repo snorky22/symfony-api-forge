@@ -17,6 +17,10 @@ abstract class AbstractApiDoctor
     protected const BASE_URI = '';
     /** Environment variable name => what it holds ("credentials" for the authentication) */
     protected const ENV = [];
+    /** Environment variable choosing the host at runtime, null when the host is fixed */
+    protected const BASE_URI_ENV = null;
+    /** The other hosts of the API: name => URI */
+    protected const ENVIRONMENTS = [];
     /** "resource.operation" of the probe, null without probe */
     protected const PROBE = null;
     /** Array shape of the probe's response (or of its items), null when the descriptor has none */
@@ -31,11 +35,21 @@ abstract class AbstractApiDoctor
     private const SHOWN_DIFFERENCES = 10;
 
     /**
-     * @param array<string, string> $env the values of the environment variables (resolved by Symfony: defaults, .env files)
+     * @param array<string, string> $env     the values of the environment variables (resolved by Symfony: defaults, .env files)
+     * @param ?string               $baseUri the host in use, when chosen at runtime (BASE_URI_ENV)
      */
     public function __construct(
         #[\SensitiveParameter] private readonly array $env = [],
+        private readonly ?string $baseUri = null,
     ) {
+    }
+
+    /**
+     * The host the API is called on.
+     */
+    protected function baseUri(): string
+    {
+        return $this->baseUri ?? static::BASE_URI;
     }
 
     /**
@@ -58,6 +72,14 @@ abstract class AbstractApiDoctor
                 : Check::ok(\sprintf('%s (%s) is set.', $name, $role));
         }
 
+        if (null !== static::BASE_URI_ENV) {
+            $uri = rtrim($this->baseUri(), '/').'/';
+            $name = array_search($uri, [...static::ENVIRONMENTS, 'live' => static::BASE_URI], true);
+            $checks[] = false !== $name
+                ? Check::ok(\sprintf('Host: %s (%s, from %s).', $uri, $name, static::BASE_URI_ENV))
+                : Check::warning(\sprintf('Host: %s (from %s) is not a known host of the API: %s.', $uri, static::BASE_URI_ENV, implode(', ', [static::BASE_URI, ...array_values(static::ENVIRONMENTS)])));
+        }
+
         if (null === static::PROBE) {
             $checks[] = Check::warning('No probe: set doctor.probe in _api.yaml (a harmless GET operation) to check that the API answers and accepts the credentials.');
 
@@ -67,14 +89,14 @@ abstract class AbstractApiDoctor
         $start = hrtime(true);
         try {
             $response = $this->probe();
-            $checks[] = Check::ok(\sprintf('Probe %s: the API answers and accepts the credentials (%d ms, %s).', static::PROBE, (hrtime(true) - $start) / 1e6, static::BASE_URI));
+            $checks[] = Check::ok(\sprintf('Probe %s: the API answers and accepts the credentials (%d ms, %s).', static::PROBE, (hrtime(true) - $start) / 1e6, $this->baseUri()));
             if (null !== static::PROBE_SHAPE) {
                 array_push($checks, ...$this->contract($response));
             }
         } catch (ApiException $e) {
             $checks[] = Check::error(\sprintf('Probe %s: %s', static::PROBE, $this->diagnoseStatus($e)));
         } catch (TransportExceptionInterface $e) {
-            $checks[] = Check::error(\sprintf('Probe %s: %s is unreachable (DNS, TLS, network, timeout): %s', static::PROBE, static::BASE_URI, $e->getMessage()));
+            $checks[] = Check::error(\sprintf('Probe %s: %s is unreachable (DNS, TLS, network, timeout): %s', static::PROBE, $this->baseUri(), $e->getMessage()));
         }
 
         return $checks;
@@ -188,7 +210,7 @@ abstract class AbstractApiDoctor
         return match (true) {
             401 === $e->statusCode => \sprintf('the API rejects the credentials (HTTP 401): check %s.', $credentials),
             403 === $e->statusCode => \sprintf('the credentials are accepted but not allowed to call this operation (HTTP 403): check the permissions of the key (%s), or choose another probe.', $credentials),
-            404 === $e->statusCode => \sprintf('not found (HTTP 404): wrong base URI or API version (%s), or the probe parameters point to nothing.', static::BASE_URI),
+            404 === $e->statusCode => \sprintf('not found (HTTP 404): wrong base URI or API version (%s), or the probe parameters point to nothing.', $this->baseUri()),
             429 === $e->statusCode => 'rate limited (HTTP 429): retry later.',
             $e->statusCode >= 500 => \sprintf('the API fails (HTTP %d): the provider may be down, retry later.', $e->statusCode),
             default => $e->getMessage(),

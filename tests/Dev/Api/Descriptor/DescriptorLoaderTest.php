@@ -167,6 +167,14 @@ final class DescriptorLoaderTest extends TestCase
         self::assertSame(['_api.yaml: doctor.parameters must give the path parameters of "orders.get": id.'], $this->errors(self::API + ['doctor' => ['probe' => 'orders.get']], ['orders' => $orders]));
     }
 
+    public function testEnvironments(): void
+    {
+        $definition = $this->load(self::API + ['environments' => ['sandbox' => 'https://sandbox.x.test/v1'], 'base_uri_env' => 'SHOP_BASE_URI'], []);
+        self::assertSame(['sandbox' => 'https://sandbox.x.test/v1/'], $definition->api['environments']);
+
+        self::assertSame(['_api.yaml: "environments" needs "base_uri_env", the environment variable choosing the host at runtime.'], $this->errors(self::API + ['environments' => ['sandbox' => 'https://sandbox.x.test/v1']], []));
+    }
+
     public function testWebhookRegistration(): void
     {
         $webhooks = ['signature' => ['header' => 'X-Signature', 'env' => 'SHOP_SECRET'], 'event_name' => ['path' => 'meta.event_name'], 'events' => []];

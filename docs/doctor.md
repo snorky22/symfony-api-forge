@@ -29,6 +29,7 @@ lemonsqueezy
 | Check | From | Diagnoses |
 |---|---|---|
 | Environment variables | `auth.env`, `signature.env` | Empty credentials or webhook secret, as Symfony resolves them (`.env` files, defaults) |
+| Host | `base_uri_env`, `environments` | The host in use (sandbox, live), or a value that is not a known host of the API |
 | Probe | `doctor.probe` | The API answers and accepts the credentials, with the latency; or: unreachable host (DNS, TLS, timeout), rejected credentials (401), missing permissions (403), wrong base URI or version (404), rate limit (429), provider error (5xx) |
 | Contract | the probe's response shape | The response differs from the descriptor: a required field missing (error: code reading it fails), a new field, another type, a value outside a documented enum (warnings) — the API changed since the descriptors were written |
 | Webhook chain | `_webhooks.yaml` | Routes, parser, secret, consumer and the events it handles, the last deliveries from the provider (inbox: when, which event, rejected or failed and why), asynchronous transport; with `--ping`, a public URL (see [Webhooks](webhooks.md#checking-the-chain)) |

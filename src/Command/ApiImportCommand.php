@@ -53,7 +53,7 @@ final class ApiImportCommand
                 $request,
                 $api,
                 null === $response ? null : $this->read($response),
-                $existingApi['base_uri'] ?? null,
+                isset($existingApi['base_uri']) ? [$existingApi['base_uri'], ...array_values($existingApi['environments'] ?? [])] : null,
                 $resource,
                 $operation,
                 $existingApi['format'] ?? null,

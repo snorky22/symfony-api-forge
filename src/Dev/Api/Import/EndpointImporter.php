@@ -28,7 +28,8 @@ final class EndpointImporter
     }
 
     /**
-     * @param ?string $baseUri       known base URI of the API; guessed from the URL when null
+     * @param string|list<string>|null $baseUri known base URI(s) of the API (its environments: live, sandbox…);
+     *                                         guessed from the URL when null
      * @param ?string $resource      resource name; first path segment when null
      * @param ?string $operationName operation name; inferred from method and path when null
      * @param ?string $format        known API format ("json" or "jsonapi"); detected from the headers when null
@@ -37,7 +38,7 @@ final class EndpointImporter
         CurlRequest $request,
         string $apiName,
         ?string $responseJson = null,
-        ?string $baseUri = null,
+        string|array|null $baseUri = null,
         ?string $resource = null,
         ?string $operationName = null,
         ?string $format = null,
@@ -47,7 +48,12 @@ final class EndpointImporter
             $review[] = \sprintf('curl option "%s" was ignored', $option);
         }
 
+        $guessed = null === $baseUri;
         [$baseUri, $path, $query] = $this->splitUrl($request->url, $baseUri);
+        // A first import from a sandbox URL: the live host is the usual default
+        if ($guessed && preg_match('/\b(sandbox|test|staging|dev)\b/i', (string) parse_url($baseUri, \PHP_URL_HOST))) {
+            $review[] = \sprintf('base URI: "%s" looks like a sandbox: set the live host as base_uri, this one under environments, and base_uri_env to choose at runtime', $baseUri);
+        }
         $segments = '' === $path ? [] : explode('/', $path);
         if ([] === $segments) {
             throw new \InvalidArgumentException(\sprintf('The URL "%s" has no resource path after the base URI "%s".', $request->url, $baseUri));
@@ -175,14 +181,23 @@ final class EndpointImporter
     /**
      * @return array{string, string, array<string, array{type: string, required: bool, example: string}>}
      */
-    private function splitUrl(string $url, ?string $baseUri): array
+    /**
+     * @param string|list<string>|null $baseUris
+     */
+    private function splitUrl(string $url, string|array|null $baseUris): array
     {
         [$urlWithoutQuery, $queryString] = explode('?', $url, 2) + [1 => ''];
 
-        if (null !== $baseUri) {
-            $baseUri = rtrim($baseUri, '/').'/';
-            if (!str_starts_with($urlWithoutQuery.'/', $baseUri)) {
-                throw new \InvalidArgumentException(\sprintf('The URL "%s" does not start with the API base URI "%s".', $url, $baseUri));
+        if (null !== $baseUris) {
+            $baseUri = null;
+            foreach ((array) $baseUris as $candidate) {
+                if (str_starts_with($urlWithoutQuery.'/', rtrim($candidate, '/').'/')) {
+                    $baseUri = rtrim($candidate, '/').'/';
+                    break;
+                }
+            }
+            if (null === $baseUri) {
+                throw new \InvalidArgumentException(\sprintf('The URL "%s" does not start with a base URI of the API: %s (other hosts go under "environments" in _api.yaml).', $url, implode(', ', (array) $baseUris)));
             }
             $path = substr($urlWithoutQuery, \strlen($baseUri));
         } else {

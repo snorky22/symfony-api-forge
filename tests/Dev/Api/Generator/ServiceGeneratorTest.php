@@ -157,6 +157,24 @@ final class ServiceGeneratorTest extends TestCase
         self::assertSame((new ServiceGenerator())->generate($definition, 'x'), (new ServiceGenerator())->generate($definition, 'x'));
     }
 
+    public function testHostChosenAtRuntime(): void
+    {
+        $definition = new ApiDefinition('shop', 'Shop', [
+            'base_uri' => 'https://api.shop.test/', 'environments' => ['sandbox' => 'https://sandbox-api.shop.test/'], 'base_uri_env' => 'SHOP_BASE_URI',
+            'format' => 'json', 'headers' => [],
+        ], [], []);
+
+        $files = (new ServiceGenerator())->generate($definition, 'config/api/shop');
+
+        $config = $files['config/packages/api_shop.yaml'];
+        self::assertStringContainsString("    env(SHOP_BASE_URI): 'https://api.shop.test/'\n", $config);
+        self::assertStringContainsString("base_uri: '%env(SHOP_BASE_URI)%'", $config);
+        $doctor = $files['src/Api/Shop/Generated/ShopDoctor.php'];
+        self::assertStringContainsString("    protected const BASE_URI_ENV = 'SHOP_BASE_URI';\n    protected const ENVIRONMENTS = ['sandbox' => 'https://sandbox-api.shop.test/'];\n", $doctor);
+        self::assertStringContainsString("        #[Autowire('%env(SHOP_BASE_URI)%')] string \$baseUri,\n", $doctor);
+        self::assertStringContainsString("        parent::__construct([], \$baseUri);\n", $doctor);
+    }
+
     public function testCustomNamespaceAndDirectories(): void
     {
         $definition = new ApiDefinition('shop', 'Shop', ['base_uri' => 'https://shop.test/', 'format' => 'json', 'headers' => []], [

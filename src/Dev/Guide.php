@@ -2,10 +2,13 @@
 
 namespace Snorky22\ApiForge\Dev;
 
+use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
 use Snorky22\ApiForge\Dev\Api\Descriptor\ApiDefinition;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorLoader;
+use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
 use Snorky22\ApiForge\Dev\Api\Descriptor\InvalidDescriptorException;
 use Snorky22\ApiForge\Dev\Api\Generator\ServiceGenerator;
+use Snorky22\ApiForge\Dev\Api\Import\EndpointImporter;
 use Symfony\Component\Filesystem\Path;
 
 /**
@@ -40,6 +43,9 @@ final class Guide
     public function __construct(
         private readonly DescriptorLoader $loader,
         private readonly ServiceGenerator $generator,
+        private readonly DescriptorStore $store,
+        private readonly CurlParser $curlParser,
+        private readonly EndpointImporter $importer,
         private readonly string $projectDir,
         private readonly string $descriptorDir,
     ) {
@@ -62,26 +68,37 @@ final class Guide
      * @param ?string $dir      descriptor directory (default: api_forge.descriptor_dir)
      * @param ?string $output   project directory the services are generated into (default: this project)
      * @param ?string $fixtures directory of its documentation examples (default: tests/Fixtures/<api>)
+     * @param string  $console  how the console is run, to write the commands to copy
      *
      * @return array{state: list<array{string, string}>, next: string}
      */
-    public function status(string $api, ?string $dir = null, ?string $output = null, ?string $fixtures = null): array
+    public function status(string $api, ?string $dir = null, ?string $output = null, ?string $fixtures = null, string $console = 'php bin/console'): array
     {
         $output ??= $this->projectDir;
         $fixtures ??= $this->projectDir.'/'.str_replace('<api>', $api, self::FIXTURES_DIR);
         $state = [['Descriptors', Path::makeRelative(($dir ?? $this->descriptorDir).'/'.$api, $this->projectDir)]];
         $state[] = ['Examples', is_dir($fixtures) ? $this->fixtures($fixtures) : 'none in '.Path::makeRelative($fixtures, $this->projectDir)];
 
-        if (!is_file(($dir ?? $this->descriptorDir).'/'.$api.'/_api.yaml')) {
-            return ['state' => $state, 'next' => \sprintf('Import a first documented request: api-forge:import %s %s/get-<resource>.curl --response=…/get-<resource>.json', $api, Path::makeRelative($fixtures, $this->projectDir))];
+        $definition = null;
+        if (is_file(($dir ?? $this->descriptorDir).'/'.$api.'/_api.yaml')) {
+            try {
+                $definition = $this->loader->load($api, $dir);
+            } catch (InvalidDescriptorException $e) {
+                $state[] = ['Validity', \sprintf('%d error(s)', \count($e->errors))];
+
+                return ['state' => $state, 'next' => "Fix the descriptors:\n".implode("\n", \array_slice($e->errors, 0, 5))];
+            }
         }
 
-        try {
-            $definition = $this->loader->load($api, $dir);
-        } catch (InvalidDescriptorException $e) {
-            $state[] = ['Validity', \sprintf('%d error(s)', \count($e->errors))];
-
-            return ['state' => $state, 'next' => "Fix the descriptors:\n".implode("\n", \array_slice($e->errors, 0, 5))];
+        // Examples not imported yet: their exact import commands
+        $pending = is_dir($fixtures) ? $this->pendingImports($api, $definition, $fixtures, $dir) : [];
+        if ([] !== $pending) {
+            $state[] = ['Not imported', implode(', ', array_map('basename', array_keys($pending)))];
+        }
+        if (null === $definition) {
+            return ['state' => $state, 'next' => [] !== $pending
+                ? "Import the examples:\n".implode("\n", array_map(fn (string $command) => $console.' '.$command, $pending))
+                : \sprintf('Import a first documented request: %s api-forge:import %s %s/get-<resource>.curl --response=…/get-<resource>.json', $console, $api, Path::makeRelative($fixtures, $this->projectDir))];
         }
 
         $operations = array_sum(array_map(static fn (array $resource) => \count($resource['operations']), $definition->resources));
@@ -95,13 +112,49 @@ final class Guide
         $state[] = ['Generated code', [] === $stale ? 'up to date' : \sprintf('%d file(s) to (re)generate', \count($stale))];
 
         $next = match (true) {
-            [] !== $definition->review => \sprintf("Review the %d note(s) left in the descriptors, then delete them:\n%s", \count($definition->review), implode("\n", \array_slice($definition->review, 0, 5))),
-            [] !== $stale => 'Generate: api-forge:generate '.$api,
+            [] !== $pending => "Import the examples not imported yet:\n".implode("\n", array_map(fn (string $command) => $console.' '.$command, $pending)),
+            [] !== $definition->review => \sprintf("Review the %d note(s) left in the descriptors, then delete them:\n%s", \count($definition->review), implode("\n", array_map(fn (string $note) => str_replace($this->projectDir.'/', '', $note), \array_slice($definition->review, 0, 5)))),
+            [] !== $stale => 'Generate: '.$console.' api-forge:generate '.$api,
             null === $probe => 'Declare the doctor\'s probe in _api.yaml (doctor.probe: a harmless GET operation), then generate',
-            default => 'Import the other endpoints you need (api-forge:import), or check the API: api-forge:doctor '.$api.(null === $webhooks ? '; import its webhooks if it sends some (api-forge:import-webhook)' : ''),
+            default => 'Check the API: '.$console.' api-forge:doctor '.$api.'; or import other endpoints (their examples in '.Path::makeRelative($fixtures, $this->projectDir).'/)'.(null === $webhooks ? '; import its webhooks if it sends some (api-forge:import-webhook)' : ''),
         };
 
         return ['state' => $state, 'next' => $next];
+    }
+
+    /**
+     * The curl examples whose request (method and path) is not an operation of the descriptors yet.
+     *
+     * @return array<string, string> curl file => its import command (without the console)
+     */
+    private function pendingImports(string $api, ?ApiDefinition $definition, string $fixtures, ?string $dir): array
+    {
+        $known = [];
+        foreach ($definition?->resources ?? [] as $resource) {
+            foreach ($resource['operations'] as $operation) {
+                $known[$operation['method'].' '.$operation['path']] = true;
+            }
+        }
+        $apiDescriptor = $this->store->loadApi($api, $dir);
+        $baseUris = isset($apiDescriptor['base_uri']) ? [$apiDescriptor['base_uri'], ...array_values($apiDescriptor['environments'] ?? [])] : null;
+
+        $pending = [];
+        $files = glob($fixtures.'/*.curl') ?: [];
+        sort($files);
+        foreach ($files as $file) {
+            try {
+                $endpoint = $this->importer->import($this->curlParser->parse((string) file_get_contents($file)), $api, null, $baseUris, null, null, $apiDescriptor['format'] ?? null);
+            } catch (\Throwable) {
+                continue; // not readable: api-forge:import tells why
+            }
+            if (isset($known[$endpoint->operation['method'].' '.$endpoint->operation['path']])) {
+                continue;
+            }
+            $response = substr($file, 0, -5).'.json';
+            $pending[$file] = \sprintf('api-forge:import %s %s%s', $api, Path::makeRelative($file, $this->projectDir), is_file($response) ? ' --response='.Path::makeRelative($response, $this->projectDir) : '');
+        }
+
+        return $pending;
     }
 
     /**
