@@ -266,6 +266,7 @@ final class ServiceGenerator
 
         $probe = $definition->api['doctor']['probe'] ?? null;
         $probeMethod = '';
+        $contract = null;
         if (null !== $probe) {
             [$resource, $operationName] = explode('.', $probe, 2);
             $operation = $definition->resources[$resource]['operations'][$operationName];
@@ -283,7 +284,14 @@ final class ServiceGenerator
                     $callArguments[] = $this->export($value);
                 }
             }
-            $probeMethod = "\n    protected function probe(): void\n    {\n        \$this->probeResource->{$operationName}(".implode(', ', $callArguments).");\n    }\n";
+            $probeMethod = "\n    protected function probe(): array\n    {\n        return \$this->probeResource->{$operationName}(".implode(', ', $callArguments).");\n    }\n";
+
+            // The contract: the shape of the response, or of the resource objects of a JSON:API response
+            if (isset($operation['response']['data'], $definition->resources[$resource]['object'])) {
+                $contract = [$definition->resources[$resource]['object']['shape'], 'data', 'list' === $operation['response']['data']];
+            } elseif (isset($operation['response']['shape'])) {
+                $contract = [$operation['response']['shape'], null, false];
+            }
         }
 
         $constructor = '';
@@ -304,6 +312,9 @@ final class ServiceGenerator
             .'    protected const BASE_URI = '.$this->export($definition->api['base_uri']).";\n"
             .'    protected const ENV = '.$envConstant.";\n"
             .'    protected const PROBE = '.(null !== $probe ? $this->export($probe) : 'null').";\n"
+            .(null !== $contract ? '    protected const PROBE_SHAPE = '.$this->export($contract[0]).";\n"
+                .'    protected const PROBE_PATH = '.(null !== $contract[1] ? $this->export($contract[1]) : 'null').";\n"
+                .'    protected const PROBE_LIST = '.($contract[2] ? 'true' : 'false').";\n" : '')
             .$constructor
             .$probeMethod
             ."}\n";

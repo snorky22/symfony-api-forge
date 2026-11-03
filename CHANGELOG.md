@@ -9,6 +9,11 @@ until 1.0, minor versions may contain breaking changes.
   environment variables of the API and calls its probe (`doctor.probe` in `_api.yaml`, a harmless `GET`,
   guessed by the importer, validated by the loader), diagnosing unreachable hosts, rejected credentials,
   wrong base URIs, rate limits and provider errors; `api-forge:doctor` runs them with the webhook checks
+- Doctor contract check: the probe's response is compared with its shape in the descriptor (missing and
+  new fields, types, enum values), with `ShapeChecker`, a runtime checker of values against array shapes.
+  After upgrading, regenerate the services: the generated `probe()` now returns the response (a doctor
+  generated before doesn't match `AbstractApiDoctor`; change its `probe(): void` to `probe(): array` with a
+  `return` if the kernel can't boot to regenerate)
 
 - `api-forge:webhook:send`: simulated webhook deliveries, signed with the routing secret, in-process or
   over HTTP, with values replaced in the payload (`--set`); no tunnel nor real event needed

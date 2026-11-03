@@ -30,6 +30,7 @@ lemonsqueezy
 |---|---|---|
 | Environment variables | `auth.env`, `signature.env` | Empty credentials or webhook secret, as Symfony resolves them (`.env` files, defaults) |
 | Probe | `doctor.probe` | The API answers and accepts the credentials, with the latency; or: unreachable host (DNS, TLS, timeout), rejected credentials (401), missing permissions (403), wrong base URI or version (404), rate limit (429), provider error (5xx) |
+| Contract | the probe's response shape | The response differs from the descriptor: a required field missing (error: code reading it fails), a new field, another type, a value outside a documented enum (warnings) — the API changed since the descriptors were written |
 | Webhook chain | `_webhooks.yaml` | Routes, parser, secret, consumer, asynchronous transport; with `--ping`, a public URL (see [Webhooks](webhooks.md#checking-the-chain)) |
 
 ## The probe
@@ -47,6 +48,23 @@ doctor:
 the probe, with a review note to check that it is harmless and cheap. Without probe, the doctor only checks
 the environment variables. `api-forge:generate` refuses a probe that is not a `GET`, not an operation of
 the API, or misses path parameters.
+
+## Contract check
+
+After a successful probe, the doctor compares the response with its shape in the descriptor: the resource
+object for a JSON:API operation (each item of a list, up to 5), the response shape otherwise. Differences
+are listed with their path:
+
+```
+ ! The response of stores.get differs from the descriptor: the API may have changed. Update the shape
+   (api-forge:import-object with a real response), then api-forge:generate.
+ !   data.relationships.affiliates: new field (an object), not in the descriptor
+ ✘   data.attributes.email: missing (required by the descriptor)
+```
+
+Fix the descriptor (mark a field optional with `?`, add the new ones, widen a type), regenerate: the doctor
+and the PHPDoc types of the generated code follow. Types the checker doesn't know (aliases, classes) are not
+checked; `array{…, ...}` allows extra keys.
 
 ## Notes
 

@@ -21,6 +21,33 @@ final class LemonSqueezyDoctor extends AbstractApiDoctor
         'LEMONSQUEEZY_WEBHOOK_SECRET' => 'webhook signing secret',
     ];
     protected const PROBE = 'customers.list';
+    protected const PROBE_SHAPE = 'array{
+    type: string,
+    id: string,
+    attributes: array{
+        store_id: int,
+        name: string,
+        email: string,
+        status: string,
+        city: mixed,
+        region: mixed,
+        country: string,
+        total_revenue_currency: int,
+        mrr: int,
+        status_formatted: string,
+        country_formatted: string,
+        total_revenue_currency_formatted: string,
+        mrr_formatted: string,
+        urls: array{
+            customer_portal: string,
+        },
+        created_at: string,
+        updated_at: string,
+        test_mode: bool,
+    },
+}';
+    protected const PROBE_PATH = 'data';
+    protected const PROBE_LIST = true;
 
     public function __construct(
         private readonly Resource\Customers $probeResource,
@@ -30,8 +57,8 @@ final class LemonSqueezyDoctor extends AbstractApiDoctor
         parent::__construct(['LEMONSQUEEZY_API_KEY' => $env0, 'LEMONSQUEEZY_WEBHOOK_SECRET' => $env1]);
     }
 
-    protected function probe(): void
+    protected function probe(): array
     {
-        $this->probeResource->list();
+        return $this->probeResource->list();
     }
 }

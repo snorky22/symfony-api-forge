@@ -30,6 +30,7 @@ final class DoctorCommandTest extends KernelTestCase
         self::assertStringContainsString('✘ LEMONSQUEEZY_API_KEY (credentials) is empty: set it in .env.local.', $display);
         self::assertStringContainsString('✔ LEMONSQUEEZY_WEBHOOK_SECRET (webhook signing secret) is set.', $display);
         self::assertStringContainsString('✔ Probe customers.list: the API answers and accepts the credentials', $display);
+        self::assertStringContainsString('! Contract of customers.list not checked: the response has no items.', $display);
         self::assertStringContainsString('✔ Consumer registered', $display);
         self::assertSame(1, $tester->getStatusCode());
         self::assertSame(['GET https://api.lemonsqueezy.com/v1/customers'], self::getContainer()->get(ApiMock::class)->urls);
@@ -43,6 +44,22 @@ final class DoctorCommandTest extends KernelTestCase
         $tester->execute(['apis' => ['lemonsqueezy']]);
 
         self::assertStringContainsString('✘ Probe customers.list: the API rejects the credentials (HTTP 401): check LEMONSQUEEZY_API_KEY.', $tester->getDisplay());
+    }
+
+    public function testChangedApi(): void
+    {
+        self::bootKernel();
+        $customer = json_decode(file_get_contents(__DIR__.'/../Fixtures/customer-object.json'), true);
+        $customer['attributes']['loyalty_points'] = 12;
+        unset($customer['attributes']['email']);
+        self::getContainer()->get(ApiMock::class)->next = new JsonMockResponse(['data' => [$customer]]);
+        $tester = new CommandTester((new Application(self::$kernel))->find('api-forge:doctor'));
+        $tester->execute(['apis' => ['lemonsqueezy']]);
+
+        $display = $tester->getDisplay();
+        self::assertStringContainsString('! The response of customers.list differs from the descriptor (1 item(s) checked): the API may have changed.', $display);
+        self::assertStringContainsString('✘   data[].attributes.email: missing (required by the descriptor)', $display);
+        self::assertStringContainsString('!   data[].attributes.loyalty_points: new field (12), not in the descriptor', $display);
     }
 
     public function testUnknownApi(): void

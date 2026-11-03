@@ -9,7 +9,7 @@
   processing with Messenger
 - Simulated webhook deliveries: `api-forge:webhook:send`, `WebhookTestTrait`; chain check:
   `api-forge:webhook:check` (`--ping` for tunnels)
-- Generated doctors: `api-forge:doctor` (environment variables, probe, webhook chain)
+- Generated doctors: `api-forge:doctor` (environment variables, probe, contract check, webhook chain)
 - Lemon Squeezy example: customers, orders, checkouts, subscriptions, subscription invoices, license keys,
   and the 17 webhook events (16 with typed payloads); signing scheme checked against the docs
   (`examples/lemonsqueezy/`)
@@ -17,8 +17,6 @@
 
 ## Next
 
-- Doctor, contract check: compare the probe's response with its array shape (missing fields, new fields,
-  changed types), to spot API changes.
 - Doctor, webhooks: event coverage (events received but not handled by the consumer); optional hint to
   read the webhooks registered at the provider (URL path, events).
 

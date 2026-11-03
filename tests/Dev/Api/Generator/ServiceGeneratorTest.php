@@ -299,7 +299,8 @@ final class ServiceGeneratorTest extends TestCase
         self::assertStringContainsString("    protected const ENV = [\n        'GENTEST_API_KEY' => 'credentials',\n        'GENTEST_WEBHOOK_SECRET' => 'webhook signing secret',\n    ];\n", $doctor);
         self::assertStringContainsString("    protected const PROBE = 'customers.get';\n", $doctor);
         self::assertStringContainsString("        #[Autowire('%env(GENTEST_CUSTOMER_ID)%')] private readonly string \$probeId,\n", $doctor);
-        self::assertStringContainsString("        \$this->probeResource->get(\$this->probeId);\n", $doctor);
+        self::assertStringContainsString("        return \$this->probeResource->get(\$this->probeId);\n", $doctor);
+        self::assertStringContainsString("    protected const PROBE_PATH = 'data';\n    protected const PROBE_LIST = false;\n", $doctor);
 
         $diagnose = static function (MockResponse $response, string $key = 'key'): array {
             $client = ScopingHttpClient::forBaseUri(new MockHttpClient([$response]), 'https://api.test/v1/');
@@ -308,9 +309,16 @@ final class ServiceGeneratorTest extends TestCase
             return array_map(static fn ($check) => $check->level.': '.$check->message, $doctor->diagnose());
         };
 
-        $checks = $diagnose(new JsonMockResponse(['data' => ['type' => 'customers', 'id' => '7']]));
+        $checks = $diagnose(new JsonMockResponse(['data' => ['type' => 'customers', 'id' => '7', 'attributes' => ['name' => 'Jane']]]));
         self::assertSame('ok: GENTEST_API_KEY (credentials) is set.', $checks[0]);
         self::assertStringStartsWith('ok: Probe customers.get: the API answers and accepts the credentials (', $checks[2]);
+        self::assertSame('ok: The response of customers.get matches the descriptor.', $checks[3]);
+
+        // The API has changed: a field renamed
+        $checks = $diagnose(new JsonMockResponse(['data' => ['type' => 'customers', 'id' => '7', 'attributes' => ['full_name' => 'Jane']]]));
+        self::assertStringStartsWith('warning: The response of customers.get differs from the descriptor: the API may have changed.', $checks[3]);
+        self::assertSame('error:   data.attributes.name: missing (required by the descriptor)', $checks[4]);
+        self::assertSame("warning:   data.attributes.full_name: new field ('Jane'), not in the descriptor", $checks[5]);
 
         $checks = $diagnose(new JsonMockResponse(['errors' => [['detail' => 'Unauthenticated.']]], ['http_code' => 401]), '');
         self::assertSame('error: GENTEST_API_KEY (credentials) is empty: set it in .env.local.', $checks[0]);
