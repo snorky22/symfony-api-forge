@@ -64,6 +64,20 @@ final class EndpointImporterTest extends TestCase
         self::assertSame(['object: "list<mixed>" marks empty arrays in the example, they may be empty objects'], $endpoint->object['review']);
     }
 
+    public function testActionDocumentWithIdIdentifiesTheResource(): void
+    {
+        $endpoint = $this->import(<<<'CURL'
+            curl -X "POST" "https://api.lemonsqueezy.com/v1/orders/1/refund" \
+              -H 'Accept: application/vnd.api+json' \
+              -H 'Content-Type: application/vnd.api+json' \
+              -d '{"data": {"type": "orders", "id": "1", "attributes": {"amount": 100}}}'
+            CURL);
+
+        self::assertSame('refund', $endpoint->operationName);
+        self::assertTrue($endpoint->operation['body']['id']);
+        self::assertArrayNotHasKey('id', $this->import(file_get_contents(self::FIXTURES.'curl-example-3'))->operation['body']);
+    }
+
     public function testToManyRelationship(): void
     {
         $curl = <<<'CURL'

@@ -154,8 +154,9 @@ final class ServiceGenerator
                     $paramDoc[] = [$this->relationshipsType($relationships), 'relationships', 'related resource ids'];
                     array_push($documentArguments, '$relationships', $this->exportMap($relationships));
                 }
-                // JSON:API updates identify the resource in the document too: it is the last path parameter.
-                if (\in_array($operation['method'], ['PATCH', 'PUT'], true) && [] !== $operation['parameters']) {
+                // JSON:API updates (and actions like "POST orders/{id}/refund", body.id) identify the resource
+                // in the document too: it is the last path parameter.
+                if (($operation['body']['id'] ?? \in_array($operation['method'], ['PATCH', 'PUT'], true)) && [] !== $operation['parameters']) {
                     $documentArguments[] = 'id: $'.array_key_last($operation['parameters']);
                 }
                 $body = ['json' => '$this->document('.implode(', ', $documentArguments).')'];

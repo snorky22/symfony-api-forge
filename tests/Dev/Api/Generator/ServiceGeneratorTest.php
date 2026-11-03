@@ -43,6 +43,13 @@ final class ServiceGeneratorTest extends TestCase
                 'response' => ['data' => 'object'],
             ],
             'delete' => ['method' => 'DELETE', 'path' => 'customers/{id}', 'parameters' => ['id' => []]],
+            'refund' => [
+                'method' => 'POST',
+                'path' => 'customers/{id}/refund',
+                'parameters' => ['id' => []],
+                'body' => ['attributes' => ['shape' => 'array{amount?: int}'], 'id' => true],
+                'response' => ['data' => 'object'],
+            ],
             'export' => [
                 'method' => 'POST',
                 'path' => 'customers/{id}/export',
@@ -270,6 +277,16 @@ final class ServiceGeneratorTest extends TestCase
 
         self::assertSame('https://api.test/v1/customers/7', $response->getRequestUrl());
         self::assertSame(['data' => ['type' => 'customers', 'id' => '7', 'attributes' => ['name' => 'Jane']]], json_decode($response->getRequestOptions()['body'], true));
+    }
+
+    public function testActionDocumentIdentifiesTheResource(): void
+    {
+        $response = new JsonMockResponse(['data' => ['type' => 'customers', 'id' => '7']]);
+
+        $this->customers([$response])->refund(7, ['amount' => 100]);
+
+        self::assertSame(['POST', 'https://api.test/v1/customers/7/refund'], [$response->getRequestMethod(), $response->getRequestUrl()]);
+        self::assertSame(['data' => ['type' => 'customers', 'id' => '7', 'attributes' => ['amount' => 100]]], json_decode($response->getRequestOptions()['body'], true));
     }
 
     public function testDelete(): void

@@ -80,6 +80,10 @@ final class EndpointImporter
             $body = $this->decode($request->body);
             if ($jsonApi && isset($body->data->attributes)) {
                 [$operation['body'], $type] = $this->describeJsonApiBody($body->data, $review);
+                // An action on an existing resource whose document identifies it, e.g. "POST orders/{id}/refund"
+                if (isset($body->data->id) && !\in_array($request->method, ['PATCH', 'PUT'], true) && [] !== ($operation['parameters'] ?? [])) {
+                    $operation['body']['id'] = true;
+                }
             } elseif (null !== $body) {
                 $operation['body'] = ['shape' => $this->shapeGenerator->generate($body)];
                 $this->reviewShape($operation['body']['shape'], 'request body', $review);

@@ -12,6 +12,9 @@ until 1.0, minor versions may contain breaking changes.
 - `api-forge:webhook:check`: checks the webhook chain (routes, parser, secret, consumer, Messenger) and,
   with `--ping`, a public URL (tunnel); `WebhookDiagnostics`, `WebhookSender::ping()`,
   `AbstractSignedRequestParser::pingPayload()`
+- Descriptors: `body.id` (JSON:API) puts the resource id, the last path parameter, in the request
+  document of actions like `POST orders/{id}/refund`; the importer sets it when the example document has
+  an id. PATCH and PUT keep doing it by default
 - `api-forge:webhook:send --url` only reports success for the endpoint's 202: another 2xx means the URL
   reaches another page (path missing)
 

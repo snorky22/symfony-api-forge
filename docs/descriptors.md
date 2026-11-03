@@ -93,6 +93,9 @@ body:                                  # JSON:API document, built from the metho
     relationships:                     # relationship name => related type
         store: stores                  # to-one
         tags: 'tags[]'                 # to-many
+    id: true                           # the document carries the resource id (the last path parameter):
+                                       # default for PATCH and PUT; set by the importer for actions like
+                                       # "POST orders/{id}/refund" whose example document has an id
 ```
 
 ### Response
