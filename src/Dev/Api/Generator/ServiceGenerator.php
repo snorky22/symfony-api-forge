@@ -55,6 +55,7 @@ final class ServiceGenerator
             $files[$directory.'/Resource/'.Naming::className($name).'.php'] = $this->resourceClass($definition, $name, $resource, $descriptorDir.'/'.$name.'.yaml');
         }
         $files[$directory.'/'.$definition->namespace.'Api.php'] = $this->entryPoint($definition, $descriptorDir);
+        $files[$directory.'/'.$definition->namespace.'Doctor.php'] = $this->doctor($definition, $descriptorDir.'/_api.yaml');
         if (null !== $definition->webhooks) {
             $source = $descriptorDir.'/_webhooks.yaml';
             $files[$directory.'/Webhook/'.$definition->namespace.'RequestParser.php'] = $this->requestParser($definition, $source);
@@ -239,6 +240,73 @@ final class ServiceGenerator
         }
 
         return 'array{'.implode(', ', $entries).'}';
+    }
+
+    /**
+     * The doctor of the API (api-forge:doctor): its environment variables, and the probe of doctor.probe.
+     */
+    private function doctor(ApiDefinition $definition, string $source): string
+    {
+        $env = [];
+        if (isset($definition->api['auth'])) {
+            $env[$definition->api['auth']['env']] = 'credentials';
+        }
+        if (null !== $definition->webhooks) {
+            $env[$definition->webhooks['signature']['env']] = 'webhook signing secret';
+        }
+
+        $arguments = [];
+        $parentArguments = [];
+        $usesAutowire = false;
+        foreach (array_keys($env) as $i => $name) {
+            $arguments[] = "        #[Autowire('%env({$name})%')] #[\\SensitiveParameter] string \$env{$i},";
+            $parentArguments[] = $this->export($name).' => $env'.$i;
+            $usesAutowire = true;
+        }
+
+        $probe = $definition->api['doctor']['probe'] ?? null;
+        $probeMethod = '';
+        if (null !== $probe) {
+            [$resource, $operationName] = explode('.', $probe, 2);
+            $operation = $definition->resources[$resource]['operations'][$operationName];
+            array_unshift($arguments, '        private readonly Resource\\'.Naming::className($resource).' $probeResource,');
+            $callArguments = [];
+            foreach (array_keys($operation['parameters']) as $parameter) {
+                $value = (string) $definition->api['doctor']['parameters'][$parameter];
+                if (preg_match('/^%(env\([^)]+\)|[\w.]+)%$/', $value)) {
+                    // A container parameter or environment variable: injected
+                    $variable = 'probe'.ucfirst(Naming::variableName((string) $parameter));
+                    $arguments[] = '        #[Autowire('.$this->export($value).')] private readonly string $'.$variable.',';
+                    $callArguments[] = '$this->'.$variable;
+                    $usesAutowire = true;
+                } else {
+                    $callArguments[] = $this->export($value);
+                }
+            }
+            $probeMethod = "\n    protected function probe(): void\n    {\n        \$this->probeResource->{$operationName}(".implode(', ', $callArguments).");\n    }\n";
+        }
+
+        $constructor = '';
+        if ([] !== $arguments) {
+            $constructor = "\n    public function __construct(\n".implode("\n", $arguments)."\n    ) {\n"
+                .'        parent::__construct(['.implode(', ', $parentArguments)."]);\n    }\n";
+        }
+
+        $envConstant = [] === $env ? '[]' : "[\n".implode('', array_map(fn ($name, $role) => '        '.$this->export($name).' => '.$this->export($role).",\n", array_keys($env), $env)).'    ]';
+
+        return $this->header($source)
+            .'namespace '.$this->apiNamespace($definition).";\n\n"
+            ."use Snorky22\\ApiForge\\Dev\\Doctor\\AbstractApiDoctor;\n"
+            .($usesAutowire ? "use Symfony\\Component\\DependencyInjection\\Attribute\\Autowire;\n" : '')
+            ."\n/**\n * Doctor of the {$definition->namespace} API: configuration, reachability, credentials\n * (php bin/console api-forge:doctor {$definition->name}).\n */\n"
+            ."final class {$definition->namespace}Doctor extends AbstractApiDoctor\n{\n"
+            .'    public const API = '.$this->export($definition->name).";\n"
+            .'    protected const BASE_URI = '.$this->export($definition->api['base_uri']).";\n"
+            .'    protected const ENV = '.$envConstant.";\n"
+            .'    protected const PROBE = '.(null !== $probe ? $this->export($probe) : 'null').";\n"
+            .$constructor
+            .$probeMethod
+            ."}\n";
     }
 
     private function entryPoint(ApiDefinition $definition, string $source): string

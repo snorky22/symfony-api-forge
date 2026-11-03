@@ -7,6 +7,19 @@ resources. The schema is defined in
 
 Keys are never normalized: header, parameter and relationship names are kept as written.
 
+
+### Doctor
+
+```yaml
+doctor:
+    probe: customers.list              # resource.operation: a harmless GET, called by api-forge:doctor
+    parameters:                        # values of the probe's path parameters
+        id: '%env(SHOP_CUSTOMER_ID)%'  # %env()% and %parameters% are injected from the container
+    review: []
+```
+
+Guessed by the importer (the first `GET` without parameters); see [Doctor](doctor.md).
+
 ## `_api.yaml`
 
 ```yaml

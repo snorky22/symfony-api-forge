@@ -7,3 +7,5 @@ headers:
 auth:
     type: bearer
     env: LEMONSQUEEZY_API_KEY
+doctor:
+    probe: customers.list

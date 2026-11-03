@@ -82,6 +82,7 @@ final class ServiceGeneratorTest extends TestCase
             'namespace' => 'GenTest',
             'headers' => ['Accept' => 'application/vnd.api+json', 'Content-Type' => 'application/vnd.api+json', 'X-Rate' => '100%'],
             'auth' => ['type' => 'bearer', 'env' => 'GENTEST_API_KEY'],
+            'doctor' => ['probe' => 'customers.get', 'parameters' => ['id' => '%env(GENTEST_CUSTOMER_ID)%']],
         ], 10));
         $filesystem->dumpFile($dir.'/config/api/gentest/customers.yaml', Yaml::dump(self::CUSTOMERS, 10));
         $filesystem->dumpFile($dir.'/config/api/gentest/_webhooks.yaml', Yaml::dump([
@@ -102,6 +103,7 @@ final class ServiceGeneratorTest extends TestCase
         }
         require_once $dir.'/src/Api/GenTest/Generated/Resource/Customers.php';
         require_once $dir.'/src/Api/GenTest/Generated/GenTestApi.php';
+        require_once $dir.'/src/Api/GenTest/Generated/GenTestDoctor.php';
         foreach (['GenTestRequestParser', 'GenTestWebhookEvents', 'AbstractGenTestWebhookConsumer'] as $class) {
             require_once $dir.'/src/Api/GenTest/Generated/Webhook/'.$class.'.php';
         }
@@ -128,6 +130,7 @@ final class ServiceGeneratorTest extends TestCase
         self::assertSame([
             'src/Api/GenTest/Generated/Resource/Customers.php',
             'src/Api/GenTest/Generated/GenTestApi.php',
+            'src/Api/GenTest/Generated/GenTestDoctor.php',
             'src/Api/GenTest/Generated/Webhook/GenTestRequestParser.php',
             'src/Api/GenTest/Generated/Webhook/GenTestWebhookEvents.php',
             'src/Api/GenTest/Generated/Webhook/AbstractGenTestWebhookConsumer.php',
@@ -155,6 +158,7 @@ final class ServiceGeneratorTest extends TestCase
         self::assertSame([
             'lib/Integration/Shop/Generated/Resource/Orders.php',
             'lib/Integration/Shop/Generated/ShopApi.php',
+            'lib/Integration/Shop/Generated/ShopDoctor.php',
             'config/integrations/api_shop.yaml',
         ], array_keys($files));
         self::assertStringContainsString("namespace Acme\\Integration\\Shop\\Generated\\Resource;\n", $files['lib/Integration/Shop/Generated/Resource/Orders.php']);
@@ -287,6 +291,34 @@ final class ServiceGeneratorTest extends TestCase
 
         self::assertSame(['POST', 'https://api.test/v1/customers/7/refund'], [$response->getRequestMethod(), $response->getRequestUrl()]);
         self::assertSame(['data' => ['type' => 'customers', 'id' => '7', 'attributes' => ['amount' => 100]]], json_decode($response->getRequestOptions()['body'], true));
+    }
+
+    public function testDoctor(): void
+    {
+        $doctor = self::generate()['src/Api/GenTest/Generated/GenTestDoctor.php'];
+        self::assertStringContainsString("    protected const ENV = [\n        'GENTEST_API_KEY' => 'credentials',\n        'GENTEST_WEBHOOK_SECRET' => 'webhook signing secret',\n    ];\n", $doctor);
+        self::assertStringContainsString("    protected const PROBE = 'customers.get';\n", $doctor);
+        self::assertStringContainsString("        #[Autowire('%env(GENTEST_CUSTOMER_ID)%')] private readonly string \$probeId,\n", $doctor);
+        self::assertStringContainsString("        \$this->probeResource->get(\$this->probeId);\n", $doctor);
+
+        $diagnose = static function (MockResponse $response, string $key = 'key'): array {
+            $client = ScopingHttpClient::forBaseUri(new MockHttpClient([$response]), 'https://api.test/v1/');
+            $doctor = new \App\Api\GenTest\Generated\GenTestDoctor(new \App\Api\GenTest\Generated\Resource\Customers($client), env0: $key, env1: 'secret', probeId: '7');
+
+            return array_map(static fn ($check) => $check->level.': '.$check->message, $doctor->diagnose());
+        };
+
+        $checks = $diagnose(new JsonMockResponse(['data' => ['type' => 'customers', 'id' => '7']]));
+        self::assertSame('ok: GENTEST_API_KEY (credentials) is set.', $checks[0]);
+        self::assertStringStartsWith('ok: Probe customers.get: the API answers and accepts the credentials (', $checks[2]);
+
+        $checks = $diagnose(new JsonMockResponse(['errors' => [['detail' => 'Unauthenticated.']]], ['http_code' => 401]), '');
+        self::assertSame('error: GENTEST_API_KEY (credentials) is empty: set it in .env.local.', $checks[0]);
+        self::assertSame('error: Probe customers.get: the API rejects the credentials (HTTP 401): check GENTEST_API_KEY.', $checks[2]);
+
+        self::assertStringContainsString('wrong base URI or API version (https://api.test/v1/)', $diagnose(new JsonMockResponse([], ['http_code' => 404]))[2]);
+        self::assertStringContainsString('the provider may be down', $diagnose(new JsonMockResponse([], ['http_code' => 503]))[2]);
+        self::assertStringContainsString('is unreachable (DNS, TLS, network, timeout): Could not resolve host', $diagnose(new MockResponse('', ['error' => 'Could not resolve host']))[2]);
     }
 
     public function testDelete(): void

@@ -89,11 +89,46 @@ final class DescriptorLoader
             }
         }
 
+        if (isset($api['doctor'])) {
+            $this->checkDoctor($apiFile, $api['doctor'], $resources, $errors);
+            $review = array_merge($review, $this->review($apiFile.': doctor', $api['doctor']['review'] ?? []));
+        }
+
         if ([] !== $errors) {
             throw new InvalidDescriptorException($errors);
         }
 
         return new ApiDefinition($name, $api['namespace'] ?? Naming::className($name), $api, $resources, $review, $webhooks);
+    }
+
+    /**
+     * The probe must be a GET operation of the API, with a value for each of its path parameters.
+     *
+     * @param array<string, mixed>                $doctor
+     * @param array<string, array<string, mixed>> $resources
+     * @param list<string>                        $errors
+     */
+    private function checkDoctor(string $file, array $doctor, array $resources, array &$errors): void
+    {
+        if (null === $doctor['probe']) {
+            return;
+        }
+        [$resource, $operationName] = explode('.', $doctor['probe'], 2);
+        $operation = $resources[$resource]['operations'][$operationName] ?? null;
+        if (null === $operation) {
+            $errors[] = \sprintf('%s: doctor.probe "%s" is not an operation of the API.', $file, $doctor['probe']);
+
+            return;
+        }
+        if ('GET' !== $operation['method']) {
+            $errors[] = \sprintf('%s: doctor.probe "%s" is a %s operation: the probe must be a harmless GET.', $file, $doctor['probe'], $operation['method']);
+        }
+        if ([] !== $missing = array_diff(array_keys($operation['parameters']), array_keys($doctor['parameters']))) {
+            $errors[] = \sprintf('%s: doctor.parameters must give the path parameters of the probe "%s": %s.', $file, $doctor['probe'], implode(', ', $missing));
+        }
+        if ([] !== $unknown = array_diff(array_keys($doctor['parameters']), array_keys($operation['parameters']))) {
+            $errors[] = \sprintf('%s: doctor.parameters has unknown parameters for the probe "%s": %s.', $file, $doctor['probe'], implode(', ', $unknown));
+        }
     }
 
     /**

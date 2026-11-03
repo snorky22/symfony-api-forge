@@ -14,6 +14,9 @@ final class DescriptorMergerTest extends TestCase
         'headers' => ['Accept' => 'application/json'],
     ];
 
+    /** The probe guessed for the first GET without parameters */
+    private const DOCTOR = ['doctor' => ['probe' => 'orders.list', 'review' => ['probe guessed: "orders.list" is a GET without parameters, check that it is harmless and cheap']]];
+
     private function endpoint(array $operation, string $name = 'list', array $api = self::API, ?string $type = null): ImportedEndpoint
     {
         return new ImportedEndpoint($api, 'orders', $type, $name, $operation + ['method' => 'GET', 'path' => 'orders']);
@@ -23,13 +26,13 @@ final class DescriptorMergerTest extends TestCase
     {
         $result = (new DescriptorMerger())->merge(null, null, $this->endpoint(['review' => ['x']], type: 'orders'));
 
-        self::assertSame(self::API, $result['api']);
+        self::assertSame(self::API + self::DOCTOR, $result['api']);
         self::assertSame([
             'resource' => 'orders',
             'type' => 'orders',
             'operations' => ['list' => ['method' => 'GET', 'path' => 'orders', 'review' => ['x']]],
         ], $result['resource']);
-        self::assertSame(['operation "list" added'], $result['notes']);
+        self::assertSame(['operation "list" added', 'doctor probe: "orders.list"'], $result['notes']);
     }
 
     public function testMergeKeepsExistingValuesAndAddsQuery(): void
@@ -64,8 +67,22 @@ final class DescriptorMergerTest extends TestCase
 
         $result = (new DescriptorMerger())->merge(self::API, null, $this->endpoint([], api: $api));
 
-        self::assertSame(self::API, $result['api']);
+        self::assertSame(self::API + self::DOCTOR, $result['api']);
         self::assertSame(['Accept' => 'text/csv', 'X-Extra' => '1'], $result['resource']['operations']['list']['headers']);
+    }
+
+    public function testProbeIsGuessedOnceForAHarmlessGet(): void
+    {
+        $merger = new DescriptorMerger();
+        $create = $merger->merge(self::API, null, $this->endpoint(['method' => 'POST'], 'create'));
+        self::assertArrayNotHasKey('doctor', $create['api']);
+        $get = $merger->merge(self::API, null, $this->endpoint(['path' => 'orders/{id}', 'parameters' => ['id' => []]], 'get'));
+        self::assertArrayNotHasKey('doctor', $get['api']);
+        $required = $merger->merge(self::API, null, $this->endpoint(['query' => ['store' => ['required' => true]]]));
+        self::assertArrayNotHasKey('doctor', $required['api']);
+
+        $list = $merger->merge(self::API + ['doctor' => ['probe' => 'stores.list']], null, $this->endpoint([]));
+        self::assertSame(['probe' => 'stores.list'], $list['api']['doctor'], 'An existing probe is kept');
     }
 
     public function testConflictingOperationIsRejected(): void
@@ -85,7 +102,7 @@ final class DescriptorMergerTest extends TestCase
         $result = (new DescriptorMerger())->merge(self::API, $resource, $this->endpoint(['path' => 'orders/all']), true);
 
         self::assertSame(['method' => 'GET', 'path' => 'orders/all'], $result['resource']['operations']['list']);
-        self::assertSame(['operation "list" replaced'], $result['notes']);
+        self::assertSame(['operation "list" replaced', 'doctor probe: "orders.list"'], $result['notes']);
     }
 
     public function testRealResponseExampleSettlesAssumedOne(): void

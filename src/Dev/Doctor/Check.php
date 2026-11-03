@@ -1,11 +1,11 @@
 <?php
 
-namespace Snorky22\ApiForge\Dev\Webhook;
+namespace Snorky22\ApiForge\Dev\Doctor;
 
 /**
- * The result of one check of the webhook chain.
+ * The result of one check of a doctor (API, webhook chain).
  */
-final readonly class WebhookCheck
+final readonly class Check
 {
     public const OK = 'ok';
     public const WARNING = 'warning';

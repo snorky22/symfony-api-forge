@@ -18,6 +18,8 @@ payload JSON                              │    descriptors, edited by hand    
   methods per event (RemoteEvent), asynchronous processing with Messenger.
 - **Local webhook testing**: `api-forge:webhook:send` and `WebhookTestTrait` deliver payloads signed like
   the API, without a tunnel nor a real event; `api-forge:webhook:check` finds what breaks the chain.
+- **Generated doctors**: one per API, regenerated with its services; `api-forge:doctor` checks the
+  credentials, calls a harmless probe and diagnoses what fails (unreachable, rejected key, wrong URL…).
 
 ## Requirements
 
@@ -104,6 +106,7 @@ generated code and configuration, and a webhook consumer.
 | [Descriptors](docs/descriptors.md) | Reference of the descriptor format (`config/api/`) |
 | [Commands](docs/commands.md) | Console commands and their options |
 | [Generated services](docs/generated-services.md) | Using the generated code, the runtime layer, errors, pagination |
+| [Doctor](docs/doctor.md) | Generated doctors: what they check, the probe |
 | [Webhooks](docs/webhooks.md) | Receiving webhooks: setup, consumers, payload types, simulated deliveries, testing |
 | [Roadmap](docs/roadmap.md) | Known limitations and next steps |
 

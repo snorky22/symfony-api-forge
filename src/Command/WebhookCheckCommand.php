@@ -2,7 +2,7 @@
 
 namespace Snorky22\ApiForge\Command;
 
-use Snorky22\ApiForge\Dev\Webhook\WebhookCheck;
+use Snorky22\ApiForge\Dev\Doctor\CheckRenderer;
 use Snorky22\ApiForge\Dev\Webhook\WebhookDiagnostics;
 use Snorky22\ApiForge\Dev\Webhook\WebhookSender;
 use Symfony\Component\Console\Attribute\Argument;
@@ -61,7 +61,7 @@ final class WebhookCheckCommand
                 $checks[] = $this->diagnostics->ping($type, $ping);
             }
             $io->section($type);
-            $errors += self::render($io, $checks);
+            $errors += CheckRenderer::render($io, $checks);
         }
 
         if ($errors > 0) {
@@ -72,25 +72,5 @@ final class WebhookCheckCommand
         $io->success('The webhook chain is ready.');
 
         return Command::SUCCESS;
-    }
-
-    /**
-     * @param list<WebhookCheck> $checks
-     *
-     * @return int the number of errors
-     */
-    public static function render(SymfonyStyle $io, array $checks): int
-    {
-        $errors = 0;
-        foreach ($checks as $check) {
-            $io->text(match ($check->level) {
-                WebhookCheck::OK => '<info>✔</info> ',
-                WebhookCheck::WARNING => '<comment>!</comment> ',
-                default => '<error>✘</error> ',
-            }.$check->message);
-            $errors += WebhookCheck::ERROR === $check->level ? 1 : 0;
-        }
-
-        return $errors;
     }
 }

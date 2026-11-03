@@ -3,7 +3,7 @@
 namespace Snorky22\ApiForge\Tests\Dev\Webhook;
 
 use PHPUnit\Framework\Attributes\DataProvider;
-use Snorky22\ApiForge\Dev\Webhook\WebhookCheck;
+use Snorky22\ApiForge\Dev\Doctor\Check;
 use Snorky22\ApiForge\Dev\Webhook\WebhookDiagnostics;
 use Snorky22\ApiForge\Dev\Webhook\WebhookSender;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
@@ -25,7 +25,7 @@ final class WebhookDiagnosticsTest extends KernelTestCase
      */
     private static function summary(array $checks): array
     {
-        return array_map(static fn (WebhookCheck $check) => $check->level.': '.$check->message, $checks);
+        return array_map(static fn (Check $check) => $check->level.': '.$check->message, $checks);
     }
 
     public function testChainOfTheExample(): void

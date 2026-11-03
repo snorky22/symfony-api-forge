@@ -66,6 +66,14 @@ final class DescriptorMerger
 
         $resource['operations'][$name] = $this->sortKeys($operation, self::OPERATION_KEYS);
 
+        // The first harmless operation becomes the probe of the generated doctor
+        if (!isset($api['doctor']['probe']) && 'GET' === $operation['method'] && [] === ($operation['parameters'] ?? [])
+            && [] === array_filter($operation['query'] ?? [], static fn (array $query) => $query['required'] ?? false)) {
+            $probe = $endpoint->resource.'.'.$name;
+            $api['doctor'] = ['probe' => $probe, 'review' => [\sprintf('probe guessed: "%s" is a GET without parameters, check that it is harmless and cheap', $probe)]];
+            $notes[] = \sprintf('doctor probe: "%s"', $probe);
+        }
+
         return ['api' => $api, 'resource' => $resource, 'notes' => $notes];
     }
 

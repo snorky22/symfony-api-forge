@@ -150,6 +150,23 @@ final class DescriptorLoaderTest extends TestCase
         self::assertSame(['orders.yaml: operation "create": "body.attributes" requires the resource "type".'], $errors);
     }
 
+    public function testDoctorProbe(): void
+    {
+        $orders = ['resource' => 'orders', 'operations' => [
+            'list' => ['method' => 'GET', 'path' => 'orders'],
+            'get' => ['method' => 'GET', 'path' => 'orders/{id}', 'parameters' => ['id' => []]],
+            'create' => ['method' => 'POST', 'path' => 'orders', 'body' => ['shape' => 'array{a: int}']],
+        ]];
+
+        $definition = $this->load(self::API + ['doctor' => ['probe' => 'orders.get', 'parameters' => ['id' => '%env(ORDER_ID)%'], 'review' => ['check it']]], ['orders' => $orders]);
+        self::assertSame(['probe' => 'orders.get', 'parameters' => ['id' => '%env(ORDER_ID)%'], 'review' => ['check it']], $definition->api['doctor']);
+        self::assertContains('_api.yaml: doctor: check it', array_map(fn (string $note) => str_replace($this->dir.'/shop/', '', $note), $definition->review));
+
+        self::assertSame(['_api.yaml: doctor.probe "orders.create" is a POST operation: the probe must be a harmless GET.'], $this->errors(self::API + ['doctor' => ['probe' => 'orders.create']], ['orders' => $orders]));
+        self::assertSame(['_api.yaml: doctor.probe "orders.cancel" is not an operation of the API.'], $this->errors(self::API + ['doctor' => ['probe' => 'orders.cancel']], ['orders' => $orders]));
+        self::assertSame(['_api.yaml: doctor.parameters must give the path parameters of the probe "orders.get": id.'], $this->errors(self::API + ['doctor' => ['probe' => 'orders.get']], ['orders' => $orders]));
+    }
+
     public function testLoadsWebhooks(): void
     {
         $definition = $this->load(self::API, [

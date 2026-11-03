@@ -54,6 +54,8 @@ final class TestKernel extends Kernel
                 'transports' => ['async' => 'in-memory://'],
                 'routing' => [ConsumeRemoteEventMessage::class => 'async'],
             ],
+            // No network in the tests: the APIs answer from ApiMock
+            'http_client' => ['mock_response_factory' => ApiMock::class],
         ]);
 
         // The example application: generated services, webhook routing, consumer
@@ -63,6 +65,7 @@ final class TestKernel extends Kernel
         $services->defaults()->autowire()->autoconfigure()->load('App\\', self::EXAMPLE.'/src/');
         // Rejected webhooks are logged as errors: keep the test output clean
         $services->set('logger', NullLogger::class);
+        $services->set(ApiMock::class)->public();
     }
 
     protected function configureRoutes(RoutingConfigurator $routes): void

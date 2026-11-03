@@ -5,13 +5,18 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- Generated doctors: `Generated/<Namespace>Doctor.php`, regenerated with the services, checks the
+  environment variables of the API and calls its probe (`doctor.probe` in `_api.yaml`, a harmless `GET`,
+  guessed by the importer, validated by the loader), diagnosing unreachable hosts, rejected credentials,
+  wrong base URIs, rate limits and provider errors; `api-forge:doctor` runs them with the webhook checks
+
 - `api-forge:webhook:send`: simulated webhook deliveries, signed with the routing secret, in-process or
   over HTTP, with values replaced in the payload (`--set`); no tunnel nor real event needed
 - `WebhookTestTrait::sendWebhook()`: signed deliveries in functional tests
 - `AbstractSignedRequestParser::deliveryHeaders()`: the headers of a delivery, as the API sends them
 - `api-forge:webhook:check`: checks the webhook chain (routes, parser, secret, consumer, Messenger) and,
   with `--ping`, a public URL (tunnel); `WebhookDiagnostics`, `WebhookSender::ping()`,
-  `AbstractSignedRequestParser::pingPayload()`
+  `AbstractSignedRequestParser::pingPayload()`; checks are `Dev\Doctor\Check` objects
 - Descriptors: `body.id` (JSON:API) puts the resource id, the last path parameter, in the request
   document of actions like `POST orders/{id}/refund`; the importer sets it when the example document has
   an id. PATCH and PUT keep doing it by default
