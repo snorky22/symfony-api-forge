@@ -7,6 +7,8 @@ use Snorky22\ApiForge\Command\ApiImportCommand;
 use Snorky22\ApiForge\Command\ApiImportObjectCommand;
 use Snorky22\ApiForge\Command\ApiImportWebhookCommand;
 use Snorky22\ApiForge\Command\JsonToPhpCommand;
+use Snorky22\ApiForge\Command\WebhookSendCommand;
+use Snorky22\ApiForge\DependencyInjection\WebhookSenderPass;
 use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorLoader;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
@@ -18,13 +20,17 @@ use Snorky22\ApiForge\Dev\Api\Import\WebhookImporter;
 use Snorky22\ApiForge\Dev\Api\Import\WebhookMerger;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 use Snorky22\ApiForge\Dev\LenientJsonDecoder;
+use Snorky22\ApiForge\Dev\Webhook\WebhookSender;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 
+use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
+
 /**
- * Provides the api-forge:* commands, which import API documentation into descriptors and generate services.
+ * Provides the api-forge:* commands, which import API documentation into descriptors, generate services,
+ * and simulate webhook deliveries.
  *
  * The generated code only depends on the classes of the Core namespace, not on this bundle: the bundle is
  * a development tool, and can be enabled in the dev environment only.
@@ -32,6 +38,11 @@ use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 final class ApiForgeBundle extends AbstractBundle
 {
     protected string $extensionAlias = 'api_forge';
+
+    public function build(ContainerBuilder $container): void
+    {
+        $container->addCompilerPass(new WebhookSenderPass());
+    }
 
     public function configure(DefinitionConfigurator $definition): void
     {
@@ -77,6 +88,7 @@ final class ApiForgeBundle extends AbstractBundle
             ApiImportCommand::class,
             ApiImportObjectCommand::class,
             ApiImportWebhookCommand::class,
+            WebhookSendCommand::class,
         ] as $class) {
             $services->set($class);
         }
@@ -86,5 +98,9 @@ final class ApiForgeBundle extends AbstractBundle
         $services->set(ApiGenerateCommand::class)
             ->arg('$projectDir', '%kernel.project_dir%')
             ->arg('$descriptorDir', $config['descriptor_dir']);
+        // The webhook routing is set by WebhookSenderPass
+        $services->set(WebhookSender::class)
+            ->arg('$parsers', [])
+            ->arg('$sendersLocator', service('messenger.senders_locator')->nullOnInvalid());
     }
 }

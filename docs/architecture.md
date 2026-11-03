@@ -44,9 +44,12 @@ src/                                     namespace Snorky22\ApiForge
 │       ├── AbstractSignedRequestParser.php  HMAC signature, event name and id
 │       └── AbstractWebhookConsumer.php      calls the method of each event
 ├── Command/                             Console commands (see commands.md)
+├── DependencyInjection/                 WebhookSenderPass: webhook routing → WebhookSender
+├── Test/WebhookTestTrait.php            signed webhook deliveries in functional tests
 └── Dev/                                 Development tools, not used at runtime
     ├── LenientJsonDecoder.php               JSON from docs: comments, {...}, trailing commas
     ├── ArrayShapeGenerator.php              JSON example → PHPDoc array shape
+    ├── Webhook/WebhookSender.php            simulated deliveries, signed like the API
     └── Api/
         ├── Curl/                            curl command parser
         ├── Import/                          importers (endpoints, objects, webhooks) and merge rules

@@ -5,6 +5,11 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- `api-forge:webhook:send`: simulated webhook deliveries, signed with the routing secret, in-process or
+  over HTTP, with values replaced in the payload (`--set`); no tunnel nor real event needed
+- `WebhookTestTrait::sendWebhook()`: signed deliveries in functional tests
+- `AbstractSignedRequestParser::deliveryHeaders()`: the headers of a delivery, as the API sends them
+
 - Example: Lemon Squeezy subscriptions, subscription invoices and license keys (object shapes reviewed
   against the attribute docs), which types the payloads of 13 more webhook events; webhook `meta` shape
   completed (`test_mode`, `webhook_id`, `custom_data`); signing scheme checked against the docs

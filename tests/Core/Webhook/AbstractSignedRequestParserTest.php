@@ -45,6 +45,18 @@ final class AbstractSignedRequestParserTest extends TestCase
         self::assertSame('evt_1', $event->getId());
     }
 
+    public function testDeliveryHeadersAreAcceptedByTheParser(): void
+    {
+        $body = '{"id": "evt_1"}';
+        $parser = new HeaderParser();
+
+        $headers = $parser->deliveryHeaders($body, self::SECRET, 'ping');
+
+        self::assertSame(['Content-Type', 'Webhook-Signature', 'Webhook-Event'], array_keys($headers));
+        self::assertSame('ping', $parser->parse($this->request($body, $headers), self::SECRET)->getName());
+        self::assertArrayNotHasKey('X-Event-Name', (new PathParser())->deliveryHeaders($body, self::SECRET, 'ping'));
+    }
+
     public function testInvalidSignature(): void
     {
         $this->expectException(RejectWebhookException::class);

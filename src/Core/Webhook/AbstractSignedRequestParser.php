@@ -43,6 +43,22 @@ abstract class AbstractSignedRequestParser extends AbstractRequestParser
         return static::SIGNATURE_PREFIX.('base64' === static::SIGNATURE_ENCODING ? base64_encode($hash) : bin2hex($hash));
     }
 
+    /**
+     * Headers of a delivery of a payload, as the API sends them: content type, signature, and the event name
+     * when the API sends it in a header. Used to simulate deliveries (tests, api-forge:webhook:send).
+     *
+     * @return array<string, string>
+     */
+    public function deliveryHeaders(string $payload, #[\SensitiveParameter] string $secret, ?string $eventName = null): array
+    {
+        $headers = ['Content-Type' => 'application/json', static::SIGNATURE_HEADER => $this->sign($payload, $secret)];
+        if (null !== static::EVENT_NAME_HEADER && null !== $eventName) {
+            $headers[static::EVENT_NAME_HEADER] = $eventName;
+        }
+
+        return $headers;
+    }
+
     protected function getRequestMatcher(): RequestMatcherInterface
     {
         return new ChainRequestMatcher([new MethodRequestMatcher('POST'), new IsJsonRequestMatcher()]);

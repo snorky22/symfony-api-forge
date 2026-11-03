@@ -87,22 +87,52 @@ id, so consumers can detect duplicates by storing the ids they have processed.
 | Webhook secret not configured | 500 |
 | Unknown API name in the URL | 404 |
 
+## Simulating deliveries locally
+
+No tunnel (ngrok…) and no real event are needed to try a consumer: `api-forge:webhook:send` signs a payload
+with the secret of the webhook routing, exactly like the API, and delivers it to the application,
+in-process:
+
+```bash
+bin/console api-forge:webhook:send lemonsqueezy tests/fixtures/order-created-payload.json \
+    --set meta.custom_data.user_id=42
+```
+
+The output gives the status and explains it: accepted and consumed, or accepted and queued on an
+asynchronous transport (then run the worker), or rejected by the parser (406) with the reason.
+With `--url`, the delivery goes over HTTP instead, e.g. to check a running server or a tunnel end to end.
+See [Commands](commands.md#api-forgewebhooksend).
+
 ## Testing
 
 Define a webhook secret for the test environment (e.g. `LEMONSQUEEZY_WEBHOOK_SECRET=test-webhook-secret`
-in `.env.test`), sign the body with it, and use an in-memory `async` transport in the test environment
-(`when@test` in `messenger.yaml`: `async: 'in-memory://'`), so queued events can be inspected:
+in `.env.test`), and use an in-memory `async` transport in the test environment (`when@test` in
+`messenger.yaml`: `async: 'in-memory://'`), so queued events can be inspected. `WebhookTestTrait` posts
+deliveries signed like the API:
 
 ```php
-$body = file_get_contents('tests/fixtures/order-created-payload.json');
-$client->request('POST', '/webhook/lemonsqueezy', server: [
-    'CONTENT_TYPE' => 'application/json',
-    'HTTP_X_SIGNATURE' => hash_hmac('sha256', $body, 'test-webhook-secret'),
-], content: $body);
+use Snorky22\ApiForge\Test\WebhookTestTrait;
 
-$transport = self::getContainer()->get('messenger.transport.async');
-$transport->getSent()[0]->getMessage()->getEvent()->getName();  // "order_created"
+final class OrderWebhookTest extends WebTestCase
+{
+    use WebhookTestTrait;
+
+    public function testOrderCreated(): void
+    {
+        $client = self::createClient();
+        $payload = json_decode(file_get_contents('tests/fixtures/order-created-payload.json'), true);
+        $payload['meta']['custom_data'] = ['user_id' => '42'];
+
+        self::assertSame(202, self::sendWebhook($client, 'lemonsqueezy', $payload)->getStatusCode());
+
+        $transport = self::getContainer()->get('messenger.transport.async');
+        $transport->getSent()[0]->getMessage()->getEvent()->getName();  // "order_created"
+    }
+}
 ```
+
+Without the async routing, the consumer runs during the request, and the test can check its effects
+directly.
 
 Consumers can be tested directly: `$consumer->consume(new RemoteEvent('order_created', '1', $payload))`.
 See `tests/Example/` in the bundle.

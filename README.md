@@ -16,6 +16,8 @@ payload JSON                              │    descriptors, edited by hand    
   pagination, PHPStan / PhpStorm array shapes for every response.
 - **Signed webhooks**: request parser checking the HMAC signature (Symfony Webhook), typed consumer
   methods per event (RemoteEvent), asynchronous processing with Messenger.
+- **Local webhook testing**: `api-forge:webhook:send` and `WebhookTestTrait` deliver payloads signed like
+  the API, without a tunnel nor a real event.
 
 ## Requirements
 
@@ -102,7 +104,7 @@ generated code and configuration, and a webhook consumer.
 | [Descriptors](docs/descriptors.md) | Reference of the descriptor format (`config/api/`) |
 | [Commands](docs/commands.md) | Console commands and their options |
 | [Generated services](docs/generated-services.md) | Using the generated code, the runtime layer, errors, pagination |
-| [Webhooks](docs/webhooks.md) | Receiving webhooks: setup, consumers, payload types, testing |
+| [Webhooks](docs/webhooks.md) | Receiving webhooks: setup, consumers, payload types, simulated deliveries, testing |
 | [Roadmap](docs/roadmap.md) | Known limitations and next steps |
 
 ## Development
