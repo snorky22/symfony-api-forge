@@ -44,6 +44,25 @@ abstract class AbstractSignedRequestParser extends AbstractRequestParser
     }
 
     /**
+     * A minimal payload with only an event name, where the API puts it: to check that deliveries reach the
+     * application (consumers ignore unknown events). APIs sending the event name in a header get "{}".
+     */
+    public function pingPayload(string $eventName = 'api_forge_ping'): string
+    {
+        $payload = [];
+        if (null !== static::EVENT_NAME_PATH) {
+            $node = &$payload;
+            foreach (explode('.', static::EVENT_NAME_PATH) as $key) {
+                $node = &$node[$key];
+            }
+            $node = $eventName;
+            unset($node);
+        }
+
+        return json_encode((object) $payload, \JSON_THROW_ON_ERROR);
+    }
+
+    /**
      * Headers of a delivery of a payload, as the API sends them: content type, signature, and the event name
      * when the API sends it in a header. Used to simulate deliveries (tests, api-forge:webhook:send).
      *

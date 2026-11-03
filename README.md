@@ -17,7 +17,7 @@ payload JSON                              │    descriptors, edited by hand    
 - **Signed webhooks**: request parser checking the HMAC signature (Symfony Webhook), typed consumer
   methods per event (RemoteEvent), asynchronous processing with Messenger.
 - **Local webhook testing**: `api-forge:webhook:send` and `WebhookTestTrait` deliver payloads signed like
-  the API, without a tunnel nor a real event.
+  the API, without a tunnel nor a real event; `api-forge:webhook:check` finds what breaks the chain.
 
 ## Requirements
 

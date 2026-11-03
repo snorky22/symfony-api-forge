@@ -49,7 +49,8 @@ src/                                     namespace Snorky22\ApiForge
 └── Dev/                                 Development tools, not used at runtime
     ├── LenientJsonDecoder.php               JSON from docs: comments, {...}, trailing commas
     ├── ArrayShapeGenerator.php              JSON example → PHPDoc array shape
-    ├── Webhook/WebhookSender.php            simulated deliveries, signed like the API
+    ├── Webhook/                             WebhookSender (simulated deliveries, signed like the API),
+    │                                        WebhookDiagnostics (chain check, ping)
     └── Api/
         ├── Curl/                            curl command parser
         ├── Import/                          importers (endpoints, objects, webhooks) and merge rules

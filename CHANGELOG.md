@@ -9,6 +9,11 @@ until 1.0, minor versions may contain breaking changes.
   over HTTP, with values replaced in the payload (`--set`); no tunnel nor real event needed
 - `WebhookTestTrait::sendWebhook()`: signed deliveries in functional tests
 - `AbstractSignedRequestParser::deliveryHeaders()`: the headers of a delivery, as the API sends them
+- `api-forge:webhook:check`: checks the webhook chain (routes, parser, secret, consumer, Messenger) and,
+  with `--ping`, a public URL (tunnel); `WebhookDiagnostics`, `WebhookSender::ping()`,
+  `AbstractSignedRequestParser::pingPayload()`
+- `api-forge:webhook:send --url` only reports success for the endpoint's 202: another 2xx means the URL
+  reaches another page (path missing)
 
 - Example: Lemon Squeezy subscriptions, subscription invoices and license keys (object shapes reviewed
   against the attribute docs), which types the payloads of 13 more webhook events; webhook `meta` shape

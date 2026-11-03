@@ -103,6 +103,21 @@ asynchronous transport (then run the worker), or rejected by the parser (406) wi
 With `--url`, the delivery goes over HTTP instead, e.g. to check a running server or a tunnel end to end.
 See [Commands](commands.md#api-forgewebhooksend).
 
+## Checking the chain
+
+When deliveries don't arrive, `api-forge:webhook:check` checks every link: routes imported, parser routed,
+secret set, consumer registered, asynchronous transport (a worker must then run). With `--ping`, it also
+sends a signed ping (event `api_forge_ping`, ignored by the consumers) to the public URL registered in the
+API's dashboard:
+
+```bash
+bin/console api-forge:webhook:check lemonsqueezy --ping=https://abcd.ngrok-free.app/webhook/lemonsqueezy
+```
+
+It tells a URL missing the path (another page answers, not the endpoint's 202), an offline tunnel, a
+server with another secret (406) or an unreachable host. It can't check the secret stored at the API
+itself: the API's dashboard shows the response its first real delivery got.
+
 ## Testing
 
 Define a webhook secret for the test environment (e.g. `LEMONSQUEEZY_WEBHOOK_SECRET=test-webhook-secret`

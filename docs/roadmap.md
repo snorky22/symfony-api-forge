@@ -7,7 +7,8 @@
 - Strict descriptor validation, runtime layer, `api-forge:generate`
 - Webhooks: `api-forge:import-webhook`, signed request parser, typed event consumers, asynchronous
   processing with Messenger
-- Simulated webhook deliveries: `api-forge:webhook:send`, `WebhookTestTrait`
+- Simulated webhook deliveries: `api-forge:webhook:send`, `WebhookTestTrait`; chain check:
+  `api-forge:webhook:check` (`--ping` for tunnels)
 - Lemon Squeezy example: customers, orders, checkouts, subscriptions, subscription invoices, license keys,
   and the 17 webhook events (16 with typed payloads); signing scheme checked against the docs
   (`examples/lemonsqueezy/`)

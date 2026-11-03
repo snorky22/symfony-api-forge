@@ -76,14 +76,15 @@ final class WebhookSendCommand
 
         $async = $this->sender->asyncTransports($type);
         match (true) {
-            $status >= 200 && $status < 300 && null !== $url => $io->success('Accepted by the request parser.'),
+            202 === $status && null !== $url => $io->success('Accepted by the request parser.'),
+            $status >= 200 && $status < 300 && null !== $url => $io->error(\sprintf('HTTP %d is not the answer of the webhook endpoint (202): is the path of the URL %s?', $status, parse_url($this->sender->url($type), \PHP_URL_PATH))),
             $status >= 200 && $status < 300 && [] !== $async => $io->success(\sprintf('Accepted, and queued on the "%s" transport: the consumer runs in the worker (messenger:consume %s).', implode('", "', $async), implode(' ', $async))),
             $status >= 200 && $status < 300 => $io->success('Accepted and consumed (no asynchronous transport for webhook events).'),
             406 === $status => $io->error('Rejected by the request parser (signature, event name): see the message above.'),
             default => $io->error('The delivery failed: see the message above and the logs.'),
         };
 
-        return $status >= 200 && $status < 300 ? Command::SUCCESS : Command::FAILURE;
+        return $status >= 200 && $status < 300 && (null === $url || 202 === $status) ? Command::SUCCESS : Command::FAILURE;
     }
 
     /**

@@ -57,6 +57,16 @@ final class AbstractSignedRequestParserTest extends TestCase
         self::assertArrayNotHasKey('X-Event-Name', (new PathParser())->deliveryHeaders($body, self::SECRET, 'ping'));
     }
 
+    public function testPingPayloadHoldsOnlyTheEventName(): void
+    {
+        $parser = new PathParser();
+        $payload = $parser->pingPayload();
+
+        self::assertSame('{"meta":{"event_name":"api_forge_ping"}}', $payload);
+        self::assertSame('api_forge_ping', $parser->parse($this->request($payload, $parser->deliveryHeaders($payload, self::SECRET)), self::SECRET)->getName());
+        self::assertSame('{}', (new HeaderParser())->pingPayload());
+    }
+
     public function testInvalidSignature(): void
     {
         $this->expectException(RejectWebhookException::class);

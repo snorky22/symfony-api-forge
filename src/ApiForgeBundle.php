@@ -7,6 +7,7 @@ use Snorky22\ApiForge\Command\ApiImportCommand;
 use Snorky22\ApiForge\Command\ApiImportObjectCommand;
 use Snorky22\ApiForge\Command\ApiImportWebhookCommand;
 use Snorky22\ApiForge\Command\JsonToPhpCommand;
+use Snorky22\ApiForge\Command\WebhookCheckCommand;
 use Snorky22\ApiForge\Command\WebhookSendCommand;
 use Snorky22\ApiForge\DependencyInjection\WebhookSenderPass;
 use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
@@ -20,6 +21,7 @@ use Snorky22\ApiForge\Dev\Api\Import\WebhookImporter;
 use Snorky22\ApiForge\Dev\Api\Import\WebhookMerger;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 use Snorky22\ApiForge\Dev\LenientJsonDecoder;
+use Snorky22\ApiForge\Dev\Webhook\WebhookDiagnostics;
 use Snorky22\ApiForge\Dev\Webhook\WebhookSender;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -89,6 +91,8 @@ final class ApiForgeBundle extends AbstractBundle
             ApiImportObjectCommand::class,
             ApiImportWebhookCommand::class,
             WebhookSendCommand::class,
+            WebhookCheckCommand::class,
+            WebhookDiagnostics::class,
         ] as $class) {
             $services->set($class);
         }
