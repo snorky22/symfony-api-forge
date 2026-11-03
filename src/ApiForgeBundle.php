@@ -7,8 +7,11 @@ use Snorky22\ApiForge\Command\ApiImportCommand;
 use Snorky22\ApiForge\Command\ApiImportObjectCommand;
 use Snorky22\ApiForge\Command\ApiImportWebhookCommand;
 use Snorky22\ApiForge\Command\DoctorCommand;
+use Snorky22\ApiForge\Command\GuideCommand;
 use Snorky22\ApiForge\Command\JsonToPhpCommand;
 use Snorky22\ApiForge\Command\WebhookCheckCommand;
+use Snorky22\ApiForge\Command\WebhookInboxCommand;
+use Snorky22\ApiForge\Command\WebhookReplayCommand;
 use Snorky22\ApiForge\Command\WebhookSendCommand;
 use Snorky22\ApiForge\DependencyInjection\WebhookSenderPass;
 use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
@@ -23,7 +26,10 @@ use Snorky22\ApiForge\Dev\Api\Import\WebhookMerger;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 use Snorky22\ApiForge\Dev\Doctor\AbstractApiDoctor;
 use Snorky22\ApiForge\Dev\Doctor\ApiDiagnosis;
+use Snorky22\ApiForge\Dev\Guide;
 use Snorky22\ApiForge\Dev\LenientJsonDecoder;
+use Snorky22\ApiForge\Dev\Webhook\DeliveryInbox;
+use Snorky22\ApiForge\Dev\Webhook\DeliveryRecorder;
 use Snorky22\ApiForge\Dev\Webhook\WebhookDiagnostics;
 use Snorky22\ApiForge\Dev\Webhook\WebhookSender;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
@@ -65,6 +71,14 @@ final class ApiForgeBundle extends AbstractBundle
                     ->info('Directory of this namespace, relative to the project directory')
                     ->defaultValue('src/Api')
                 ->end()
+                ->arrayNode('webhook_inbox')
+                    ->info('Records the webhook deliveries received (api-forge:webhook:inbox, api-forge:webhook:replay, the doctor)')
+                    ->canBeDisabled()
+                    ->children()
+                        ->scalarNode('directory')->info('One per environment by default: the tests post webhooks too')->defaultValue('%kernel.project_dir%/var/api-forge/%kernel.environment%/webhooks')->end()
+                        ->integerNode('keep')->info('Deliveries kept per webhook type')->defaultValue(50)->min(1)->end()
+                    ->end()
+                ->end()
                 ->scalarNode('config_dir')
                     ->info('Directory of the generated configuration (HTTP client, webhook routing), relative to the project directory')
                     ->defaultValue('config/packages')
@@ -73,7 +87,7 @@ final class ApiForgeBundle extends AbstractBundle
     }
 
     /**
-     * @param array{descriptor_dir: string, namespace: string, source_dir: string, config_dir: string} $config
+     * @param array{descriptor_dir: string, namespace: string, source_dir: string, config_dir: string, webhook_inbox: array{enabled: bool, directory: string, keep: int}} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -97,19 +111,29 @@ final class ApiForgeBundle extends AbstractBundle
             ApiImportWebhookCommand::class,
             WebhookSendCommand::class,
             WebhookCheckCommand::class,
-            WebhookDiagnostics::class,
             DoctorCommand::class,
             ApiDiagnosis::class,
+            GuideCommand::class,
         ] as $class) {
             $services->set($class);
         }
 
         $services->set(DescriptorStore::class)->arg('$directory', $config['descriptor_dir']);
         $services->set(ServiceGenerator::class)->args([$config['namespace'], $config['source_dir'], $config['config_dir']]);
+        $services->set(Guide::class)
+            ->arg('$projectDir', '%kernel.project_dir%')
+            ->arg('$descriptorDir', $config['descriptor_dir']);
         $services->set(ApiGenerateCommand::class)
             ->arg('$projectDir', '%kernel.project_dir%')
             ->arg('$descriptorDir', $config['descriptor_dir']);
         // The webhook routing is set by WebhookSenderPass
+        if ($config['webhook_inbox']['enabled']) {
+            $services->set(DeliveryInbox::class)->args([$config['webhook_inbox']['directory'], $config['webhook_inbox']['keep']]);
+            $services->set(DeliveryRecorder::class);
+            $services->set(WebhookInboxCommand::class);
+            $services->set(WebhookReplayCommand::class);
+        }
+        $services->set(WebhookDiagnostics::class)->arg('$inbox', service(DeliveryInbox::class)->nullOnInvalid());
         $services->set(WebhookSender::class)
             ->arg('$parsers', [])
             ->arg('$sendersLocator', service('messenger.senders_locator')->nullOnInvalid());

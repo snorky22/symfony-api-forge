@@ -103,6 +103,37 @@ asynchronous transport (then run the worker), or rejected by the parser (406) wi
 With `--url`, the delivery goes over HTTP instead, e.g. to check a running server or a tunnel end to end.
 See [Commands](commands.md#api-forgewebhooksend).
 
+## Delivery inbox
+
+In development, every request reaching `/webhook/{type}` is recorded with its outcome, in
+`var/api-forge/<env>/webhooks/` (the last 50 per type):
+
+```bash
+bin/console api-forge:webhook:inbox                       # most recent first
+bin/console api-forge:webhook:inbox --show=20261103-0810  # headers and body of one
+bin/console api-forge:webhook:replay 20261103-0810        # deliver it again, e.g. after fixing the consumer
+```
+
+```
+ Id                           Received              Type           Event           Origin     Outcome
+ 20261103-081014-221-a1b2c3   2026-11-03 08:10:14   lemonsqueezy   order_created   provider   rejected: Invalid signature.
+ 20261103-080958-104-d4e5f6   2026-11-03 08:09:58   lemonsqueezy   order_created   simulated  consumed
+```
+
+The outcome is `consumed`, `queued` (then updated by the Messenger worker: `consumed` or `failed` with the
+error), `rejected` (with the parser's reason), `failed` or `unknown_type`. The origin tells the provider's
+deliveries from those of api-forge (`simulated` by `webhook:send` and the tests, `ping` by the doctor). A
+replay is signed again with the routing secret. The doctor reports the last deliveries from the provider.
+
+```yaml
+# config/packages/api_forge.yaml
+api_forge:
+    webhook_inbox:
+        enabled: true                   # false to record nothing
+        directory: '%kernel.project_dir%/var/api-forge/%kernel.environment%/webhooks'
+        keep: 50
+```
+
 ## Checking the chain
 
 When deliveries don't arrive, `api-forge:webhook:check` checks every link: routes imported, parser routed,

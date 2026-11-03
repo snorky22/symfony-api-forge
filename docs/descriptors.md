@@ -7,35 +7,6 @@ resources. The schema is defined in
 
 Keys are never normalized: header, parameter and relationship names are kept as written.
 
-
-### Webhook registration (`_webhooks.yaml`)
-
-```yaml
-registration:                          # how the doctor reads the webhooks registered at the provider
-    operation: webhooks.list           # resource.operation: a GET listing them
-    parameters: {}                     # values of its path parameters
-    query:                             # values of query parameters
-        'filter[store_id]': '%env(SHOP_STORE_ID)%'
-    url: attributes.url                # dot path of the URL in each item (required)
-    events: attributes.events          # dot path of the subscribed events, if any
-    items: null                        # key of the list: "data" for JSON:API by default
-    id: id
-```
-
-See [Doctor](doctor.md#webhooks).
-
-### Doctor
-
-```yaml
-doctor:
-    probe: customers.list              # resource.operation: a harmless GET, called by api-forge:doctor
-    parameters:                        # values of the probe's path parameters
-        id: '%env(SHOP_CUSTOMER_ID)%'  # %env()% and %parameters% are injected from the container
-    review: []
-```
-
-Guessed by the importer (the first `GET` without parameters); see [Doctor](doctor.md).
-
 ## `_api.yaml`
 
 ```yaml
@@ -57,6 +28,18 @@ review: []                                     # notes left by the importer
 | `bearer` | `Authorization: Bearer <value>` | the token |
 | `basic` | `Authorization: Basic ...` | `user:password` |
 | `header` | `<header>: <value>` | the key |
+
+### Doctor
+
+```yaml
+doctor:
+    probe: customers.list              # resource.operation: a harmless GET, called by api-forge:doctor
+    parameters:                        # values of the probe's path parameters
+        id: '%env(SHOP_CUSTOMER_ID)%'  # %env()% and %parameters% are injected from the container
+    review: []
+```
+
+Guessed by the importer (the first `GET` without parameters); see [Doctor](doctor.md).
 
 ## `<resource>.yaml`
 
@@ -171,6 +154,22 @@ review: []
 Each event gives a constant (`ORDER_CREATED`), a payload type (`OrderCreatedPayload`) and a consumer
 method (`onOrderCreated`); these names must be unique. An event whose resource has no object shape
 has untyped payload data, which `api-forge:generate` reports.
+
+### Registration
+
+```yaml
+registration:                          # how the doctor reads the webhooks registered at the provider
+    operation: webhooks.list           # resource.operation: a GET listing them
+    parameters: {}                     # values of its path parameters
+    query:                             # values of query parameters
+        'filter[store_id]': '%env(SHOP_STORE_ID)%'
+    url: attributes.url                # dot path of the URL in each item (required)
+    events: attributes.events          # dot path of the subscribed events, if any
+    items: null                        # key of the list: "data" for JSON:API by default
+    id: id
+```
+
+See [Doctor](doctor.md#webhooks).
 
 ## Shapes
 

@@ -1,19 +1,43 @@
 # Workflow
 
+`api-forge:guide` summarizes this page and tells, for an API, its state and the next step:
+
+```bash
+bin/console api-forge:guide              # the workflow, the conventions, the APIs
+bin/console api-forge:guide lemonsqueezy # examples, descriptors, review notes, doctor probe, generated code
+```
+
+## Documentation examples
+
+Keep the examples copied from the API docs in `tests/Fixtures/<api>/`: they are the input of the imports,
+and fixtures for the tests (not in `src/`, which is shipped with the package). One file each, named after
+the operation, its HTTP method or action, and the resource, as in the descriptors:
+
+| File | Content | Examples |
+|---|---|---|
+| `<operation>-<resource>.curl` | a documented request: the cURL sample of the docs | get-account.curl, list-products.curl |
+| `<operation>-<resource>.json` | its example response | get-account.json, list-products.json |
+| `<resource>-object.json` | an object example ("The product object") | transaction-object.json |
+| `webhook-events.md` | the events table of the docs | webhook-events.md |
+| `webhook-<event>.json` | a webhook payload example | webhook-transaction.completed.json |
+
+`<operation>` is `list`, `get`, `create`, `update`, `delete`, or the action of the docs (`refund`, `cancel`).
+
 ## Adding an endpoint
 
 1. Copy the curl example from the API docs into a file, and the example response (if any) into
    another one.
 2. Import it:
    ```bash
-   bin/console api-forge:import lemonsqueezy path/to/curl --response=path/to/response.json
+   bin/console api-forge:import lemonsqueezy tests/Fixtures/lemonsqueezy/list-customers.curl \
+       --response=tests/Fixtures/lemonsqueezy/list-customers.json
    ```
    The command shows the resource, the operation name and the path template it inferred, and the
    points to review.
 3. If the docs describe the resource object on its own ("The customer object"), import it as well.
    It types all the operations of the resource, including those without a response example:
    ```bash
-   bin/console api-forge:import-object lemonsqueezy customers path/to/customer-object.json
+   bin/console api-forge:import-object lemonsqueezy customers tests/Fixtures/lemonsqueezy/customer-object.json
    ```
 4. Review the descriptor in `config/api/<api>/<resource>.yaml` (see below), then delete the
    `review` notes you have dealt with.
@@ -25,7 +49,7 @@
    the effect of the descriptor changes.
 
 Several examples of the same endpoint can be imported one after the other: the second one adds its
-query parameters to the existing operation (e.g. `curl-list-customers-1` then `curl-list-customers-2`).
+query parameters to the existing operation (e.g. `list-customers.curl` then `list-customers-by-email.curl`).
 
 ## Adding webhooks
 

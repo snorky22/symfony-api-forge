@@ -13,13 +13,44 @@ use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
  */
 final class WebhookDiagnostics
 {
+    /** Recent deliveries looked at */
+    private const RECENT = 10;
+
     /**
      * @param ?ContainerInterface $consumers the registered RemoteEvent consumers, by type
+     * @param ?DeliveryInbox      $inbox     the deliveries received, when the inbox is enabled
      */
     public function __construct(
         private readonly WebhookSender $sender,
         private readonly ?ContainerInterface $consumers = null,
+        private readonly ?DeliveryInbox $inbox = null,
     ) {
+    }
+
+    /**
+     * What the inbox says about the last deliveries of the provider (not the simulated ones).
+     *
+     * @return list<Check>
+     */
+    public function deliveries(string $type): array
+    {
+        if (null === $this->inbox) {
+            return [];
+        }
+        $deliveries = array_values(array_filter($this->inbox->latest($type, 50), static fn (array $delivery) => 'provider' === $delivery['origin']));
+        if ([] === $deliveries) {
+            return [Check::warning('No delivery from the provider recorded yet (api-forge:webhook:inbox): nothing has reached the endpoint.')];
+        }
+
+        $last = $deliveries[0];
+        $checks = [Check::ok(\sprintf('Last delivery from the provider: %s, %s, %s.', $last['received_at'], $last['event'] ?? '?', $last['status']))];
+        $recent = \array_slice($deliveries, 0, self::RECENT);
+        $failures = array_values(array_filter($recent, static fn (array $delivery) => \in_array($delivery['status'], [DeliveryInbox::REJECTED, DeliveryInbox::FAILED, DeliveryInbox::UNKNOWN_TYPE], true)));
+        if ([] !== $failures) {
+            $checks[] = Check::warning(\sprintf('%d of the last %d deliveries were not consumed; the latest: %s %s (%s): %s. See api-forge:webhook:inbox --show=%s, replay with api-forge:webhook:replay.', \count($failures), \count($recent), $failures[0]['event'] ?? '?', $failures[0]['status'], $failures[0]['received_at'], rtrim($failures[0]['reason'] ?? 'no reason', '.'), $failures[0]['id']));
+        }
+
+        return $checks;
     }
 
     /**
@@ -113,6 +144,8 @@ final class WebhookDiagnostics
         if (null !== $coverage = $this->coverage($type)) {
             $checks[] = Check::ok(\sprintf('The consumer handles %d of the %d events%s.', \count($coverage['handled']), \count($coverage['events']), [] !== $coverage['handled'] ? ': '.implode(', ', $coverage['handled']) : ''));
         }
+
+        array_push($checks, ...$this->deliveries($type));
 
         $async = $this->sender->asyncTransports($type);
         $checks[] = [] === $async

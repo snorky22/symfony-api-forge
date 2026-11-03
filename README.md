@@ -17,7 +17,8 @@ payload JSON                              │    descriptors, edited by hand    
 - **Signed webhooks**: request parser checking the HMAC signature (Symfony Webhook), typed consumer
   methods per event (RemoteEvent), asynchronous processing with Messenger.
 - **Local webhook testing**: `api-forge:webhook:send` and `WebhookTestTrait` deliver payloads signed like
-  the API, without a tunnel nor a real event; `api-forge:webhook:check` finds what breaks the chain.
+  the API, without a tunnel nor a real event; `api-forge:webhook:check` finds what breaks the chain; the
+  delivery inbox records what arrived and why it was rejected, `api-forge:webhook:replay` delivers it again.
 - **Generated doctors**: one per API, regenerated with its services; `api-forge:doctor` checks the
   credentials, calls a harmless probe and diagnoses what fails (unreachable, rejected key, wrong URL…).
 
@@ -66,10 +67,11 @@ api_forge:
 
 ```bash
 # 1. Import documented requests (and example responses), objects and webhooks into descriptors
-bin/console api-forge:import lemonsqueezy docs-examples/curl-list-customers
-bin/console api-forge:import-object lemonsqueezy customers docs-examples/customer-object.json
-bin/console api-forge:import-webhook lemonsqueezy --events=docs-examples/events.md \
-    --payload=docs-examples/order-created-payload.json
+# (documentation examples in tests/Fixtures/<api>/, named as `api-forge:guide` shows)
+bin/console api-forge:import lemonsqueezy tests/Fixtures/lemonsqueezy/list-customers.curl
+bin/console api-forge:import-object lemonsqueezy customers tests/Fixtures/lemonsqueezy/customer-object.json
+bin/console api-forge:import-webhook lemonsqueezy --events=tests/Fixtures/lemonsqueezy/webhook-events.md \
+    --payload=tests/Fixtures/lemonsqueezy/webhook-order_created.json
 
 # 2. Review config/api/lemonsqueezy/*.yaml, fix the guesses listed under "review"
 
@@ -102,7 +104,7 @@ generated code and configuration, and a webhook consumer.
 | Page | Content |
 |---|---|
 | [Architecture](docs/architecture.md) | Pipeline, design choices, package layout |
-| [Workflow](docs/workflow.md) | Adding an API or an endpoint, step by step |
+| [Workflow](docs/workflow.md) | Adding an API or an endpoint, step by step; documentation examples (`api-forge:guide`) |
 | [Descriptors](docs/descriptors.md) | Reference of the descriptor format (`config/api/`) |
 | [Commands](docs/commands.md) | Console commands and their options |
 | [Generated services](docs/generated-services.md) | Using the generated code, the runtime layer, errors, pagination |

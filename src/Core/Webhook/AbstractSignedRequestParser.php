@@ -78,6 +78,25 @@ abstract class AbstractSignedRequestParser extends AbstractRequestParser
         return $headers;
     }
 
+    /**
+     * The event name and id of a delivery, without checking it (for logs and the development inbox).
+     *
+     * @return array{name: ?string, id: string}
+     */
+    public function describe(Request $request): array
+    {
+        try {
+            $payload = $request->toArray();
+        } catch (\Throwable) {
+            $payload = [];
+        }
+
+        return [
+            'name' => $this->find($request, $payload, static::EVENT_NAME_PATH, static::EVENT_NAME_HEADER),
+            'id' => $this->find($request, $payload, static::EVENT_ID_PATH, static::EVENT_ID_HEADER) ?? hash('sha256', $request->getContent()),
+        ];
+    }
+
     protected function getRequestMatcher(): RequestMatcherInterface
     {
         return new ChainRequestMatcher([new MethodRequestMatcher('POST'), new IsJsonRequestMatcher()]);

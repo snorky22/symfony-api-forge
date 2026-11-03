@@ -5,10 +5,19 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- `api-forge:guide`: the workflow, the naming of the documentation examples (`tests/Fixtures/<api>/`,
+  `<operation>-<resource>.curl` / `.json`…, documented in `docs/workflow.md`), and the state of an API with
+  its next step
+
 - Generated doctors: `Generated/<Namespace>Doctor.php`, regenerated with the services, checks the
   environment variables of the API and calls its probe (`doctor.probe` in `_api.yaml`, a harmless `GET`,
   guessed by the importer, validated by the loader), diagnosing unreachable hosts, rejected credentials,
   wrong base URIs, rate limits and provider errors; `api-forge:doctor` runs them with the webhook checks
+- Webhook delivery inbox (development, `api_forge.webhook_inbox`): every delivery to `/webhook/{type}` is
+  recorded with its origin (provider, simulated, ping) and outcome (consumed, queued then updated by the
+  Messenger worker, rejected with the reason, failed); `api-forge:webhook:inbox` lists and shows them,
+  `api-forge:webhook:replay` delivers one again; the doctor reports the last deliveries;
+  `AbstractSignedRequestParser::describe()`
 - Doctor, webhooks: event coverage (the events the application's consumer handles); `registration` in
   `_webhooks.yaml` tells the generated doctor how to read the webhooks registered at the provider, checked
   against the endpoint path and the handled events, and pinged; `ApiDiagnosis` runs the whole diagnosis of

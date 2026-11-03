@@ -51,7 +51,8 @@ src/                                     namespace Snorky22\ApiForge
     ├── ArrayShapeGenerator.php              JSON example → PHPDoc array shape
     ├── Doctor/                              AbstractApiDoctor (base of the generated doctors), Check,
     │                                        ShapeChecker (values against array shapes)
-    ├── Webhook/                             WebhookSender (simulated deliveries, signed like the API),
+    ├── Webhook/                             DeliveryInbox and DeliveryRecorder (deliveries received),
+    │                                        WebhookSender (simulated deliveries, signed like the API),
     │                                        WebhookDiagnostics (chain check, ping)
     └── Api/
         ├── Curl/                            curl command parser

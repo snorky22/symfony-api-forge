@@ -19,6 +19,8 @@ final class TestKernel extends Kernel
     use MicroKernelTrait;
 
     public const WEBHOOK_SECRET = 'test-webhook-secret';
+    /** The webhook inbox of the tests, emptied by them */
+    public const INBOX = '/tmp/symfony-api-forge-tests/inbox';
     private const EXAMPLE = __DIR__.'/../../examples/lemonsqueezy';
 
     public function registerBundles(): iterable
@@ -57,6 +59,8 @@ final class TestKernel extends Kernel
             // No network in the tests: the APIs answer from ApiMock
             'http_client' => ['mock_response_factory' => ApiMock::class],
         ]);
+
+        $container->extension('api_forge', ['webhook_inbox' => ['directory' => self::INBOX]]);
 
         // The example application: generated services, webhook routing, consumer
         $container->import(self::EXAMPLE.'/config/packages/api_lemonsqueezy.yaml');

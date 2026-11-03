@@ -9,6 +9,8 @@ use Snorky22\ApiForge\Dev\Webhook\WebhookSender;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Console\Tester\CommandTester;
+use Snorky22\ApiForge\Tests\App\TestKernel;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpClient\Exception\TransportException;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -30,6 +32,7 @@ final class WebhookDiagnosticsTest extends KernelTestCase
 
     public function testChainOfTheExample(): void
     {
+        (new Filesystem())->remove(TestKernel::INBOX);
         self::bootKernel();
 
         self::assertSame([
@@ -37,6 +40,7 @@ final class WebhookDiagnosticsTest extends KernelTestCase
             'ok: Request parser routed, signing secret set.',
             "ok: Consumer registered (#[AsRemoteEventConsumer('lemonsqueezy')]).",
             'ok: The consumer handles 1 of the 17 events: order_created.',
+            'warning: No delivery from the provider recorded yet (api-forge:webhook:inbox): nothing has reached the endpoint.',
             'warning: Events queued on the "async" transport: a worker must run (messenger:consume async), or they are never consumed.',
         ], self::summary(self::getContainer()->get(WebhookDiagnostics::class)->check('lemonsqueezy')));
     }
