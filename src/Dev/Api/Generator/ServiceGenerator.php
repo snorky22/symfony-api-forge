@@ -273,16 +273,7 @@ final class ServiceGenerator
             array_unshift($arguments, '        private readonly Resource\\'.Naming::className($resource).' $probeResource,');
             $callArguments = [];
             foreach (array_keys($operation['parameters']) as $parameter) {
-                $value = (string) $definition->api['doctor']['parameters'][$parameter];
-                if (preg_match('/^%(env\([^)]+\)|[\w.]+)%$/', $value)) {
-                    // A container parameter or environment variable: injected
-                    $variable = 'probe'.ucfirst(Naming::variableName((string) $parameter));
-                    $arguments[] = '        #[Autowire('.$this->export($value).')] private readonly string $'.$variable.',';
-                    $callArguments[] = '$this->'.$variable;
-                    $usesAutowire = true;
-                } else {
-                    $callArguments[] = $this->export($value);
-                }
+                $callArguments[] = $this->doctorValue((string) $definition->api['doctor']['parameters'][$parameter], 'probe'.ucfirst(Naming::variableName((string) $parameter)), $arguments, $usesAutowire);
             }
             $probeMethod = "\n    protected function probe(): array\n    {\n        return \$this->probeResource->{$operationName}(".implode(', ', $callArguments).");\n    }\n";
 
@@ -292,6 +283,30 @@ final class ServiceGenerator
             } elseif (isset($operation['response']['shape'])) {
                 $contract = [$operation['response']['shape'], null, false];
             }
+        }
+
+        // The webhooks registered at the provider (registration in _webhooks.yaml)
+        $registrationMethod = '';
+        if (null !== $registration = $definition->webhooks['registration'] ?? null) {
+            [$resource, $operationName] = explode('.', $registration['operation'], 2);
+            $operation = $definition->resources[$resource]['operations'][$operationName];
+            $arguments[] = '        private readonly Resource\\'.Naming::className($resource).' $registrationResource,';
+            $callArguments = [];
+            foreach (array_keys($operation['parameters']) as $parameter) {
+                $callArguments[] = $this->doctorValue((string) $registration['parameters'][$parameter], 'registration'.ucfirst(Naming::variableName((string) $parameter)), $arguments, $usesAutowire);
+            }
+            $query = [];
+            foreach ($registration['query'] as $name => $value) {
+                $query[] = $this->export((string) $name).' => '.$this->doctorValue((string) $value, 'registration'.ucfirst(Naming::variableName(preg_replace('/\W+/', '_', (string) $name))), $arguments, $usesAutowire);
+            }
+            if ([] !== $query) {
+                $callArguments[] = 'query: ['.implode(', ', $query).']';
+            }
+            $items = $registration['items'] ?? ('jsonapi' === $definition->api['format'] ? 'data' : null);
+            $export = fn (?string $value) => null !== $value ? $this->export($value) : 'null';
+            $registrationMethod = "\n    public function registeredWebhooks(): array\n    {\n"
+                ."        \$response = \$this->registrationResource->{$operationName}(".implode(', ', $callArguments).");\n\n"
+                .'        return $this->registrations($response, '.$export($items).', '.$this->export($registration['url']).', '.$export($registration['events']).', '.$export($registration['id']).");\n    }\n";
         }
 
         $constructor = '';
@@ -317,7 +332,27 @@ final class ServiceGenerator
                 .'    protected const PROBE_LIST = '.($contract[2] ? 'true' : 'false').";\n" : '')
             .$constructor
             .$probeMethod
+            .$registrationMethod
             ."}\n";
+    }
+
+    /**
+     * A value of a doctor call: a container parameter or environment variable ("%...%") is injected through the
+     * constructor, other values are literals.
+     *
+     * @param list<string> $arguments the constructor arguments, completed
+     *
+     * @return string the PHP expression of the value
+     */
+    private function doctorValue(string $value, string $variable, array &$arguments, bool &$usesAutowire): string
+    {
+        if (!preg_match('/^%(env\([^)]+\)|[\w.]+)%$/', $value)) {
+            return $this->export($value);
+        }
+        $arguments[] = '        #[Autowire('.$this->export($value).')] private readonly string $'.$variable.',';
+        $usesAutowire = true;
+
+        return '$this->'.$variable;
     }
 
     private function entryPoint(ApiDefinition $definition, string $source): string

@@ -61,6 +61,14 @@ final class ServiceGeneratorTest extends TestCase
         ],
     ];
 
+    private const WEBHOOKS = [
+        'resource' => 'webhooks',
+        'type' => 'webhooks',
+        'operations' => [
+            'list' => ['method' => 'GET', 'path' => 'webhooks', 'query' => ['filter[store_id]' => ['type' => 'int']], 'response' => ['data' => 'list']],
+        ],
+    ];
+
     private static ?array $files = null;
 
     /**
@@ -85,9 +93,11 @@ final class ServiceGeneratorTest extends TestCase
             'doctor' => ['probe' => 'customers.get', 'parameters' => ['id' => '%env(GENTEST_CUSTOMER_ID)%']],
         ], 10));
         $filesystem->dumpFile($dir.'/config/api/gentest/customers.yaml', Yaml::dump(self::CUSTOMERS, 10));
+        $filesystem->dumpFile($dir.'/config/api/gentest/webhooks.yaml', Yaml::dump(self::WEBHOOKS, 10));
         $filesystem->dumpFile($dir.'/config/api/gentest/_webhooks.yaml', Yaml::dump([
             'signature' => ['header' => 'X-Signature', 'env' => 'GENTEST_WEBHOOK_SECRET'],
             'event_name' => ['path' => 'meta.event_name'],
+            'registration' => ['operation' => 'webhooks.list', 'query' => ['filter[store_id]' => '%env(GENTEST_STORE_ID)%'], 'url' => 'attributes.url', 'events' => 'attributes.events'],
             'meta' => ['shape' => 'array{event_name: string}'],
             'events' => [
                 'customer_created' => ['resource' => 'customers', 'description' => 'A customer is created.'],
@@ -102,6 +112,7 @@ final class ServiceGeneratorTest extends TestCase
             $filesystem->dumpFile($dir.'/'.$file, $content);
         }
         require_once $dir.'/src/Api/GenTest/Generated/Resource/Customers.php';
+        require_once $dir.'/src/Api/GenTest/Generated/Resource/Webhooks.php';
         require_once $dir.'/src/Api/GenTest/Generated/GenTestApi.php';
         require_once $dir.'/src/Api/GenTest/Generated/GenTestDoctor.php';
         foreach (['GenTestRequestParser', 'GenTestWebhookEvents', 'AbstractGenTestWebhookConsumer'] as $class) {
@@ -129,6 +140,7 @@ final class ServiceGeneratorTest extends TestCase
     {
         self::assertSame([
             'src/Api/GenTest/Generated/Resource/Customers.php',
+            'src/Api/GenTest/Generated/Resource/Webhooks.php',
             'src/Api/GenTest/Generated/GenTestApi.php',
             'src/Api/GenTest/Generated/GenTestDoctor.php',
             'src/Api/GenTest/Generated/Webhook/GenTestRequestParser.php',
@@ -235,7 +247,7 @@ final class ServiceGeneratorTest extends TestCase
     public function testEntryPoint(): void
     {
         $customers = $this->customers([]);
-        $api = new \App\Api\GenTest\Generated\GenTestApi($customers);
+        $api = new \App\Api\GenTest\Generated\GenTestApi($customers, new \App\Api\GenTest\Generated\Resource\Webhooks(new MockHttpClient()));
 
         self::assertSame($customers, $api->customers);
     }
@@ -304,7 +316,7 @@ final class ServiceGeneratorTest extends TestCase
 
         $diagnose = static function (MockResponse $response, string $key = 'key'): array {
             $client = ScopingHttpClient::forBaseUri(new MockHttpClient([$response]), 'https://api.test/v1/');
-            $doctor = new \App\Api\GenTest\Generated\GenTestDoctor(new \App\Api\GenTest\Generated\Resource\Customers($client), env0: $key, env1: 'secret', probeId: '7');
+            $doctor = new \App\Api\GenTest\Generated\GenTestDoctor(new \App\Api\GenTest\Generated\Resource\Customers($client), env0: $key, env1: 'secret', probeId: '7', registrationResource: new \App\Api\GenTest\Generated\Resource\Webhooks($client), registrationFilterStoreId: '1');
 
             return array_map(static fn ($check) => $check->level.': '.$check->message, $doctor->diagnose());
         };
@@ -327,6 +339,27 @@ final class ServiceGeneratorTest extends TestCase
         self::assertStringContainsString('wrong base URI or API version (https://api.test/v1/)', $diagnose(new JsonMockResponse([], ['http_code' => 404]))[2]);
         self::assertStringContainsString('the provider may be down', $diagnose(new JsonMockResponse([], ['http_code' => 503]))[2]);
         self::assertStringContainsString('is unreachable (DNS, TLS, network, timeout): Could not resolve host', $diagnose(new MockResponse('', ['error' => 'Could not resolve host']))[2]);
+    }
+
+    public function testDoctorReadsTheRegisteredWebhooks(): void
+    {
+        $doctor = self::generate()['src/Api/GenTest/Generated/GenTestDoctor.php'];
+        self::assertStringContainsString("        #[Autowire('%env(GENTEST_STORE_ID)%')] private readonly string \$registrationFilterStoreId,\n", $doctor);
+        self::assertStringContainsString("        \$response = \$this->registrationResource->list(query: ['filter[store_id]' => \$this->registrationFilterStoreId]);\n", $doctor);
+        self::assertStringContainsString("        return \$this->registrations(\$response, 'data', 'attributes.url', 'attributes.events', 'id');\n", $doctor);
+
+        $response = new JsonMockResponse(['data' => [
+            ['type' => 'webhooks', 'id' => '5', 'attributes' => ['url' => 'https://shop.test/webhook/gentest', 'events' => ['customer_created']]],
+            ['type' => 'webhooks', 'id' => '6', 'attributes' => ['url' => 'https://old.test']],
+        ]]);
+        $client = ScopingHttpClient::forBaseUri(new MockHttpClient([$response]), 'https://api.test/v1/');
+        $doctor = new \App\Api\GenTest\Generated\GenTestDoctor(new \App\Api\GenTest\Generated\Resource\Customers($client), 'key', 'secret', '7', new \App\Api\GenTest\Generated\Resource\Webhooks($client), '1');
+
+        self::assertSame([
+            ['id' => '5', 'url' => 'https://shop.test/webhook/gentest', 'events' => ['customer_created']],
+            ['id' => '6', 'url' => 'https://old.test', 'events' => null],
+        ], $doctor->registeredWebhooks());
+        self::assertSame('https://api.test/v1/webhooks?filter[store_id]=1', urldecode($response->getRequestUrl()));
     }
 
     public function testDelete(): void

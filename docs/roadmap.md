@@ -9,7 +9,8 @@
   processing with Messenger
 - Simulated webhook deliveries: `api-forge:webhook:send`, `WebhookTestTrait`; chain check:
   `api-forge:webhook:check` (`--ping` for tunnels)
-- Generated doctors: `api-forge:doctor` (environment variables, probe, contract check, webhook chain)
+- Generated doctors: `api-forge:doctor` (environment variables, probe, contract check, webhook chain,
+  event coverage, webhooks registered at the provider)
 - Lemon Squeezy example: customers, orders, checkouts, subscriptions, subscription invoices, license keys,
   and the 17 webhook events (16 with typed payloads); signing scheme checked against the docs
   (`examples/lemonsqueezy/`)
@@ -17,14 +18,10 @@
 
 ## Next
 
-- Doctor, webhooks: event coverage (events received but not handled by the consumer); optional hint to
-  read the webhooks registered at the provider (URL path, events).
-
-- Webhook delivery inbox (development): store received deliveries and their outcome, replay them
-  (`api-forge:webhook:replay`).
+- Webhook delivery inbox (development): store received deliveries and their outcome (accepted, rejected and
+  why), replay them (`api-forge:webhook:replay`); the doctor then reports the last deliveries of each event.
 - Pluggable webhook signing schemes: signed content with a timestamp (`ts:body`), signatures in a
   structured header (`ts=…;h1=…`, `t=…,v1=…`), several signatures, timestamp tolerance.
-
 - Lemon Squeezy: import the affiliate object, to type the payload of `affiliate_activated`.
 
 ## Known limitations

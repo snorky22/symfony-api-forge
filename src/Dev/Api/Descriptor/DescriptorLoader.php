@@ -110,24 +110,36 @@ final class DescriptorLoader
      */
     private function checkDoctor(string $file, array $doctor, array $resources, array &$errors): void
     {
-        if (null === $doctor['probe']) {
-            return;
+        if (null !== $doctor['probe']) {
+            $this->checkDoctorCall($file, 'doctor.probe', 'doctor.parameters', $doctor['probe'], $doctor['parameters'], $resources, $errors);
         }
-        [$resource, $operationName] = explode('.', $doctor['probe'], 2);
+    }
+
+    /**
+     * A call made by the doctor (probe, registered webhooks): a GET operation of the API, with a value for each
+     * of its path parameters.
+     *
+     * @param array<string, string>               $parameters
+     * @param array<string, array<string, mixed>> $resources
+     * @param list<string>                        $errors
+     */
+    private function checkDoctorCall(string $file, string $key, string $parametersKey, string $call, array $parameters, array $resources, array &$errors): void
+    {
+        [$resource, $operationName] = explode('.', $call, 2);
         $operation = $resources[$resource]['operations'][$operationName] ?? null;
         if (null === $operation) {
-            $errors[] = \sprintf('%s: doctor.probe "%s" is not an operation of the API.', $file, $doctor['probe']);
+            $errors[] = \sprintf('%s: %s "%s" is not an operation of the API.', $file, $key, $call);
 
             return;
         }
         if ('GET' !== $operation['method']) {
-            $errors[] = \sprintf('%s: doctor.probe "%s" is a %s operation: the probe must be a harmless GET.', $file, $doctor['probe'], $operation['method']);
+            $errors[] = \sprintf('%s: %s "%s" is a %s operation: the doctor only makes harmless GET calls.', $file, $key, $call, $operation['method']);
         }
-        if ([] !== $missing = array_diff(array_keys($operation['parameters']), array_keys($doctor['parameters']))) {
-            $errors[] = \sprintf('%s: doctor.parameters must give the path parameters of the probe "%s": %s.', $file, $doctor['probe'], implode(', ', $missing));
+        if ([] !== $missing = array_diff(array_keys($operation['parameters']), array_keys($parameters))) {
+            $errors[] = \sprintf('%s: %s must give the path parameters of "%s": %s.', $file, $parametersKey, $call, implode(', ', $missing));
         }
-        if ([] !== $unknown = array_diff(array_keys($doctor['parameters']), array_keys($operation['parameters']))) {
-            $errors[] = \sprintf('%s: doctor.parameters has unknown parameters for the probe "%s": %s.', $file, $doctor['probe'], implode(', ', $unknown));
+        if ([] !== $unknown = array_diff(array_keys($parameters), array_keys($operation['parameters']))) {
+            $errors[] = \sprintf('%s: %s has unknown parameters for "%s": %s.', $file, $parametersKey, $call, implode(', ', $unknown));
         }
     }
 
@@ -140,6 +152,10 @@ final class DescriptorLoader
     private function checkWebhooks(string $file, array $webhooks, array $api, array $resources, array &$errors): array
     {
         $review = $this->review($file, $webhooks['review'] ?? []);
+        if (isset($webhooks['registration'])) {
+            $registration = $webhooks['registration'];
+            $this->checkDoctorCall($file, 'registration.operation', 'registration.parameters', $registration['operation'], $registration['parameters'], $resources, $errors);
+        }
         if (isset($webhooks['meta'])) {
             $this->checkShape($webhooks['meta']['shape'], 'meta.shape', static function (string $message) use ($file, &$errors): void {
                 $errors[] = $file.': '.$message;

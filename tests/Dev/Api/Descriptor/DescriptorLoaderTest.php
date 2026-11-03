@@ -162,9 +162,23 @@ final class DescriptorLoaderTest extends TestCase
         self::assertSame(['probe' => 'orders.get', 'parameters' => ['id' => '%env(ORDER_ID)%'], 'review' => ['check it']], $definition->api['doctor']);
         self::assertContains('_api.yaml: doctor: check it', array_map(fn (string $note) => str_replace($this->dir.'/shop/', '', $note), $definition->review));
 
-        self::assertSame(['_api.yaml: doctor.probe "orders.create" is a POST operation: the probe must be a harmless GET.'], $this->errors(self::API + ['doctor' => ['probe' => 'orders.create']], ['orders' => $orders]));
+        self::assertSame(['_api.yaml: doctor.probe "orders.create" is a POST operation: the doctor only makes harmless GET calls.'], $this->errors(self::API + ['doctor' => ['probe' => 'orders.create']], ['orders' => $orders]));
         self::assertSame(['_api.yaml: doctor.probe "orders.cancel" is not an operation of the API.'], $this->errors(self::API + ['doctor' => ['probe' => 'orders.cancel']], ['orders' => $orders]));
-        self::assertSame(['_api.yaml: doctor.parameters must give the path parameters of the probe "orders.get": id.'], $this->errors(self::API + ['doctor' => ['probe' => 'orders.get']], ['orders' => $orders]));
+        self::assertSame(['_api.yaml: doctor.parameters must give the path parameters of "orders.get": id.'], $this->errors(self::API + ['doctor' => ['probe' => 'orders.get']], ['orders' => $orders]));
+    }
+
+    public function testWebhookRegistration(): void
+    {
+        $webhooks = ['signature' => ['header' => 'X-Signature', 'env' => 'SHOP_SECRET'], 'event_name' => ['path' => 'meta.event_name'], 'events' => []];
+        $resources = ['webhooks' => ['resource' => 'webhooks', 'operations' => [
+            'list' => ['method' => 'GET', 'path' => 'webhooks', 'query' => ['filter[store_id]' => ['type' => 'int']]],
+            'create' => ['method' => 'POST', 'path' => 'webhooks', 'body' => ['shape' => 'array{url: string}']],
+        ]]];
+
+        $definition = $this->load(self::API, $resources, $webhooks + ['registration' => ['operation' => 'webhooks.list', 'query' => ['filter[store_id]' => '%env(STORE_ID)%'], 'url' => 'attributes.url', 'events' => 'attributes.events']]);
+        self::assertEquals(['operation' => 'webhooks.list', 'parameters' => [], 'query' => ['filter[store_id]' => '%env(STORE_ID)%'], 'items' => null, 'url' => 'attributes.url', 'events' => 'attributes.events', 'id' => 'id'], $definition->webhooks['registration']);
+
+        self::assertSame(['_webhooks.yaml: registration.operation "webhooks.create" is a POST operation: the doctor only makes harmless GET calls.'], $this->errors(self::API, $resources, $webhooks + ['registration' => ['operation' => 'webhooks.create', 'url' => 'url']]));
     }
 
     public function testLoadsWebhooks(): void

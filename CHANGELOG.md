@@ -9,6 +9,10 @@ until 1.0, minor versions may contain breaking changes.
   environment variables of the API and calls its probe (`doctor.probe` in `_api.yaml`, a harmless `GET`,
   guessed by the importer, validated by the loader), diagnosing unreachable hosts, rejected credentials,
   wrong base URIs, rate limits and provider errors; `api-forge:doctor` runs them with the webhook checks
+- Doctor, webhooks: event coverage (the events the application's consumer handles); `registration` in
+  `_webhooks.yaml` tells the generated doctor how to read the webhooks registered at the provider, checked
+  against the endpoint path and the handled events, and pinged; `ApiDiagnosis` runs the whole diagnosis of
+  an API (for api-forge:doctor and bundles built on it); `api-forge:doctor --no-ping`
 - Doctor contract check: the probe's response is compared with its shape in the descriptor (missing and
   new fields, types, enum values), with `ShapeChecker`, a runtime checker of values against array shapes.
   After upgrading, regenerate the services: the generated `probe()` now returns the response (a doctor

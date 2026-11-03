@@ -22,6 +22,7 @@ use Snorky22\ApiForge\Dev\Api\Import\WebhookImporter;
 use Snorky22\ApiForge\Dev\Api\Import\WebhookMerger;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 use Snorky22\ApiForge\Dev\Doctor\AbstractApiDoctor;
+use Snorky22\ApiForge\Dev\Doctor\ApiDiagnosis;
 use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 use Snorky22\ApiForge\Dev\Webhook\WebhookDiagnostics;
 use Snorky22\ApiForge\Dev\Webhook\WebhookSender;
@@ -98,6 +99,7 @@ final class ApiForgeBundle extends AbstractBundle
             WebhookCheckCommand::class,
             WebhookDiagnostics::class,
             DoctorCommand::class,
+            ApiDiagnosis::class,
         ] as $class) {
             $services->set($class);
         }

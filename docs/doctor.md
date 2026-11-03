@@ -31,7 +31,8 @@ lemonsqueezy
 | Environment variables | `auth.env`, `signature.env` | Empty credentials or webhook secret, as Symfony resolves them (`.env` files, defaults) |
 | Probe | `doctor.probe` | The API answers and accepts the credentials, with the latency; or: unreachable host (DNS, TLS, timeout), rejected credentials (401), missing permissions (403), wrong base URI or version (404), rate limit (429), provider error (5xx) |
 | Contract | the probe's response shape | The response differs from the descriptor: a required field missing (error: code reading it fails), a new field, another type, a value outside a documented enum (warnings) — the API changed since the descriptors were written |
-| Webhook chain | `_webhooks.yaml` | Routes, parser, secret, consumer, asynchronous transport; with `--ping`, a public URL (see [Webhooks](webhooks.md#checking-the-chain)) |
+| Webhook chain | `_webhooks.yaml` | Routes, parser, secret, consumer and the events it handles, asynchronous transport; with `--ping`, a public URL (see [Webhooks](webhooks.md#checking-the-chain)) |
+| Registered webhooks | `registration` in `_webhooks.yaml` | The webhooks registered at the provider: one must send to the endpoint path, with the events the consumer handles; each is pinged (`--no-ping` to skip) |
 
 ## The probe
 
@@ -65,6 +66,38 @@ are listed with their path:
 Fix the descriptor (mark a field optional with `?`, add the new ones, widen a type), regenerate: the doctor
 and the PHPDoc types of the generated code follow. Types the checker doesn't know (aliases, classes) are not
 checked; `array{…, ...}` allows extra keys.
+
+## Webhooks
+
+The doctor knows which events the application's consumer handles: the methods of the generated base
+consumer it overrides (`The consumer handles 12 of the 17 events: …`).
+
+With a `registration` hint in `_webhooks.yaml`, it also reads the webhooks registered at the provider,
+through a list operation of the API:
+
+```yaml
+registration:
+    operation: webhooks.list                      # a GET operation of the API
+    query:
+        'filter[store_id]': '%env(SHOP_STORE_ID)%'   # %env()% and %parameters% are injected
+    url: attributes.url                           # dot paths in each item
+    events: attributes.events                     # optional: the subscribed events
+    # items: data                                 # the list in the response: "data" for JSON:API
+    # id: id
+```
+
+and checks them against the application:
+
+```
+ Registered webhooks
+ ! Webhook 1 (https://72e1.ngrok-free.app) does not send to the endpoint path /webhook/lemonsqueezy: its deliveries never reach the application.
+ ✔ Webhook 2 (https://abcd.ngrok-free.app/webhook/lemonsqueezy) sends to the endpoint.
+ ! Webhook 2 (…) does not send order_refunded: the consumer handles them, they never arrive.
+ ✔ https://abcd.ngrok-free.app/webhook/lemonsqueezy reaches the endpoint, signed with the same secret (HTTP 202).
+```
+
+`ApiDiagnosis` runs the whole diagnosis of an API (sections API, Webhooks, Registered webhooks); bundles
+built on api-forge can reuse it, with events whose absence is an error (`requiredEvents`).
 
 ## Notes
 

@@ -5,11 +5,13 @@ namespace Snorky22\ApiForge\DependencyInjection;
 use Snorky22\ApiForge\Dev\Webhook\WebhookDiagnostics;
 use Snorky22\ApiForge\Dev\Webhook\WebhookSender;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
+use Symfony\Component\DependencyInjection\Compiler\ServiceLocatorTagPass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Reference;
 
 /**
  * Gives the webhook routing (framework.webhook.routing: parser and secret by type) to the WebhookSender, and
- * the types of the RemoteEvent consumers to the WebhookDiagnostics.
+ * the RemoteEvent consumers, by type, to the WebhookDiagnostics.
  */
 final class WebhookSenderPass implements CompilerPassInterface
 {
@@ -28,14 +30,14 @@ final class WebhookSenderPass implements CompilerPassInterface
 
         if ($container->hasDefinition(WebhookDiagnostics::class)) {
             $consumers = [];
-            foreach ($container->findTaggedServiceIds('remote_event.consumer') as $tags) {
+            foreach ($container->findTaggedServiceIds('remote_event.consumer') as $id => $tags) {
                 foreach ($tags as $tag) {
                     if (isset($tag['consumer'])) {
-                        $consumers[] = $tag['consumer'];
+                        $consumers[$tag['consumer']] = new Reference($id);
                     }
                 }
             }
-            $container->getDefinition(WebhookDiagnostics::class)->setArgument('$consumers', array_values(array_unique($consumers)));
+            $container->getDefinition(WebhookDiagnostics::class)->setArgument('$consumers', ServiceLocatorTagPass::register($container, $consumers));
         }
     }
 }

@@ -93,6 +93,49 @@ abstract class AbstractApiDoctor
     }
 
     /**
+     * The webhooks registered at the provider (registration in _webhooks.yaml). Generated when the descriptors
+     * say how to read them.
+     *
+     * @return ?list<array{id: ?string, url: string, events: ?list<string>}> null when unknown
+     *
+     * @throws ApiException|TransportExceptionInterface
+     */
+    public function registeredWebhooks(): ?array
+    {
+        return null;
+    }
+
+    /**
+     * @param array<mixed> $response the response of the list operation
+     * @param ?string      $items    key of the list in the response, null for the response itself
+     *
+     * @return list<array{id: ?string, url: string, events: ?list<string>}>
+     */
+    protected function registrations(array $response, ?string $items, string $url, ?string $events, ?string $id): array
+    {
+        $list = null !== $items ? ($response[$items] ?? []) : $response;
+        $registrations = [];
+        foreach (\is_array($list) ? $list : [] as $item) {
+            $registrations[] = [
+                'id' => null !== $id ? (string) (self::get($item, $id) ?? '') ?: null : null,
+                'url' => (string) self::get($item, $url),
+                'events' => null !== $events && \is_array($subscribed = self::get($item, $events)) ? array_values(array_map('strval', $subscribed)) : null,
+            ];
+        }
+
+        return $registrations;
+    }
+
+    private static function get(mixed $value, string $path): mixed
+    {
+        foreach (explode('.', $path) as $key) {
+            $value = \is_array($value) ? ($value[$key] ?? null) : null;
+        }
+
+        return $value;
+    }
+
+    /**
      * Compares the probe's response with its shape in the descriptor: the API may have changed since.
      *
      * @param array<mixed> $response

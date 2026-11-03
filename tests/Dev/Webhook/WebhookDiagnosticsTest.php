@@ -36,6 +36,7 @@ final class WebhookDiagnosticsTest extends KernelTestCase
             'ok: Endpoint: http://localhost/webhook/lemonsqueezy (path /webhook/lemonsqueezy)',
             'ok: Request parser routed, signing secret set.',
             "ok: Consumer registered (#[AsRemoteEventConsumer('lemonsqueezy')]).",
+            'ok: The consumer handles 1 of the 17 events: order_created.',
             'warning: Events queued on the "async" transport: a worker must run (messenger:consume async), or they are never consumed.',
         ], self::summary(self::getContainer()->get(WebhookDiagnostics::class)->check('lemonsqueezy')));
     }
@@ -48,6 +49,28 @@ final class WebhookDiagnosticsTest extends KernelTestCase
         self::assertSame('error', $checks[1]->level);
         self::assertStringContainsString('Unknown webhook type "stripe"', $checks[1]->message);
         self::assertSame("error: No consumer registered with #[AsRemoteEventConsumer('stripe')]: deliveries are accepted, then fail.", self::summary($checks)[2]);
+    }
+
+    public function testRegisteredWebhooks(): void
+    {
+        self::bootKernel();
+        $diagnostics = self::getContainer()->get(WebhookDiagnostics::class);
+
+        [$checks, $urls] = $diagnostics->registrations('lemonsqueezy', [
+            ['id' => '1', 'url' => 'https://72e1.ngrok-free.app', 'events' => ['order_created']],
+            ['id' => '2', 'url' => 'https://shop.example.com/webhook/lemonsqueezy/', 'events' => ['order_refunded']],
+        ]);
+
+        self::assertSame([
+            'warning: Webhook 1 (https://72e1.ngrok-free.app) does not send to the endpoint path /webhook/lemonsqueezy: its deliveries never reach the application.',
+            'ok: Webhook 2 (https://shop.example.com/webhook/lemonsqueezy/) sends to the endpoint.',
+            'warning: Webhook 2 (https://shop.example.com/webhook/lemonsqueezy/) does not send order_created: the consumer handles them, they never arrive.',
+        ], self::summary($checks));
+        self::assertSame(['https://shop.example.com/webhook/lemonsqueezy/'], $urls);
+
+        [$checks, $urls] = $diagnostics->registrations('lemonsqueezy', []);
+        self::assertStringStartsWith('error: No webhook registered at the provider sends to /webhook/lemonsqueezy', self::summary($checks)[0]);
+        self::assertSame([], $urls);
     }
 
     /**
@@ -71,7 +94,7 @@ final class WebhookDiagnosticsTest extends KernelTestCase
         $parsers = ['lemonsqueezy' => ['parser' => $container->get('App\Api\LemonSqueezy\Generated\Webhook\LemonSqueezyRequestParser'), 'secret' => 's3cret']];
         $sender = new WebhookSender($parsers, $container->get(UrlGeneratorInterface::class), $container->get(HttpKernelInterface::class), $client);
 
-        $check = (new WebhookDiagnostics($sender, ['lemonsqueezy']))->ping('lemonsqueezy', 'https://abcd.ngrok-free.app/webhook/lemonsqueezy');
+        $check = (new WebhookDiagnostics($sender))->ping('lemonsqueezy', 'https://abcd.ngrok-free.app/webhook/lemonsqueezy');
 
         self::assertSame($level, $check->level);
         self::assertStringContainsString($message, $check->message);
