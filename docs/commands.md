@@ -13,7 +13,7 @@ bin/console api-forge:import <api> <curl-file> [--response=<json-file>]
 
 | Option | Default | |
 |---|---|---|
-| `--response` | none | File with the example JSON response |
+| `--response` | none | File with the example JSON response (or an array, `.php`) |
 | `--resource` | first path segment | Resource name |
 | `--operation` | inferred from method and path | Operation name |
 | `--force` | | Replace an existing operation with the same name |
@@ -22,6 +22,10 @@ bin/console api-forge:import <api> <curl-file> [--response=<json-file>]
 Supported curl syntax: single, double and `$'...'` quotes, `\` line continuations, a leading `$ `
 prompt, `-X`/`--request` (also `-XPOST`), `-H`, `-d`/`--data`/`--data-raw`/`--data-binary`, `--json`,
 `-u`, `-G`, `--url`, `--opt=value`. Unknown options are listed in the review notes.
+
+Instead of a curl file, `<curl-file>` may be an example of another format: a `.php` array holding the request and
+the response, for what the docs describe in prose only ([Examples written as arrays](workflow.md#examples-written-as-arrays)).
+The JSON arguments of `import-object` and `import-webhook --payload` accept `.php` arrays as well.
 
 ## `api-forge:import-object`
 
@@ -164,3 +168,26 @@ bin/console api-forge:json-to-php [<json-file>]        # reads stdin without a f
 | `-s`, `--shape` | | Also print the PHPDoc shape |
 | `--shape-only` | | Print only the PHPDoc shape |
 | `--tag` | `var` | PHPDoc tag, e.g. `return` or `phpstan-type Order` |
+
+## `api-forge:yaml-to-php`
+
+Converts a YAML file, typically a descriptor, to a PHP array literal with the same data: short syntax, lists
+without keys, multi-line strings (a PHPDoc shape) as nowdocs.
+
+```bash
+bin/console api-forge:yaml-to-php config/api/paddle/prices.yaml            # prints the array
+bin/console api-forge:yaml-to-php config/api/paddle/prices.yaml -o prices.php   # a file that returns it
+```
+
+| Option | | |
+|---|---|---|
+| `-o`, `--output` | | Write a PHP file (`<?php return [...];`) instead of printing |
+| `--force` | | Overwrite the output file (refused by default) |
+
+The code is checked before it is printed: only if its tokens are those of a literal is it evaluated, and the
+result must be identical to what the YAML parses to (keys, order and types, including what YAML guesses:
+`no`, `1.10`, `~`). Otherwise nothing is written and the command fails. YAML is read as the descriptor
+loader reads it: duplicate keys and unknown tags are errors.
+
+Comments can't be carried over: the full-line comments are listed on stderr. The descriptors themselves are
+still read from YAML; the converted file is for reading and composing shapes.

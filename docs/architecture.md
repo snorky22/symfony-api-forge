@@ -49,12 +49,16 @@ src/                                     namespace Snorky22\ApiForge
 └── Dev/                                 Development tools, not used at runtime
     ├── LenientJsonDecoder.php               JSON from docs: comments, {...}, trailing commas
     ├── ArrayShapeGenerator.php              JSON example → PHPDoc array shape
+    ├── PhpArrayDumper.php                   data → readable, checked PHP array literal (yaml-to-php)
+    ├── PhpLiteral.php                       reads PHP data written by hand without running code
     ├── Doctor/                              AbstractApiDoctor (base of the generated doctors), Check,
     │                                        ShapeChecker (values against array shapes)
     ├── Webhook/                             DeliveryInbox and DeliveryRecorder (deliveries received),
     │                                        WebhookSender (simulated deliveries, signed like the API),
     │                                        WebhookDiagnostics (chain check, ping)
     └── Api/
+        ├── Example/                         ExampleReader and ExampleFormat (PhpArrayExample): documentation
+        │                                    examples other than curl and JSON → curl command + JSON response
         ├── Curl/                            curl command parser
         ├── Import/                          importers (endpoints, objects, webhooks) and merge rules
         ├── Descriptor/                      YAML storage, schema, strict loader, shape validator
@@ -100,7 +104,7 @@ from the same shapes.
 | `symfony/http-client` | HTTP requests, scoped clients (base URI, auth, headers) |
 | `symfony/config` | Descriptor schema and validation |
 | `symfony/yaml` | Descriptor files |
-| `symfony/var-exporter` | PHP array literals (`api-forge:json-to-php`) |
+| `symfony/var-exporter` | PHP array literals (`api-forge:json-to-php`, `api-forge:yaml-to-php`) |
 | `symfony/filesystem`, `symfony/finder` | Writing generated files, finding stale ones |
 | `phpstan/phpdoc-parser` | Validating the PHPDoc shapes of descriptors |
 | `symfony/webhook`, `symfony/remote-event` | Webhook endpoint, request parsers, consumers |

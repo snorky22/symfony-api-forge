@@ -68,6 +68,25 @@ final class GuideTest extends KernelTestCase
         rmdir($fixtures);
     }
 
+    public function testArrayExamplesAreListedToo(): void
+    {
+        self::bootKernel();
+        $fixtures = sys_get_temp_dir().'/guide-test-'.bin2hex(random_bytes(4));
+        mkdir($fixtures);
+        file_put_contents($fixtures.'/list-customers.php', "<?php return ['request' => 'GET /customers'];");
+        file_put_contents($fixtures.'/list-stores.php', "<?php return ['request' => 'GET /stores', 'response' => ['data' => []]];");
+        file_put_contents($fixtures.'/webhook-order.php', '<?php return [];');
+        file_put_contents($fixtures.'/order-object.php', '<?php return [];');
+        file_put_contents($fixtures.'/broken.php', '<?php return [phpinfo()];');
+
+        $status = self::getContainer()->get(Guide::class)->status('lemonsqueezy', self::EXAMPLE.'/config/api', self::EXAMPLE, $fixtures, 'php tests/console');
+
+        self::assertSame('list-stores.php', array_column($status['state'], 1, 0)['Not imported']);
+        self::assertStringEndsWith('/list-stores.php', str_replace('../', '', $status['next']));
+        array_map('unlink', glob($fixtures.'/*'));
+        rmdir($fixtures);
+    }
+
     public function testCommand(): void
     {
         $tester = new CommandTester((new Application(self::bootKernel()))->find('api-forge:guide'));

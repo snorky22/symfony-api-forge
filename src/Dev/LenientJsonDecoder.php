@@ -16,6 +16,39 @@ final class LenientJsonDecoder
         return json_decode($this->sanitize($json), $associative, 512, \JSON_THROW_ON_ERROR);
     }
 
+    /**
+     * Why a JSON text can't be decoded, with the line when it is a mistake easy to make when writing examples by
+     * hand: a single-quoted string.
+     */
+    public function explain(string $json, \JsonException $error): string
+    {
+        $line = 1;
+        $length = \strlen($json);
+        for ($i = 0; $i < $length; ++$i) {
+            $char = $json[$i];
+            if ("\n" === $char) {
+                ++$line;
+            } elseif ('"' === $char) {
+                for (++$i; $i < $length && '"' !== $json[$i]; ++$i) {
+                    if ('\\' === $json[$i]) {
+                        ++$i;
+                    }
+                }
+            } elseif ('/' === $char && '/' === ($json[$i + 1] ?? '')) {
+                $end = strpos($json, "\n", $i);
+                $i = false === $end ? $length : $end - 1;
+            } elseif ('/' === $char && '*' === ($json[$i + 1] ?? '')) {
+                $end = strpos($json, '*/', $i + 2);
+                $line += substr_count($json, "\n", $i, false === $end ? null : $end - $i);
+                $i = false === $end ? $length : $end + 1;
+            } elseif ("'" === $char) {
+                return \sprintf('line %d: a single-quoted string, JSON strings use double quotes', $line);
+            }
+        }
+
+        return $error->getMessage();
+    }
+
     public function sanitize(string $json): string
     {
         $result = '';

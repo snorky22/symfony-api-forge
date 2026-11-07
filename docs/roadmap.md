@@ -3,6 +3,7 @@
 ## Done
 
 - `api-forge:json-to-php`: JSON example → PHP array and PHPDoc shape
+- `api-forge:yaml-to-php`: YAML (a descriptor) → PHP array literal, checked
 - Curl parser and `api-forge:import`, `api-forge:import-object`: documentation → descriptors
 - Strict descriptor validation, runtime layer, `api-forge:generate`
 - Webhooks: `api-forge:import-webhook`, signed request parser, typed event consumers, asynchronous

@@ -13,11 +13,15 @@ use Snorky22\ApiForge\Command\WebhookCheckCommand;
 use Snorky22\ApiForge\Command\WebhookInboxCommand;
 use Snorky22\ApiForge\Command\WebhookReplayCommand;
 use Snorky22\ApiForge\Command\WebhookSendCommand;
+use Snorky22\ApiForge\Command\YamlToPhpCommand;
 use Snorky22\ApiForge\DependencyInjection\WebhookSenderPass;
 use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorLoader;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
 use Snorky22\ApiForge\Dev\Api\Descriptor\ShapeValidator;
+use Snorky22\ApiForge\Dev\Api\Example\ExampleFormat;
+use Snorky22\ApiForge\Dev\Api\Example\ExampleReader;
+use Snorky22\ApiForge\Dev\Api\Example\PhpArrayExample;
 use Snorky22\ApiForge\Dev\Api\Generator\ServiceGenerator;
 use Snorky22\ApiForge\Dev\Api\Import\DescriptorMerger;
 use Snorky22\ApiForge\Dev\Api\Import\EndpointImporter;
@@ -28,16 +32,19 @@ use Snorky22\ApiForge\Dev\Doctor\AbstractApiDoctor;
 use Snorky22\ApiForge\Dev\Doctor\ApiDiagnosis;
 use Snorky22\ApiForge\Dev\Guide;
 use Snorky22\ApiForge\Dev\LenientJsonDecoder;
+use Snorky22\ApiForge\Dev\PhpArrayDumper;
 use Snorky22\ApiForge\Dev\Webhook\DeliveryInbox;
 use Snorky22\ApiForge\Dev\Webhook\DeliveryRecorder;
 use Snorky22\ApiForge\Dev\Webhook\WebhookDiagnostics;
 use Snorky22\ApiForge\Dev\Webhook\WebhookSender;
+use Snorky22\ApiForge\Dev\YamlToPhpConverter;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
+use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_iterator;
 
 /**
  * Provides the api-forge:* commands, which import API documentation into descriptors, generate services,
@@ -94,10 +101,14 @@ final class ApiForgeBundle extends AbstractBundle
         $services = $container->services()->defaults()->autowire()->autoconfigure();
         // The generated doctors (Generated/<Api>Doctor.php), run by api-forge:doctor
         $builder->registerForAutoconfiguration(AbstractApiDoctor::class)->addTag('api_forge.doctor');
+        // The formats of documentation examples (curl and JSON are read as they are)
+        $builder->registerForAutoconfiguration(ExampleFormat::class)->addTag('api_forge.example_format');
 
         foreach ([
             LenientJsonDecoder::class,
             ArrayShapeGenerator::class,
+            PhpArrayDumper::class,
+            YamlToPhpConverter::class,
             CurlParser::class,
             EndpointImporter::class,
             DescriptorMerger::class,
@@ -106,6 +117,7 @@ final class ApiForgeBundle extends AbstractBundle
             ShapeValidator::class,
             DescriptorLoader::class,
             JsonToPhpCommand::class,
+            YamlToPhpCommand::class,
             ApiImportCommand::class,
             ApiImportObjectCommand::class,
             ApiImportWebhookCommand::class,
@@ -118,6 +130,8 @@ final class ApiForgeBundle extends AbstractBundle
             $services->set($class);
         }
 
+        $services->set(PhpArrayExample::class);
+        $services->set(ExampleReader::class)->arg('$formats', tagged_iterator('api_forge.example_format'));
         $services->set(DescriptorStore::class)->arg('$directory', $config['descriptor_dir']);
         $services->set(ServiceGenerator::class)->args([$config['namespace'], $config['source_dir'], $config['config_dir']]);
         $services->set(Guide::class)

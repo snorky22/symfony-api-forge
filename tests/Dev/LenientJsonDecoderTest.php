@@ -41,4 +41,29 @@ final class LenientJsonDecoderTest extends TestCase
 
         (new LenientJsonDecoder())->decode('{"a": }');
     }
+
+    public function testExplainsASingleQuotedString(): void
+    {
+        $decoder = new LenientJsonDecoder();
+        $json = "{\n  // it's a comment\n  \"a\": \"it's fine\",\n  /* it's\n fine */\n  \"b\": 'x.array'\n}";
+
+        try {
+            $decoder->decode($json);
+            self::fail('Not JSON');
+        } catch (\JsonException $e) {
+            self::assertSame('line 6: a single-quoted string, JSON strings use double quotes', $decoder->explain($json, $e));
+        }
+    }
+
+    public function testExplainsOtherErrorsWithTheJsonMessage(): void
+    {
+        $decoder = new LenientJsonDecoder();
+
+        try {
+            $decoder->decode('{"a": }');
+            self::fail('Not JSON');
+        } catch (\JsonException $e) {
+            self::assertSame('Syntax error', $decoder->explain('{"a": }', $e));
+        }
+    }
 }

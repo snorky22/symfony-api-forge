@@ -40,6 +40,16 @@ final class EndpointImporterTest extends TestCase
         self::assertNull($endpoint->object);
     }
 
+    public function testReviewNotesNameTheKeysOfUnknownTypes(): void
+    {
+        $endpoint = $this->import('curl https://api.test/prices', '{"data": [{"id": "p1", "trial_period": null, "custom_data": null, "unit_price_overrides": [], "nested": {"meta": null, "tags": []}}], "meta": {"cursor": null}}');
+
+        self::assertSame([
+            'response: "mixed" marks values that are null in the example, their real type is unknown (data[].trial_period, data[].custom_data, data[].nested.meta, meta.cursor)',
+            'response: "list<mixed>" marks empty arrays in the example, they may be empty objects (data[].unit_price_overrides, data[].nested.tags)',
+        ], array_values(array_filter($endpoint->operation['review'], static fn (string $note) => str_starts_with($note, 'response:'))));
+    }
+
     public function testJsonApiListResponseDescribesTheResourceObject(): void
     {
         $endpoint = $this->import(file_get_contents(self::FIXTURES.'curl-example-1'), file_get_contents(self::FIXTURES.'json-example.json'));
@@ -47,7 +57,7 @@ final class EndpointImporterTest extends TestCase
         self::assertSame('orders', $endpoint->type);
         self::assertSame(['data' => 'list'], $endpoint->operation['response']);
         self::assertStringStartsWith("array{\n    type: string,\n    id: string,\n    attributes: array{\n        store_id: int,", $endpoint->object['shape']);
-        self::assertSame(['object: "mixed" marks values that are null in the example, their real type is unknown'], $endpoint->object['review']);
+        self::assertSame(['object: "mixed" marks values that are null in the example, their real type is unknown (attributes.refunded_at, attributes.first_order_item.deleted_at)'], $endpoint->object['review']);
     }
 
     public function testImportsJsonApiCreate(): void
@@ -61,7 +71,7 @@ final class EndpointImporterTest extends TestCase
         self::assertSame(['data' => 'object'], $endpoint->operation['response']);
         self::assertStringContainsString('url: string,', $endpoint->object['shape']);
         self::assertSame(['request body: all attributes are typed as optional, remove the "?" of the required ones'], $endpoint->operation['review']);
-        self::assertSame(['object: "list<mixed>" marks empty arrays in the example, they may be empty objects'], $endpoint->object['review']);
+        self::assertSame(['object: "list<mixed>" marks empty arrays in the example, they may be empty objects (attributes.product_options.media, attributes.checkout_data.billing_address, attributes.checkout_data.custom, attributes.checkout_data.variant_quantities)'], $endpoint->object['review']);
     }
 
     public function testActionDocumentWithIdIdentifiesTheResource(): void
@@ -124,7 +134,7 @@ final class EndpointImporterTest extends TestCase
 
         self::assertSame('customers', $type);
         self::assertStringContainsString("        city: mixed,\n", $object['shape']);
-        self::assertSame(['object: "mixed" marks values that are null in the example, their real type is unknown'], $object['review']);
+        self::assertSame(['object: "mixed" marks values that are null in the example, their real type is unknown (attributes.city, attributes.region)'], $object['review']);
     }
 
     public function testImportsObjectFromDocument(): void

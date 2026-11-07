@@ -3,6 +3,7 @@
 namespace Snorky22\ApiForge\Command;
 
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
+use Snorky22\ApiForge\Dev\Api\Example\ExampleReader;
 use Snorky22\ApiForge\Dev\Api\Import\DescriptorMerger;
 use Snorky22\ApiForge\Dev\Api\Import\WebhookImporter;
 use Snorky22\ApiForge\Dev\Api\Import\WebhookMerger;
@@ -34,6 +35,7 @@ final class ApiImportWebhookCommand
         private readonly WebhookMerger $webhookMerger,
         private readonly DescriptorMerger $descriptorMerger,
         private readonly DescriptorStore $store,
+        private readonly ExampleReader $examples,
     ) {
     }
 
@@ -44,7 +46,7 @@ final class ApiImportWebhookCommand
         SymfonyStyle $io,
         #[Argument('API name, e.g. "lemonsqueezy"')] string $api,
         #[Option('Markdown file with the table of events')] ?string $events = null,
-        #[Option('File with an example payload (repeatable)')] array $payload = [],
+        #[Option('File with an example payload (repeatable): JSON, or an array (.php)')] array $payload = [],
         #[Option('Event name of the payload, when it cannot be read from it')] ?string $event = null,
         #[Option('Descriptor directory (default: api_forge.descriptor_dir, config/api)')] ?string $dir = null,
     ): int {
@@ -72,7 +74,7 @@ final class ApiImportWebhookCommand
             }
 
             foreach ($payload as $file) {
-                $description = $this->importer->importPayload($this->read($file), $format);
+                $description = $this->importer->importPayload($this->examples->json($file), $format);
                 $resource = null;
                 $review = [];
 

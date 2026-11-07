@@ -7,6 +7,8 @@ use Snorky22\ApiForge\Dev\Api\Descriptor\ApiDefinition;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorLoader;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
 use Snorky22\ApiForge\Dev\Api\Descriptor\InvalidDescriptorException;
+use Snorky22\ApiForge\Dev\Api\Example\Example;
+use Snorky22\ApiForge\Dev\Api\Example\ExampleReader;
 use Snorky22\ApiForge\Dev\Api\Generator\ServiceGenerator;
 use Snorky22\ApiForge\Dev\Api\Import\EndpointImporter;
 use Symfony\Component\Filesystem\Path;
@@ -24,6 +26,8 @@ final class Guide
     public const FIXTURES = [
         ['<operation>-<resource>.curl', 'a documented request: the cURL sample of the docs', 'get-account.curl, list-products.curl'],
         ['<operation>-<resource>.json', 'its example response', 'get-account.json, list-products.json'],
+        ['<operation>-<resource>.php', 'the same, written by hand as an array when the docs describe it in prose: request and response', 'create-price.php, list-prices.php'],
+        ['<type>-type.json', 'a data type the other examples point to by its file name (also .php)', 'duration-type.json, unit-price-override-type.php'],
         ['<resource>-object.json', 'an object example ("The product object")', 'transaction-object.json'],
         ['webhook-events.md', 'the events table of the docs', 'webhook-events.md'],
         ['webhook-<event>.json', 'a webhook payload example', 'webhook-transaction.completed.json'],
@@ -48,6 +52,7 @@ final class Guide
         private readonly EndpointImporter $importer,
         private readonly string $projectDir,
         private readonly string $descriptorDir,
+        private readonly ExampleReader $examples = new ExampleReader(),
     ) {
     }
 
@@ -139,11 +144,24 @@ final class Guide
         $baseUris = isset($apiDescriptor['base_uri']) ? [$apiDescriptor['base_uri'], ...array_values($apiDescriptor['environments'] ?? [])] : null;
 
         $pending = [];
+        // Curl examples, and those of the other formats (arrays...) that describe an operation
         $files = glob($fixtures.'/*.curl') ?: [];
+        foreach ($this->examples->extensions() as $extension) {
+            foreach (glob($fixtures.'/*.'.$extension) ?: [] as $file) {
+                if (!str_starts_with(basename($file), 'webhook-') && !str_contains(basename($file), '-object.') && !str_contains(basename($file), '-type.')) {
+                    $files[] = $file;
+                }
+            }
+        }
         sort($files);
         foreach ($files as $file) {
+            $curl = str_ends_with($file, '.curl');
             try {
-                $endpoint = $this->importer->import($this->curlParser->parse((string) file_get_contents($file)), $api, null, $baseUris, null, null, $apiDescriptor['format'] ?? null);
+                $example = $curl ? new Example((string) file_get_contents($file), null) : $this->examples->operation($file, $apiDescriptor['base_uri'] ?? null);
+                if (null === $example->curl) {
+                    continue;
+                }
+                $endpoint = $this->importer->import($this->curlParser->parse($example->curl), $api, null, $baseUris, null, null, $apiDescriptor['format'] ?? null);
             } catch (\Throwable) {
                 continue; // not readable: api-forge:import tells why
             }
@@ -151,7 +169,7 @@ final class Guide
                 continue;
             }
             $response = substr($file, 0, -5).'.json';
-            $pending[$file] = \sprintf('api-forge:import %s %s%s', $api, Path::makeRelative($file, $this->projectDir), is_file($response) ? ' --response='.Path::makeRelative($response, $this->projectDir) : '');
+            $pending[$file] = \sprintf('api-forge:import %s %s%s', $api, Path::makeRelative($file, $this->projectDir), $curl && is_file($response) ? ' --response='.Path::makeRelative($response, $this->projectDir) : '');
         }
 
         return $pending;

@@ -4,6 +4,7 @@ namespace Snorky22\ApiForge\Command;
 
 use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
+use Snorky22\ApiForge\Dev\Api\Example\ExampleReader;
 use Snorky22\ApiForge\Dev\Api\Import\DescriptorMerger;
 use Snorky22\ApiForge\Dev\Api\Import\EndpointImporter;
 use Symfony\Component\Console\Attribute\Argument;
@@ -33,26 +34,35 @@ final class ApiImportCommand
         private readonly EndpointImporter $importer,
         private readonly DescriptorMerger $merger,
         private readonly DescriptorStore $store,
+        private readonly ExampleReader $examples,
     ) {
     }
 
     public function __invoke(
         SymfonyStyle $io,
         #[Argument('API name, e.g. "lemonsqueezy"')] string $api,
-        #[Argument('File containing the curl command')] string $curl,
-        #[Option('File containing the example JSON response')] ?string $response = null,
+        #[Argument('File containing the curl command, or an example of another format (.php: request and response as an array)')] string $curl,
+        #[Option('File containing the example JSON response (or an array, .php)')] ?string $response = null,
         #[Option('Resource name (default: first path segment)')] ?string $resource = null,
         #[Option('Operation name (default: inferred from method and path)')] ?string $operation = null,
         #[Option('Replace an existing operation with the same name')] bool $force = false,
         #[Option('Descriptor directory (default: api_forge.descriptor_dir, config/api)')] ?string $dir = null,
     ): int {
         try {
-            $request = $this->curlParser->parse($this->read($curl));
             $existingApi = $this->store->loadApi($api, $dir);
+            $example = $this->examples->operation($curl, $existingApi['base_uri'] ?? null);
+            if (null === $example->curl) {
+                throw new \InvalidArgumentException(\sprintf('"%s" holds no request: add a "request" ("METHOD /path").', $curl));
+            }
+            if (null !== $response && null !== $example->response) {
+                throw new \InvalidArgumentException(\sprintf('The response is given twice: "response" in %s and --response.', $curl));
+            }
+            $request = $this->curlParser->parse($example->curl);
+            $responseJson = null !== $response ? $this->examples->json($response) : $example->response;
             $endpoint = $this->importer->import(
                 $request,
                 $api,
-                null === $response ? null : $this->read($response),
+                $responseJson,
                 isset($existingApi['base_uri']) ? [$existingApi['base_uri'], ...array_values($existingApi['environments'] ?? [])] : null,
                 $resource,
                 $operation,
@@ -83,15 +93,5 @@ final class ApiImportCommand
         }
 
         return Command::SUCCESS;
-    }
-
-    private function read(string $file): string
-    {
-        $content = is_file($file) ? file_get_contents($file) : false;
-        if (false === $content) {
-            throw new \InvalidArgumentException(\sprintf('Cannot read file "%s".', $file));
-        }
-
-        return $content;
     }
 }

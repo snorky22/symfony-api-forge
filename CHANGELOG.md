@@ -5,6 +5,33 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- The review notes about `mixed` and `list<mixed>` list the keys concerned as paths (`data[].trial_period`, up to 10)
+
+- Array examples accept the extension `.array`: the bare array literal, without `<?php return`
+- The review note of a response or request body that is not JSON says why (`LenientJsonDecoder::explain()`): the
+  line of a single-quoted string, or the JSON error
+
+- Examples can point to other data files, as API documentation points to types it describes elsewhere: a value
+  that is a relative file name with a data extension (`"duration-type.json"`, `'money-type.php'`) is replaced by
+  the content of that file, in JSON examples, array examples (request body and response), objects and webhook
+  payloads. Resolved from the directory of the file that holds it, nested, cycles refused, a missing file is an
+  error, a leading backslash keeps a string as it is; documents without such a value are untouched;
+  `<type>-type.json|php` files are left out of the examples `api-forge:guide` proposes to import.
+  `ExampleFormat::json()` is replaced by `document()` and `operation()` takes the resolver
+
+- Documentation examples written as PHP arrays (`<operation>-<resource>.php`), for what the docs describe in prose
+  only: `request` (`METHOD path` or URL), `query`, `headers`, `body` and `response`. `api-forge:import` turns
+  them into the curl command and JSON response it reads; `import-object` and `import-webhook --payload` accept
+  an array as the JSON document; `api-forge:guide` lists them with the examples to import. The file is read as
+  data, never run (`PhpLiteral`: arrays, strings, numbers, true/false/null; comments allowed; anything else
+  is refused with its line). `ExampleFormat` (tag `api_forge.example_format`) adds other formats of
+  documentation examples; `ExampleReader` reads them
+
+- `api-forge:yaml-to-php`: a YAML file (a descriptor) as a PHP array literal, multi-line strings as nowdocs;
+  the code is checked (tokens of a literal only, then evaluated and compared with the parsed YAML, keys,
+  order and types) before it is printed or written; `--output` writes a file that returns the array and
+  never overwrites without `--force`; comments, which PHP data can't carry, are listed on stderr
+
 - Hosts chosen at runtime: `environments` (other hosts of the API, e.g. a sandbox) and `base_uri_env` in
   `_api.yaml`; the generated client uses the environment variable, `base_uri` by default; the importer
   accepts the URLs of every listed host and suggests this setup for a first import from a sandbox host;
