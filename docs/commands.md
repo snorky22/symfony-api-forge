@@ -14,6 +14,7 @@ bin/console api-forge:import <api> <curl-file> [--response=<json-file>]
 | Option | Default | |
 |---|---|---|
 | `--response` | none | File with the example JSON response (or an array, `.php`) |
+| `--docs` | `<example>.docs.md` | Text capture of the docs page of the response: optional fields, nulls, enums ([The documentation page as text](workflow.md#the-documentation-page-as-text)) |
 | `--resource` | first path segment | Resource name |
 | `--operation` | inferred from method and path | Operation name |
 | `--force` | | Replace an existing operation with the same name |

@@ -3,6 +3,8 @@
 namespace Snorky22\ApiForge\Dev\Api\Import;
 
 use Snorky22\ApiForge\Dev\Api\Curl\CurlRequest;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsAnnotator;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsCapture;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 
@@ -27,6 +29,8 @@ final class EndpointImporter
     public function __construct(
         private readonly LenientJsonDecoder $decoder,
         private readonly ArrayShapeGenerator $shapeGenerator,
+        private readonly DocsCapture $docsCapture = new DocsCapture(),
+        private readonly DocsAnnotator $docsAnnotator = new DocsAnnotator(),
     ) {
     }
 
@@ -36,6 +40,8 @@ final class EndpointImporter
      * @param ?string $resource      resource name; first path segment when null
      * @param ?string $operationName operation name; inferred from method and path when null
      * @param ?string $format        known API format ("json" or "jsonapi"); detected from the headers when null
+     * @param ?string $docs          text capture of the documentation of the response (DocsCapture): optional fields, nulls,
+     *                               enums and the types the example leaves unknown come from it
      */
     public function import(
         CurlRequest $request,
@@ -45,6 +51,7 @@ final class EndpointImporter
         ?string $resource = null,
         ?string $operationName = null,
         ?string $format = null,
+        ?string $docs = null,
     ): ImportedEndpoint {
         $review = [];
         foreach ($request->unknownOptions as $option) {
@@ -109,6 +116,9 @@ final class EndpointImporter
             $itemType = $this->commonType($items);
 
             // A JSON:API document of the resource itself: its objects describe the resource, once for all operations.
+            if (null !== $docs && $isCrud && null !== $itemType && (null === $type || $type === $itemType)) {
+                $review[] = 'docs: the documentation capture is not used for a JSON:API resource document yet';
+            }
             if ($isCrud && null !== $itemType && (null === $type || $type === $itemType)) {
                 $type = $itemType;
                 $operation['response'] = ['data' => $isList ? 'list' : 'object'];
@@ -119,7 +129,16 @@ final class EndpointImporter
                     $object['review'] = $objectReview;
                 }
             } elseif (null !== $response) {
-                $operation['response'] = ['shape' => $this->shapeGenerator->generate($response)];
+                $hints = [];
+                if (null !== $docs) {
+                    $alignment = $this->docsAnnotator->annotate($this->docsCapture->parse($docs), [$response]);
+                    $hints = $alignment->hints;
+                    array_push($review, ...$alignment->notes);
+                    if ([] === $hints) {
+                        $review[] = 'docs: no field of the documentation capture matches the example, nothing applied';
+                    }
+                }
+                $operation['response'] = ['shape' => $this->shapeGenerator->generate($response, false, $hints)];
                 $this->reviewShape($operation['response']['shape'], 'response', $review);
             } else {
                 $review[] = 'response is not JSON ('.($this->decodeError ?? 'empty or null').'), ignored';

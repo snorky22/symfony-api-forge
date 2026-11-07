@@ -19,6 +19,8 @@ use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorLoader;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
 use Snorky22\ApiForge\Dev\Api\Descriptor\ShapeValidator;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsAnnotator;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsCapture;
 use Snorky22\ApiForge\Dev\Api\Example\ExampleFormat;
 use Snorky22\ApiForge\Dev\Api\Example\ExampleReader;
 use Snorky22\ApiForge\Dev\Api\Example\PhpArrayExample;
@@ -108,6 +110,8 @@ final class ApiForgeBundle extends AbstractBundle
             LenientJsonDecoder::class,
             ArrayShapeGenerator::class,
             PhpArrayDumper::class,
+            DocsCapture::class,
+            DocsAnnotator::class,
             YamlToPhpConverter::class,
             CurlParser::class,
             EndpointImporter::class,

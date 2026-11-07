@@ -43,6 +43,7 @@ final class ApiImportCommand
         #[Argument('API name, e.g. "lemonsqueezy"')] string $api,
         #[Argument('File containing the curl command, or an example of another format (.php: request and response as an array)')] string $curl,
         #[Option('File containing the example JSON response (or an array, .php)')] ?string $response = null,
+        #[Option('Text capture of the documentation of the response: optional fields, nulls, enums (default: <example>.docs.md next to the example, if any)')] ?string $docs = null,
         #[Option('Resource name (default: first path segment)')] ?string $resource = null,
         #[Option('Operation name (default: inferred from method and path)')] ?string $operation = null,
         #[Option('Replace an existing operation with the same name')] bool $force = false,
@@ -67,6 +68,7 @@ final class ApiImportCommand
                 $resource,
                 $operation,
                 $existingApi['format'] ?? null,
+                $this->docs($docs, $response ?? $curl),
             );
             $merged = $this->merger->merge($existingApi, $this->store->loadResource($api, $endpoint->resource, $dir), $endpoint, $force);
         } catch (\InvalidArgumentException $e) {
@@ -93,5 +95,24 @@ final class ApiImportCommand
         }
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * The documentation capture: the file given, or <example>.docs.md next to the response (or request) example.
+     */
+    private function docs(?string $docs, string $example): ?string
+    {
+        if (null === $docs) {
+            $docs = preg_replace('/\.[^.\/]+$/', '', $example).'.docs.md';
+            if (!is_file($docs)) {
+                return null;
+            }
+        }
+        $content = is_file($docs) ? file_get_contents($docs) : false;
+        if (false === $content) {
+            throw new \InvalidArgumentException(\sprintf('Cannot read file "%s".', $docs));
+        }
+
+        return $content;
     }
 }

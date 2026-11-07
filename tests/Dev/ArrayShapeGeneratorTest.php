@@ -3,7 +3,9 @@
 namespace Snorky22\ApiForge\Tests\Dev;
 
 use PHPUnit\Framework\TestCase;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsEntry;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
+use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 
 final class ArrayShapeGeneratorTest extends TestCase
 {
@@ -79,5 +81,47 @@ final class ArrayShapeGeneratorTest extends TestCase
             DOC;
 
         self::assertSame($expected, (new ArrayShapeGenerator())->docBlock(json_decode('{"id": 1}'), 'phpstan-type Item'));
+    }
+
+    public function testDocumentationDecidesOptionalNullEnumAndUnknownTypes(): void
+    {
+        $decoder = new LenientJsonDecoder();
+        $entry = static fn (string $name, string $type, bool $nullable = false, bool $required = true, ?array $values = null) => new DocsEntry($name, $type, $nullable, $required, null, $values, \count($values ?? []), [], 1);
+        $docs = [
+            'data' => $entry('data', 'array'),
+            'data[].kind' => $entry('kind', 'string', values: ['a', "it's"]),
+            'data[].name' => $entry('name', 'string', nullable: true),
+            'data[].note' => $entry('note', 'string', required: false),
+            'data[].custom_data' => $entry('custom_data', 'object', nullable: true),
+            'data[].rate' => $entry('rate', 'number', nullable: true),
+            'data[].tags' => $entry('tags', 'array'),
+            'data[].count' => $entry('count', 'integer'),
+        ];
+        $json = '{"data": [{"kind": "a", "name": "x", "note": "n", "custom_data": null, "rate": null, "tags": [], "count": 1}, {"kind": "a", "name": "y", "note": "m", "custom_data": [], "rate": null, "tags": [], "count": 2}]}';
+
+        $shape = (new ArrayShapeGenerator())->generate($decoder->decode($json, false), false, $docs);
+
+        self::assertSame(<<<'SHAPE'
+            array{
+                data: list<array{
+                    kind: 'a'|'it\'s',
+                    name: ?string,
+                    note?: string,
+                    custom_data: array<string, mixed>|null,
+                    rate: int|float|null,
+                    tags: list<mixed>,
+                    count: int,
+                }>,
+            }
+            SHAPE, $shape);
+    }
+
+    public function testDocumentationMakesAKeyRequiredEvenWhenAnExampleLacksIt(): void
+    {
+        $docs = ['data[].a' => new DocsEntry('a', 'string', false, true, null, null, 0, [], 1)];
+        $shape = (new ArrayShapeGenerator())->generate((new LenientJsonDecoder())->decode('{"data": [{"a": "x"}, {"b": 1}]}', false), false, $docs);
+
+        self::assertStringContainsString("a: string,\n", $shape);
+        self::assertStringContainsString("b?: int,\n", $shape);
     }
 }

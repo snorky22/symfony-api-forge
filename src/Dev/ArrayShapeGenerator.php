@@ -2,6 +2,8 @@
 
 namespace Snorky22\ApiForge\Dev;
 
+use Snorky22\ApiForge\Dev\Api\Docs\DocsEntry;
+
 /**
  * Infers a PHPDoc array shape (PHPStan / Psalm / PhpStorm syntax) from example data.
  *
@@ -22,19 +24,24 @@ final class ArrayShapeGenerator
     }
 
     /**
-     * @param bool $optionalKeys make the top-level keys optional (e.g. for request attributes)
+     * @param bool                     $optionalKeys make the top-level keys optional (e.g. for request attributes)
+     * @param array<string, DocsEntry> $docs         what the documentation says of the fields, by path (data[].name):
+     *                                               it decides which keys are optional, which values are null, the
+     *                                               literal values of an enum, and the type of a field the example
+     *                                               leaves unknown
      */
-    public function generate(mixed $data, bool $optionalKeys = false): string
+    public function generate(mixed $data, bool $optionalKeys = false, array $docs = []): string
     {
-        return $this->generateMerged([$data], $optionalKeys);
+        return $this->generateMerged([$data], $optionalKeys, $docs);
     }
 
     /**
      * Generates a single shape describing all the given items, e.g. the elements of a list.
      *
-     * @param list<mixed> $items
+     * @param list<mixed>              $items
+     * @param array<string, DocsEntry> $docs
      */
-    public function generateMerged(array $items, bool $optionalKeys = false): string
+    public function generateMerged(array $items, bool $optionalKeys = false, array $docs = []): string
     {
         $type = null;
         foreach ($items as $item) {
@@ -51,7 +58,7 @@ final class ArrayShapeGenerator
             unset($entry);
         }
 
-        return $this->render($type, 0);
+        return $this->render($type, 0, '', $docs);
     }
 
     /**
@@ -111,14 +118,18 @@ final class ArrayShapeGenerator
         return $merged;
     }
 
-    private function render(array $type, int $level): string
+    /**
+     * @param array<string, DocsEntry> $docs
+     */
+    private function render(array $type, int $level, string $path, array $docs): string
     {
+        $entry = $docs[$path] ?? null;
         $members = [];
         if (null !== $type['shape']) {
-            $members[] = $this->renderShape($type['shape'], $level);
+            $members[] = $this->renderShape($type['shape'], $level, $path, $docs);
         }
         if (null !== $type['list']) {
-            $members[] = 'list<'.(null === $type['list']['item'] ? 'mixed' : $this->render($type['list']['item'], $level)).'>';
+            $members[] = 'list<'.(null === $type['list']['item'] ? 'mixed' : $this->render($type['list']['item'], $level, $path.'[]', $docs)).'>';
         }
         foreach (self::SCALAR_ORDER as $scalar) {
             if (isset($type['scalars'][$scalar])) {
@@ -126,13 +137,23 @@ final class ArrayShapeGenerator
             }
         }
 
+        $nullable = isset($type['scalars']['null']) || (null !== $entry && $entry->nullable);
+
+        // What the example leaves unknown (only null, or an empty list for an object) is the documented type
+        if (null !== $entry && ([] === $members || (['list<mixed>'] === $members && 'object' === $entry->type))) {
+            $members = [self::documented($entry)];
+        } elseif (null !== $entry && null !== $entry->values && ['string'] === $members && 'string' === $entry->type) {
+            // The literal values of the docs, when the page lists them all
+            $members = array_map(static fn (string $value) => "'".addcslashes($value, "'\\")."'", $entry->values);
+        }
+
         // A value that is only ever null in the example tells nothing about its real type.
         if ([] === $members) {
             return 'mixed';
         }
 
-        if (isset($type['scalars']['null'])) {
-            if (1 === \count($members) && \in_array($members[0], self::SCALAR_ORDER, true)) {
+        if ($nullable) {
+            if (1 === \count($members) && (\in_array($members[0], self::SCALAR_ORDER, true))) {
                 return '?'.$members[0];
             }
             $members[] = 'null';
@@ -141,7 +162,25 @@ final class ArrayShapeGenerator
         return implode('|', $members);
     }
 
-    private function renderShape(array $shape, int $level): string
+    /**
+     * The PHPDoc type of a documented field, for what the example does not show.
+     */
+    private static function documented(DocsEntry $entry): string
+    {
+        return match ($entry->type) {
+            'string' => 'string',
+            'integer' => 'int',
+            'number' => 'int|float',
+            'boolean' => 'bool',
+            'object' => 'array<string, mixed>',
+            default => 'list<mixed>',
+        };
+    }
+
+    /**
+     * @param array<string, DocsEntry> $docs
+     */
+    private function renderShape(array $shape, int $level, string $path, array $docs): string
     {
         if ([] === $shape['keys']) {
             return 'array<string, mixed>';
@@ -150,8 +189,11 @@ final class ArrayShapeGenerator
         $indent = str_repeat(self::INDENT, $level + 1);
         $lines = [];
         foreach ($shape['keys'] as $key => $entry) {
-            $optional = $entry['count'] < $shape['count'] ? '?' : '';
-            $lines[] = $indent.$this->renderKey($key).$optional.': '.$this->render($entry['type'], $level + 1).',';
+            $childPath = ('' === $path ? '' : $path.'.').$key;
+            $documented = $docs[$childPath] ?? null;
+            // The documentation says what is required; the example only says what it shows
+            $optional = (null !== $documented ? !$documented->required : $entry['count'] < $shape['count']) ? '?' : '';
+            $lines[] = $indent.$this->renderKey((string) $key).$optional.': '.$this->render($entry['type'], $level + 1, $childPath, $docs).',';
         }
 
         return "array{\n".implode("\n", $lines)."\n".str_repeat(self::INDENT, $level).'}';

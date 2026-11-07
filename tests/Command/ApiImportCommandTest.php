@@ -120,6 +120,45 @@ final class ApiImportCommandTest extends KernelTestCase
         self::assertStringContainsString('response is not JSON (line 2: a single-quoted string, JSON strings use double quotes), ignored', preg_replace('/\s+/', ' ', $tester->getDisplay()));
     }
 
+    public function testDocumentationCaptureNextToTheExampleDecidesTypes(): void
+    {
+        (new Filesystem())->mkdir($this->dir.'/fixtures');
+        copy(self::FIXTURES.'docs-capture-example.md', $this->dir.'/fixtures/list-prices.docs.md');
+        file_put_contents($this->dir.'/fixtures/list-prices.json', '{"data": [{"id": "p1", "type": "standard", "name": null, "trial_period": {"interval": "day", "unit_price": {"amount": "1", "currency_code": "USD"}}, "unit_price": {"amount": "1", "currency_code": "EUR"}, "custom_data": {}}], "meta": {"next": "https://x", "estimated_total": 1}}');
+        file_put_contents($this->dir.'/fixtures/list-prices.curl', 'curl https://api.paddle.com/prices');
+        $tester = new CommandTester((new Application(self::bootKernel()))->find('api-forge:import'));
+
+        $tester->execute(['api' => 'paddle', 'curl' => $this->dir.'/fixtures/list-prices.curl', '--response' => $this->dir.'/fixtures/list-prices.json', '--dir' => $this->dir]);
+
+        $tester->assertCommandIsSuccessful();
+        $operation = Yaml::parseFile($this->dir.'/paddle/prices.yaml')['operations']['list'];
+        self::assertStringContainsString("type: 'custom'|'standard',", $operation['response']['shape']);
+        self::assertStringContainsString('name: ?string,', $operation['response']['shape']);
+        self::assertStringContainsString('custom_data: array<string, mixed>|null,', $operation['response']['shape']);
+        self::assertStringContainsString('estimated_total?: int,', $operation['response']['shape']);
+        self::assertStringContainsString('unit_price?: array{', $operation['response']['shape']);
+        self::assertContains('docs: "allowances" (line 89) is not in the example: add it to the example', $operation['review']);
+        self::assertNotContains('response: "mixed" marks values that are null in the example, their real type is unknown (data[].name, data[].custom_data)', $operation['review']);
+
+        // --docs names the capture, a missing file is an error
+        $tester->execute(['api' => 'paddle', 'curl' => $this->dir.'/fixtures/list-prices.curl', '--response' => $this->dir.'/fixtures/list-prices.json', '--docs' => $this->dir.'/none.md', '--dir' => $this->dir]);
+        self::assertSame(Command::FAILURE, $tester->getStatusCode());
+        self::assertStringContainsString('Cannot read file', $tester->getDisplay());
+    }
+
+    public function testWithoutACaptureTheImportIsAsBefore(): void
+    {
+        (new Filesystem())->mkdir($this->dir.'/fixtures');
+        file_put_contents($this->dir.'/fixtures/list-prices.json', '{"data": [{"id": "p1", "name": null}]}');
+        file_put_contents($this->dir.'/fixtures/list-prices.curl', 'curl https://api.paddle.com/prices');
+        $tester = new CommandTester((new Application(self::bootKernel()))->find('api-forge:import'));
+
+        $tester->execute(['api' => 'paddle', 'curl' => $this->dir.'/fixtures/list-prices.curl', '--response' => $this->dir.'/fixtures/list-prices.json', '--dir' => $this->dir]);
+
+        $shape = Yaml::parseFile($this->dir.'/paddle/prices.yaml')['operations']['list']['response']['shape'];
+        self::assertStringContainsString('name: mixed,', $shape);
+    }
+
     public function testRefusesAnArrayExampleThatIsNotData(): void
     {
         (new Filesystem())->mkdir($this->dir);

@@ -57,6 +57,8 @@ src/                                     namespace Snorky22\ApiForge
     │                                        WebhookSender (simulated deliveries, signed like the API),
     │                                        WebhookDiagnostics (chain check, ping)
     └── Api/
+        ├── Docs/                            DocsCapture (docs page as text → fields), DocsAnnotator (aligns them with an
+        │                                    example), DocsEntry
         ├── Example/                         ExampleReader and ExampleFormat (PhpArrayExample): documentation
         │                                    examples other than curl and JSON → curl command + JSON response
         ├── Curl/                            curl command parser

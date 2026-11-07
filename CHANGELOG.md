@@ -5,6 +5,17 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- `docs/workflow.md` rewritten as a step-by-step workflow: the files and what api-forge reads from their names, which file for
+  what the docs give, giving the request (curl or array: `request`, `query`, `headers`, `body`), the response, type files and
+  the docs page as text, importing again, and a worked example (Paddle prices)
+
+- The documentation page as text: `<operation>-<resource>.docs.md` next to an example (or `api-forge:import --docs`) is the
+  copy of the field list of the docs page. `DocsCapture` reads it (fields, `| null`, `required`, formats, defaults, `Values`
+  of an enum, unless the page cuts the list), `DocsAnnotator` aligns it with the structure of the example (the copy is
+  flat; names counted differently by the page and the example are not applied and reported, what only the page
+  describes is set aside) and `ArrayShapeGenerator::generate()` uses it: optional keys, nullable values, enum literals, the
+  type of what the example leaves `mixed`; a documented field found in the example under another parent is reported. Plain JSON responses only
+
 - The review notes about `mixed` and `list<mixed>` list the keys concerned as paths (`data[].trial_period`, up to 10)
 
 - Array examples accept the extension `.array`: the bare array literal, without `<?php return`
