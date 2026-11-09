@@ -1,9 +1,23 @@
 {
     "name": "snorky22/symfony-api-forge",
-    "description": "Generate Symfony services for REST APIs and webhooks from the API's documentation: curl and JSON examples become editable descriptors, from which typed HTTP clients and signed webhook consumers are regenerated.",
+    "description": "Generate Symfony services for REST APIs and webhooks from the API's documentation: curl and JSON examples become editable descriptors, from which typed HTTP clients and signed webhook consumers are regenerated. With generated doctors, local webhook testing and a local web interface that guides the whole workflow.",
     "type": "symfony-bundle",
     "license": "MIT",
-    "keywords": ["symfony", "bundle", "code-generator", "rest-api", "webhooks", "api-client", "json-api", "http-client", "phpstan", "curl"],
+    "keywords": [
+        "symfony",
+        "bundle",
+        "code-generator",
+        "rest-api",
+        "webhooks",
+        "api-client",
+        "json-api",
+        "http-client",
+        "phpstan",
+        "curl",
+        "developer-tools",
+        "web-interface",
+        "webhook-testing"
+    ],
     "homepage": "https://github.com/snorky22/symfony-api-forge",
     "authors": [
         {
@@ -52,6 +66,9 @@
             "Snorky22\\ApiForge\\Tests\\": "tests/",
             "App\\": "examples/lemonsqueezy/src/"
         }
+    },
+    "scripts": {
+        "test": "phpunit"
     },
     "config": {
         "sort-packages": true

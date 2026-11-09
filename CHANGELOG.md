@@ -5,6 +5,10 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+## 0.2.0 - 2026-11-09
+
+Doctors, local webhook testing, a local web interface, and documentation pages as an input.
+
 - The docs page as text is read through a vocabulary of the words of types and flags (`DocsVocabulary`): the types and
   their aliases (`int`, `bool`, `float`, `map`, `list`…), `array of strings` / `string[]` / `list<integer>` (the type of the
   items types an empty list in the example), the formats (`date-time`, `uuid`, `uri`, `(iso-8601)`…), and the flags

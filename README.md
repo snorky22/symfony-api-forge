@@ -21,6 +21,11 @@ payload JSON                              │    descriptors, edited by hand    
   delivery inbox records what arrived and why it was rejected, `api-forge:webhook:replay` delivers it again.
 - **Generated doctors**: one per API, regenerated with its services; `api-forge:doctor` checks the
   credentials, calls a harmless probe and diagnoses what fails (unreachable, rejected key, wrong URL…).
+- **A local web interface**: `api-forge:serve` runs the whole workflow as forms in the browser (describe the API, a
+  wizard per endpoint, review notes with one-click fixes, generate, run the doctor), with an Ace editor wherever a file
+  is edited. Plain PHP on the built-in server, no framework, Bootstrap and Ace shipped.
+- **Documentation pages as text**: the field list of an API's docs page, pasted as text, tells which fields are
+  required, nullable, enums, and the types the examples leave unknown.
 
 ## Requirements
 
@@ -131,4 +136,5 @@ php tests/console api-forge:generate lemonsqueezy --dir=examples/lemonsqueezy/co
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). The web interface ships two third-party assets under their own licenses, kept next to
+them: Bootstrap (MIT) and Ace (BSD-3-Clause); see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
