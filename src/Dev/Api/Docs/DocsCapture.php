@@ -7,10 +7,12 @@ namespace Snorky22\ApiForge\Dev\Api\Docs;
  * the ordered list of the fields it describes. The capture is flat: the page's indentation is lost, so the
  * entries come in the order of the page, depth first, with no parent (see DocsAnnotator).
  *
- * A field is a line made of its name immediately followed by its type, then "| null" and "required":
+ * A field is a line made of its name immediately followed by its type, then "| null" and "required" (a web copy glues them;
+ * a Markdown copy separates them with spaces, "name string required"):
  *
  *     billing_cycleobject | nullrequired
  *     nextstring (uri)required
+ *     name string required
  *
  * followed by its details (Default:, Example:, Length:, Pattern:, Min:, Max:, Items:, Range:) and its
  * "Values" (enum, as bullets of a backticked value).
@@ -22,6 +24,8 @@ final class DocsCapture
     private const BADGES = 'early access|beta|alpha|new|deprecated|preview';
     /** Values kept for an enum: longer lists (countries, currencies) are not worth a shape */
     public const MAX_VALUES = 12;
+    /** Words that start a sentence about a type ('the number', 'is boolean'), not names of fields */
+    private const WORDS = ['an', 'as', 'is', 'be', 'or', 'of', 'to', 'in', 'by', 'at', 'on', 'if', 'it', 'no', 'the', 'are', 'and', 'for', 'any', 'all', 'can', 'not', 'may', 'one', 'use', 'set', 'has', 'was', 'its', 'but'];
     private const DETAILS = ['Default', 'Example', 'Length', 'Max length', 'Pattern', 'Min', 'Max', 'Minimum', 'Maximum', 'Range', 'Items'];
 
     /**
@@ -91,17 +95,30 @@ final class DocsCapture
     private function header(string $line): ?array
     {
         // The name ends where a type begins; the lazy name and the strict end make "object_arrayarray" read right
-        if (1 !== preg_match('/^([A-Za-z_][A-Za-z0-9_]*?)('.self::TYPES.')(?:\s*\(([^)]*)\))?(\s*\|\s*null)?(?:\s*\(([^)]*)\))?(required)?(?:'.self::BADGES.')?$/', $line, $matches)) {
-            return null;
+        if (1 === preg_match('/^([A-Za-z_][A-Za-z0-9_]*?)('.self::TYPES.')(?:\s*\(([^)]*)\))?(\s*\|\s*null)?(?:\s*\(([^)]*)\))?(required)?(?:'.self::BADGES.')?$/', $line, $matches)) {
+            return [
+                'name' => $matches[1],
+                'type' => $matches[2],
+                'nullable' => '' !== ($matches[4] ?? ''),
+                'required' => '' !== ($matches[6] ?? ''),
+                'format' => '' !== ($matches[3] ?? '') ? $matches[3] : ('' !== ($matches[5] ?? '') ? $matches[5] : null),
+            ];
         }
 
-        return [
-            'name' => $matches[1],
-            'type' => $matches[2],
-            'nullable' => '' !== ($matches[4] ?? ''),
-            'required' => '' !== ($matches[6] ?? ''),
-            'format' => '' !== ($matches[3] ?? '') ? $matches[3] : ('' !== ($matches[5] ?? '') ? $matches[5] : null),
-        ];
+        // The same with spaces ("name string required", "description string | null", "created_at string (date-time) required"):
+        // a lowercase name, so that a short sentence of the description is not taken for a field
+        if (1 === preg_match('/^([a-z][a-z0-9_]+)\s+('.self::TYPES.')(?:\s*\(([^)]*)\))?(\s*\|\s*null)?(?:\s*\(([^)]*)\))?(?:\s+(required))?(?:\s+(?:'.self::BADGES.'))?$/', $line, $matches)
+            && !\in_array($matches[1], self::WORDS, true)) {
+            return [
+                'name' => $matches[1],
+                'type' => $matches[2],
+                'nullable' => '' !== ($matches[4] ?? ''),
+                'required' => '' !== ($matches[6] ?? ''),
+                'format' => '' !== ($matches[3] ?? '') ? $matches[3] : ('' !== ($matches[5] ?? '') ? $matches[5] : null),
+            ];
+        }
+
+        return null;
     }
 
     /**

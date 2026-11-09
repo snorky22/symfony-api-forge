@@ -230,6 +230,11 @@ Values
 *   `week`
 ```
 
+A page copied as Markdown separates them with spaces instead (`trial_period object | null required`, `name string required`,
+`created_at string (date-time) required`): both copies are read. A field is a lowercase name followed by its type, then
+`| null`, a format in parentheses and `required`; the lines that follow it (`Default:`, `Length:`, `Max length:`, `Pattern:`,
+`Example:`, `Values`) are its details.
+
 `api-forge:import` finds it by its name (or `--docs=<file>`) and applies it to the response shape, on the structure
 of the example: the example, checked by a human, holds the nesting, since the copied page is flat (no
 indentation, no parents).

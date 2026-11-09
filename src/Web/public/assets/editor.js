@@ -280,7 +280,11 @@
             }
         });
 
-        var editor = create(textarea, {mode: mode, height: Math.max(150, (parseInt(textarea.rows, 10) || 6) * 22) + 'px', wrap: mode === 'sh' || mode === 'text'});
+        // As tall as its content, between the rows of the box and about half of the window
+        var minimum = Math.max(150, (parseInt(textarea.rows, 10) || 6) * 22);
+        var maximum = Math.max(minimum, Math.round(window.innerHeight * 0.55));
+        var wanted = textarea.value.split('\n').length * 19 + 30;
+        var editor = create(textarea, {mode: mode, height: Math.min(maximum, Math.max(minimum, wanted)) + 'px', wrap: mode === 'sh' || mode === 'text'});
         var bar = toolbar(editor, owner, []);
         wrapper.appendChild(bar);
         wrapper.appendChild(messages);

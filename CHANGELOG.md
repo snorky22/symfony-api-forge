@@ -5,6 +5,13 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- The docs page as text is also read when it is copied as Markdown, with spaces between the name, the type and `required`
+  (`name string required`, `created_at string (date-time) required`), as well as in the glued web copy; sentences of a
+  description are not taken for fields (`DocsCapture`)
+
+- Web editor: the code boxes of the forms (the wizard screens too) start as tall as their content, between their rows and about
+  half of the window, instead of a fixed small height
+
 - Web editor: two chevron buttons make the editor shorter or taller by five lines (120 px to 95% of the window)
 
 - Web interface, editing a done step: every button of the first four steps stays enabled (**Edit** the description of the

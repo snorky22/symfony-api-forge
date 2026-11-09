@@ -23,6 +23,13 @@ final class DocsCaptureTest extends TestCase
         yield 'a type word in the name' => ['object_arrayarrayrequired', ['object_array', 'array', false, true, null]];
         yield 'boolean' => ['has_morebooleanrequired', ['has_more', 'boolean', false, true, null]];
         yield 'number' => ['ratenumberrequired', ['rate', 'number', false, true, null]];
+        yield 'spaced, required' => ['name string required', ['name', 'string', false, true, null]];
+        yield 'spaced, optional' => ['type string', ['type', 'string', false, false, null]];
+        yield 'spaced, null' => ['description string | null', ['description', 'string', true, false, null]];
+        yield 'spaced, null and required' => ['custom_data object | null required', ['custom_data', 'object', true, true, null]];
+        yield 'spaced, format' => ['created_at string (date-time) required', ['created_at', 'string', false, true, 'date-time']];
+        yield 'spaced, format after null' => ['external_id string | null (uuid)', ['external_id', 'string', true, false, 'uuid']];
+        yield 'spaced, badge' => ['allowances array early access', ['allowances', 'array', false, false, null]];
     }
 
     /**
@@ -77,5 +84,27 @@ final class DocsCaptureTest extends TestCase
         self::assertNull($entries[0]->values);
         self::assertSame(13, $entries[0]->valueCount);
         self::assertSame('next', $entries[1]->name);
+    }
+
+    public function testASentenceOfTheDescriptionIsNotAField(): void
+    {
+        $text = "Name of this product.\n\nthe number\n\nIs a string\n\nan integer\n\nSet this boolean\n\nUnique Paddle ID\n\nRepresented as a string, this value must be a valid integer.\n";
+
+        self::assertSame([], (new DocsCapture())->parse($text));
+    }
+
+    public function testReadsAMarkdownCaptureWithSpaces(): void
+    {
+        $text = "## Request body\n\nname string required\n\nName of this product.\n\nLength: 1–200\n\nPattern: `.*\\S.*`\n\ndescription string | null\n\nShort description.\n\nMax length: 2048\n\ntype string\n\nDefault: `standard`\n\nValues\n\n*   `custom`\n    \n    Non-catalog item.\n    \n*   `standard`\n    \n    Standard item.\n    \n\ntax_category string required\n";
+
+        $entries = (new DocsCapture())->parse($text);
+
+        self::assertSame(['name', 'description', 'type', 'tax_category'], array_map(static fn ($entry) => $entry->name, $entries));
+        self::assertSame([true, false, false, true], array_map(static fn ($entry) => $entry->required, $entries));
+        self::assertTrue($entries[1]->nullable);
+        self::assertSame(['custom', 'standard'], $entries[2]->values);
+        self::assertSame('1–200', $entries[0]->details['Length']);
+        self::assertSame('2048', $entries[1]->details['Max length']);
+        self::assertSame('standard', $entries[2]->details['Default']);
     }
 }
