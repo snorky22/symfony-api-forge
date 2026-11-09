@@ -14,6 +14,7 @@ final class DocsEntry
      * @param int               $valueCount number of values listed (may exceed those kept)
      * @param array<string, string> $details  Default, Example, Length, Pattern, Min, Max, Range, Items...
      * @param int               $line     line of the capture, for the reports
+     * @param ?string           $itemType the type of the items of an array ("array of strings"), when the page says it
      */
     public function __construct(
         public readonly string $name,
@@ -25,6 +26,10 @@ final class DocsEntry
         public readonly int $valueCount,
         public readonly array $details,
         public readonly int $line,
+        public readonly ?string $itemType = null,
+        public readonly bool $deprecated = false,
+        public readonly bool $readOnly = false,
+        public readonly bool $writeOnly = false,
     ) {
     }
 }

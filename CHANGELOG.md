@@ -5,6 +5,13 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- The docs page as text is read through a vocabulary of the words of types and flags (`DocsVocabulary`): the types and
+  their aliases (`int`, `bool`, `float`, `map`, `list`…), `array of strings` / `string[]` / `list<integer>` (the type of the
+  items types an empty list in the example), the formats (`date-time`, `uuid`, `uri`, `(iso-8601)`…), and the flags
+  `required` / `mandatory` / `*`, `optional` / `?`, `nullable` / `| null`, `deprecated`, `read-only`, `write-only`, in any
+  order and with any punctuation (`name: string, required`, `token (string, required)`); a line with an unknown word is
+  not a field. `DocsEntry` keeps the item type and the flags (`deprecated`, `readOnly` and `writeOnly` are not used yet)
+
 - The docs page as text is also read when it is copied as Markdown, with spaces between the name, the type and `required`
   (`name string required`, `created_at string (date-time) required`), as well as in the glued web copy; sentences of a
   description are not taken for fields (`DocsCapture`)

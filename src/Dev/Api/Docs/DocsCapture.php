@@ -90,44 +90,55 @@ final class DocsCapture
     }
 
     /**
-     * @return ?array{name: string, type: string, nullable: bool, required: bool, format: ?string}
+     * @return ?array{name: string, type: string, nullable: bool, required: bool, format: ?string, itemType: ?string, deprecated: bool, readOnly: bool, writeOnly: bool}
      */
     private function header(string $line): ?array
     {
-        // The name ends where a type begins; the lazy name and the strict end make "object_arrayarray" read right
-        if (1 === preg_match('/^([A-Za-z_][A-Za-z0-9_]*?)('.self::TYPES.')(?:\s*\(([^)]*)\))?(\s*\|\s*null)?(?:\s*\(([^)]*)\))?(required)?(?:'.self::BADGES.')?$/', $line, $matches)) {
+        $extras = ['itemType' => null, 'deprecated' => false, 'readOnly' => false, 'writeOnly' => false];
+
+        // The web copy glues the name, the type and the flags ("billing_cycleobject | nullrequired"); the lazy name and the
+        // strict end make "object_arrayarray" read right
+        if (1 === preg_match('/^([A-Za-z_][A-Za-z0-9_]*?)('.self::TYPES.')(?:\s*\(([^)]*)\))?(\s*\|\s*null)?(?:\s*\(([^)]*)\))?(required|optional)?(?:'.self::BADGES.')?$/', $line, $matches)) {
             return [
                 'name' => $matches[1],
                 'type' => $matches[2],
                 'nullable' => '' !== ($matches[4] ?? ''),
-                'required' => '' !== ($matches[6] ?? ''),
+                'required' => 'required' === ($matches[6] ?? ''),
                 'format' => '' !== ($matches[3] ?? '') ? $matches[3] : ('' !== ($matches[5] ?? '') ? $matches[5] : null),
-            ];
+            ] + $extras;
         }
 
-        // The same with spaces ("name string required", "description string | null", "created_at string (date-time) required"):
-        // a lowercase name, so that a short sentence of the description is not taken for a field
-        if (1 === preg_match('/^([a-z][a-z0-9_]+)\s+('.self::TYPES.')(?:\s*\(([^)]*)\))?(\s*\|\s*null)?(?:\s*\(([^)]*)\))?(?:\s+(required))?(?:\s+(?:'.self::BADGES.'))?$/', $line, $matches)
-            && !\in_array($matches[1], self::WORDS, true)) {
-            return [
-                'name' => $matches[1],
-                'type' => $matches[2],
-                'nullable' => '' !== ($matches[4] ?? ''),
-                'required' => '' !== ($matches[6] ?? ''),
-                'format' => '' !== ($matches[3] ?? '') ? $matches[3] : ('' !== ($matches[5] ?? '') ? $matches[5] : null),
-            ];
+        // The Markdown copy, or a page that writes it its own way: a lowercase name (a mark "?" or "*" says optional or
+        // required), then words of the vocabulary in any order: "name string required", "type: string, optional",
+        // "ids array of strings", "created_at string (date-time)", "token (string, required)"
+        if (1 !== preg_match('/^([a-z][a-z0-9_]+)([?*]?)\s*:?\s*(.+)$/', $line, $matches) || \in_array($matches[1], self::WORDS, true)) {
+            return null;
+        }
+        $info = DocsVocabulary::parse($matches[3]);
+        if (null === $info) {
+            return null;
         }
 
-        return null;
+        return [
+            'name' => $matches[1],
+            'type' => $info['type'],
+            'nullable' => $info['nullable'],
+            'required' => ($info['required'] || '*' === $matches[2]) && !$info['optional'] && '?' !== $matches[2],
+            'format' => $info['format'],
+            'itemType' => $info['itemType'],
+            'deprecated' => $info['deprecated'],
+            'readOnly' => $info['readOnly'],
+            'writeOnly' => $info['writeOnly'],
+        ];
     }
 
     /**
-     * @param array{name: string, type: string, nullable: bool, required: bool, format: ?string, line: int, values: ?list<string>, count: int, truncated: bool, details: array<string, string>} $current
+     * @param array{name: string, type: string, nullable: bool, required: bool, format: ?string, itemType: ?string, deprecated: bool, readOnly: bool, writeOnly: bool, line: int, values: ?list<string>, count: int, truncated: bool, details: array<string, string>} $current
      */
     private function entry(array $current): DocsEntry
     {
         $values = null !== $current['values'] && !$current['truncated'] && $current['count'] <= self::MAX_VALUES ? $current['values'] : null;
 
-        return new DocsEntry($current['name'], $current['type'], $current['nullable'], $current['required'], $current['format'], $values, $current['count'], $current['details'], $current['line']);
+        return new DocsEntry($current['name'], $current['type'], $current['nullable'], $current['required'], $current['format'], $values, $current['count'], $current['details'], $current['line'], $current['itemType'], $current['deprecated'], $current['readOnly'], $current['writeOnly']);
     }
 }

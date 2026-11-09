@@ -140,7 +140,7 @@ final class ArrayShapeGenerator
         $nullable = isset($type['scalars']['null']) || (null !== $entry && $entry->nullable);
 
         // What the example leaves unknown (only null, or an empty list for an object) is the documented type
-        if (null !== $entry && ([] === $members || (['list<mixed>'] === $members && 'object' === $entry->type))) {
+        if (null !== $entry && ([] === $members || (['list<mixed>'] === $members && ('object' === $entry->type || (null !== $entry->itemType && 'array' === $entry->type))))) {
             $members = [self::documented($entry)];
         } elseif (null !== $entry && null !== $entry->values && ['string'] === $members && 'string' === $entry->type) {
             // The literal values of the docs, when the page lists them all
@@ -173,7 +173,14 @@ final class ArrayShapeGenerator
             'number' => 'int|float',
             'boolean' => 'bool',
             'object' => 'array<string, mixed>',
-            default => 'list<mixed>',
+            default => 'list<'.match ($entry->itemType) {
+                'string' => 'string',
+                'integer' => 'int',
+                'number' => 'int|float',
+                'boolean' => 'bool',
+                'object' => 'array<string, mixed>',
+                default => 'mixed',
+            }.'>',
         };
     }
 

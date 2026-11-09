@@ -230,6 +230,22 @@ Values
 *   `week`
 ```
 
+What says what a field is is a vocabulary (`DocsVocabulary`), read in any order and whatever the punctuation:
+
+| Words | Meaning |
+|---|---|
+| `string` (`str`, `text`), `integer` (`int`, `long`), `number` (`float`, `double`, `decimal`), `boolean` (`bool`), `object` (`map`, `dictionary`, `hash`), `array` (`list`) | the type |
+| `array of strings`, `string[]`, `list<integer>` | an array and the type of its items (an empty list in the example is then typed `list<string>`) |
+| `date`, `date-time` (`datetime`, `timestamp`), `uuid`, `uri` (`url`), `email`, `ipv4`, `ipv6`, `hostname`, or any word in parentheses `(iso-8601)` | the format of a string |
+| `required` (`mandatory`), a trailing `*` on the name | a required field |
+| `optional`, a trailing `?` on the name, or nothing | an optional field |
+| `nullable`, `null` (`string \| null`, `string or null`) | may be null |
+| `deprecated`, `read-only`, `write-only`, `early access`, `beta`… | flags, kept with the field |
+
+`name string required`, `name: string, required`, `token (string, required)`, `ids array of strings`,
+`created_at string (date-time)` and `name* string` are all read. A line holding a word that is not of the vocabulary
+is not a field, so a sentence of the description is not taken for one.
+
 A page copied as Markdown separates them with spaces instead (`trial_period object | null required`, `name string required`,
 `created_at string (date-time) required`): both copies are read. A field is a lowercase name followed by its type, then
 `| null`, a format in parentheses and `required`; the lines that follow it (`Default:`, `Length:`, `Max length:`, `Pattern:`,

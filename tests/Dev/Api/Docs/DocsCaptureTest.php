@@ -30,6 +30,16 @@ final class DocsCaptureTest extends TestCase
         yield 'spaced, format' => ['created_at string (date-time) required', ['created_at', 'string', false, true, 'date-time']];
         yield 'spaced, format after null' => ['external_id string | null (uuid)', ['external_id', 'string', true, false, 'uuid']];
         yield 'spaced, badge' => ['allowances array early access', ['allowances', 'array', false, false, null]];
+        yield 'glued, optional' => ['notestringoptional', ['note', 'string', false, false, null]];
+        yield 'colon and comma' => ['type: string, required', ['type', 'string', false, true, null]];
+        yield 'aliases' => ['quantity int required', ['quantity', 'integer', false, true, null]];
+        yield 'bool alias' => ['active bool', ['active', 'boolean', false, false, null]];
+        yield 'in parentheses' => ['token (string, required)', ['token', 'string', false, true, null]];
+        yield 'optional mark' => ['name? string', ['name', 'string', false, false, null]];
+        yield 'required mark' => ['name* string', ['name', 'string', false, true, null]];
+        yield 'optional word beats nothing' => ['name string optional', ['name', 'string', false, false, null]];
+        yield 'format word' => ['id uuid required', ['id', 'string', false, true, 'uuid']];
+        yield 'any order' => ['count required integer', ['count', 'integer', false, true, null]];
     }
 
     /**
@@ -106,5 +116,23 @@ final class DocsCaptureTest extends TestCase
         self::assertSame('1–200', $entries[0]->details['Length']);
         self::assertSame('2048', $entries[1]->details['Max length']);
         self::assertSame('standard', $entries[2]->details['Default']);
+    }
+
+    public function testReadsTheItemTypeAndTheFlagsOfAField(): void
+    {
+        $entries = (new DocsCapture())->parse("ids array of strings required\n\nOne id each.\n\nlegacy_id string deprecated read-only\n\nsecret string write-only\n\ntags string[]\n");
+
+        self::assertSame(['array', 'string', true], [$entries[0]->type, $entries[0]->itemType, $entries[0]->required]);
+        self::assertTrue($entries[1]->deprecated);
+        self::assertTrue($entries[1]->readOnly);
+        self::assertTrue($entries[2]->writeOnly);
+        self::assertSame(['array', 'string'], [$entries[3]->type, $entries[3]->itemType]);
+    }
+
+    public function testASentenceWithATypeWordIsNotAField(): void
+    {
+        $text = "must be a string\n\nlist of values\n\nthe user object\n\nit returns an integer\n";
+
+        self::assertSame([], (new DocsCapture())->parse($text));
     }
 }

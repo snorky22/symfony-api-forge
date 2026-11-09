@@ -124,4 +124,19 @@ final class ArrayShapeGeneratorTest extends TestCase
         self::assertStringContainsString("a: string,\n", $shape);
         self::assertStringContainsString("b?: int,\n", $shape);
     }
+
+    public function testTheItemTypeOfAnArrayTypesAnEmptyList(): void
+    {
+        $docs = [
+            'ids' => new DocsEntry('ids', 'array', false, true, null, null, 0, [], 1, 'string'),
+            'tags' => new DocsEntry('tags', 'array', false, true, null, null, 0, [], 1),
+            'rows' => new DocsEntry('rows', 'array', false, true, null, null, 0, [], 1, 'object'),
+        ];
+
+        $shape = (new ArrayShapeGenerator())->generate((new LenientJsonDecoder())->decode('{"ids": [], "tags": [], "rows": []}', false), false, $docs);
+
+        self::assertStringContainsString('ids: list<string>,', $shape);
+        self::assertStringContainsString('tags: list<mixed>,', $shape);
+        self::assertStringContainsString('rows: list<array<string, mixed>>,', $shape);
+    }
 }
