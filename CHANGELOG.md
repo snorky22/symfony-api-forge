@@ -5,6 +5,20 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- Web interface: an Ace editor wherever a file is to be edited (`docs/web.md`): the edit links of the dashboard, the notes
+  (descriptor, examples, the docs page at the line of the note) and the results open the file in the page, with Save and
+  Restore, error lines marked, Ctrl-S, JSON format, find, go to line, wrap, invisible characters, text size, all the
+  options of Ace, light and Cobalt themes; the code boxes of the forms are editors too, in the language of their radio
+  buttons. Descriptors can be edited (YAML checked, the loader's findings as warnings). Progressive enhancement: plain
+  text areas without JavaScript. Ace 1.43.6 (BSD-3) shipped, 1.2 MB
+- `api-forge:serve`: a local web interface of the workflow (`docs/web.md`), on PHP's built-in server (127.0.0.1 only,
+  not in prod, no framework, Bootstrap 5.3 shipped): a form for each step: describe the API, paste the examples of the
+  docs (written with the right names, checked, then imported), type files, edit and import again, review and delete
+  the notes, generate, run the doctor. Stateless: the state is read from the project's files. Host and token checks;
+  it writes only `tests/Fixtures/<api>/` and `config/api/<api>/`
+- `ImportRunner` and `GenerateRunner`: the work of `api-forge:import` and `api-forge:generate` as classes, shared with the
+  web interface; `Guide::progress()` (the state of an API as data); `DescriptorStore::removeReviewNotes()`
+
 - `docs/workflow.md` rewritten as a step-by-step workflow: the files and what api-forge reads from their names, which file for
   what the docs give, giving the request (curl or array: `request`, `query`, `headers`, `body`), the response, type files and
   the docs page as text, importing again, and a worked example (Paddle prices)

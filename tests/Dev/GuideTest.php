@@ -87,6 +87,25 @@ final class GuideTest extends KernelTestCase
         rmdir($fixtures);
     }
 
+    public function testProgressAsData(): void
+    {
+        self::bootKernel();
+        $guide = self::getContainer()->get(Guide::class);
+
+        $progress = $guide->progress('lemonsqueezy', self::EXAMPLE.'/config/api', self::EXAMPLE, self::EXAMPLE.'/none');
+        self::assertTrue($progress['described']);
+        self::assertSame([], $progress['errors']);
+        self::assertContains('customers', $progress['resources']);
+        self::assertGreaterThan(0, $progress['operations']);
+        self::assertSame([], $progress['pending']);
+        self::assertSame([], $progress['stale']);
+        self::assertTrue($progress['webhooks']);
+
+        $none = $guide->progress('shop', self::EXAMPLE.'/config/api', self::EXAMPLE, self::EXAMPLE.'/none');
+        self::assertFalse($none['described']);
+        self::assertSame([], $none['resources']);
+    }
+
     public function testCommand(): void
     {
         $tester = new CommandTester((new Application(self::bootKernel()))->find('api-forge:guide'));

@@ -105,6 +105,7 @@ generated code and configuration, and a webhook consumer.
 |---|---|
 | [Architecture](docs/architecture.md) | Pipeline, design choices, package layout |
 | [Workflow](docs/workflow.md) | Adding an API or an endpoint, step by step; documentation examples (`api-forge:guide`) |
+| [Web interface](docs/web.md) | The workflow as forms in the browser (`api-forge:serve`) |
 | [Descriptors](docs/descriptors.md) | Reference of the descriptor format (`config/api/`) |
 | [Commands](docs/commands.md) | Console commands and their options |
 | [Generated services](docs/generated-services.md) | Using the generated code, the runtime layer, errors, pagination |

@@ -1,0 +1,37 @@
+/* Ace editors of the api-forge web interface */
+.af-ace {
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    border-radius: .375rem;
+    min-height: 120px;
+    overflow: auto;
+    resize: vertical;
+}
+
+.af-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem;
+    margin-bottom: .5rem;
+}
+
+.af-toolbar .form-select {
+    width: auto;
+}
+
+.af-toolbar .af-sep {
+    flex: 1 1 auto;
+}
+
+.af-field .af-messages .alert {
+    margin-bottom: .5rem;
+}
+
+.af-panel .af-ace {
+    height: 60vh;
+}
+
+/* Ace draws its own scrollbars: keep the resize handle visible */
+.af-ace::after {
+    content: "";
+}

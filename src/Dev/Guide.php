@@ -129,6 +129,40 @@ final class Guide
     }
 
     /**
+     * Where an API stands, as data (the web interface shows it as steps).
+     *
+     * @return array{described: bool, errors: list<string>, resources: list<string>, operations: int, pending: array<string, string>, review: list<string>, probe: ?string, webhooks: bool, stale: list<string>}
+     */
+    public function progress(string $api, ?string $dir = null, ?string $output = null, ?string $fixtures = null): array
+    {
+        $output ??= $this->projectDir;
+        $fixtures ??= $this->projectDir.'/'.str_replace('<api>', $api, self::FIXTURES_DIR);
+        $progress = ['described' => is_file(($dir ?? $this->descriptorDir).'/'.$api.'/_api.yaml'), 'errors' => [], 'resources' => [], 'operations' => 0, 'pending' => [], 'review' => [], 'probe' => null, 'webhooks' => false, 'stale' => []];
+
+        $definition = null;
+        if ($progress['described']) {
+            try {
+                $definition = $this->loader->load($api, $dir);
+            } catch (InvalidDescriptorException $e) {
+                $progress['errors'] = $e->errors;
+            }
+        }
+        $progress['pending'] = is_dir($fixtures) && [] === $progress['errors'] ? $this->pendingImports($api, $definition, $fixtures, $dir) : [];
+        if (null === $definition) {
+            return $progress;
+        }
+
+        $progress['resources'] = array_keys($definition->resources);
+        $progress['operations'] = array_sum(array_map(static fn (array $resource) => \count($resource['operations']), $definition->resources));
+        $progress['review'] = $definition->review;
+        $progress['probe'] = $definition->api['doctor']['probe'] ?? null;
+        $progress['webhooks'] = null !== $definition->webhooks;
+        $progress['stale'] = $this->staleFiles($definition, $output);
+
+        return $progress;
+    }
+
+    /**
      * The curl examples whose request (method and path) is not an operation of the descriptors yet.
      *
      * @return array<string, string> curl file => its import command (without the console)

@@ -9,6 +9,7 @@ use Snorky22\ApiForge\Command\ApiImportWebhookCommand;
 use Snorky22\ApiForge\Command\DoctorCommand;
 use Snorky22\ApiForge\Command\GuideCommand;
 use Snorky22\ApiForge\Command\JsonToPhpCommand;
+use Snorky22\ApiForge\Command\ServeCommand;
 use Snorky22\ApiForge\Command\WebhookCheckCommand;
 use Snorky22\ApiForge\Command\WebhookInboxCommand;
 use Snorky22\ApiForge\Command\WebhookReplayCommand;
@@ -24,9 +25,11 @@ use Snorky22\ApiForge\Dev\Api\Docs\DocsCapture;
 use Snorky22\ApiForge\Dev\Api\Example\ExampleFormat;
 use Snorky22\ApiForge\Dev\Api\Example\ExampleReader;
 use Snorky22\ApiForge\Dev\Api\Example\PhpArrayExample;
+use Snorky22\ApiForge\Dev\Api\Generator\GenerateRunner;
 use Snorky22\ApiForge\Dev\Api\Generator\ServiceGenerator;
 use Snorky22\ApiForge\Dev\Api\Import\DescriptorMerger;
 use Snorky22\ApiForge\Dev\Api\Import\EndpointImporter;
+use Snorky22\ApiForge\Dev\Api\Import\ImportRunner;
 use Snorky22\ApiForge\Dev\Api\Import\WebhookImporter;
 use Snorky22\ApiForge\Dev\Api\Import\WebhookMerger;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
@@ -115,6 +118,7 @@ final class ApiForgeBundle extends AbstractBundle
             YamlToPhpConverter::class,
             CurlParser::class,
             EndpointImporter::class,
+            ImportRunner::class,
             DescriptorMerger::class,
             WebhookImporter::class,
             WebhookMerger::class,
@@ -141,9 +145,12 @@ final class ApiForgeBundle extends AbstractBundle
         $services->set(Guide::class)
             ->arg('$projectDir', '%kernel.project_dir%')
             ->arg('$descriptorDir', $config['descriptor_dir']);
-        $services->set(ApiGenerateCommand::class)
+        $services->set(GenerateRunner::class)
             ->arg('$projectDir', '%kernel.project_dir%')
             ->arg('$descriptorDir', $config['descriptor_dir']);
+        $services->set(ApiGenerateCommand::class);
+        $services->set(ServeCommand::class)
+            ->args(['%kernel.project_dir%', $config['descriptor_dir'], $config['namespace'], $config['source_dir'], $config['config_dir'], '%kernel.environment%']);
         // The webhook routing is set by WebhookSenderPass
         if ($config['webhook_inbox']['enabled']) {
             $services->set(DeliveryInbox::class)->args([$config['webhook_inbox']['directory'], $config['webhook_inbox']['keep']]);

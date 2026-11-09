@@ -71,6 +71,85 @@ final class DescriptorStore
         return $files;
     }
 
+    /**
+     * Deletes review notes from the descriptors (the user has dealt with them). Notes are given as the loader
+     * reports them: with their file, and the operation, object, event or doctor they belong to.
+     *
+     * @param list<string> $notes
+     *
+     * @return int the number of notes deleted
+     */
+    public function removeReviewNotes(string $api, array $notes, ?string $directory = null): int
+    {
+        $files = [$this->apiFile($api, $directory), $this->webhooksFile($api, $directory), ...array_values($this->resourceFiles($api, $directory))];
+
+        $removed = 0;
+        foreach ($files as $file) {
+            $data = $this->load($file);
+            if (null === $data) {
+                continue;
+            }
+            $before = $removed;
+            foreach ($notes as $note) {
+                if (!str_starts_with($note, $file.': ')) {
+                    continue;
+                }
+                $rest = substr($note, \strlen($file) + 2);
+                $path = ['review'];
+                if (1 === preg_match('/^operation "([^"]+)": (.*)$/s', $rest, $matches)) {
+                    $path = ['operations', $matches[1], 'review'];
+                    $rest = $matches[2];
+                } elseif (1 === preg_match('/^event "([^"]+)": (.*)$/s', $rest, $matches)) {
+                    $path = ['events', $matches[1], 'review'];
+                    $rest = $matches[2];
+                } elseif (str_starts_with($rest, 'object: ')) {
+                    $path = ['object', 'review'];
+                    $rest = substr($rest, 8);
+                } elseif (str_starts_with($rest, 'doctor: ')) {
+                    $path = ['doctor', 'review'];
+                    $rest = substr($rest, 8);
+                }
+                $removed += self::removeNote($data, $path, $rest);
+            }
+            if ($removed > $before) {
+                $this->save($file, $data);
+            }
+        }
+
+        return $removed;
+    }
+
+    /**
+     * @param array<mixed> $data
+     * @param list<string> $path to the "review" list
+     */
+    private static function removeNote(array &$data, array $path, string $note): int
+    {
+        $node = &$data;
+        foreach ($path as $key) {
+            if (!\is_array($node) || !isset($node[$key])) {
+                return 0;
+            }
+            $node = &$node[$key];
+        }
+        $index = \is_array($node) ? array_search($note, $node, true) : false;
+        if (false === $index) {
+            return 0;
+        }
+        unset($node[$index]);
+        $node = array_values($node);
+        if ([] === $node) {
+            // The empty list goes too
+            $parent = &$data;
+            foreach (\array_slice($path, 0, -1) as $key) {
+                $parent = &$parent[$key];
+            }
+            unset($parent[end($path)]);
+        }
+
+        return 1;
+    }
+
     public function apiFile(string $api, ?string $directory = null): string
     {
         return $this->path($api, self::API_FILE, $directory);

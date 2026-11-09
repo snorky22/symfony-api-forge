@@ -2,11 +2,7 @@
 
 namespace Snorky22\ApiForge\Command;
 
-use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
-use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
-use Snorky22\ApiForge\Dev\Api\Example\ExampleReader;
-use Snorky22\ApiForge\Dev\Api\Import\DescriptorMerger;
-use Snorky22\ApiForge\Dev\Api\Import\EndpointImporter;
+use Snorky22\ApiForge\Dev\Api\Import\ImportRunner;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
@@ -30,11 +26,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class ApiImportCommand
 {
     public function __construct(
-        private readonly CurlParser $curlParser,
-        private readonly EndpointImporter $importer,
-        private readonly DescriptorMerger $merger,
-        private readonly DescriptorStore $store,
-        private readonly ExampleReader $examples,
+        private readonly ImportRunner $runner,
     ) {
     }
 
@@ -50,69 +42,24 @@ final class ApiImportCommand
         #[Option('Descriptor directory (default: api_forge.descriptor_dir, config/api)')] ?string $dir = null,
     ): int {
         try {
-            $existingApi = $this->store->loadApi($api, $dir);
-            $example = $this->examples->operation($curl, $existingApi['base_uri'] ?? null);
-            if (null === $example->curl) {
-                throw new \InvalidArgumentException(\sprintf('"%s" holds no request: add a "request" ("METHOD /path").', $curl));
-            }
-            if (null !== $response && null !== $example->response) {
-                throw new \InvalidArgumentException(\sprintf('The response is given twice: "response" in %s and --response.', $curl));
-            }
-            $request = $this->curlParser->parse($example->curl);
-            $responseJson = null !== $response ? $this->examples->json($response) : $example->response;
-            $endpoint = $this->importer->import(
-                $request,
-                $api,
-                $responseJson,
-                isset($existingApi['base_uri']) ? [$existingApi['base_uri'], ...array_values($existingApi['environments'] ?? [])] : null,
-                $resource,
-                $operation,
-                $existingApi['format'] ?? null,
-                $this->docs($docs, $response ?? $curl),
-            );
-            $merged = $this->merger->merge($existingApi, $this->store->loadResource($api, $endpoint->resource, $dir), $endpoint, $force);
+            $result = $this->runner->import($api, $curl, $response, $docs, $resource, $operation, $force, $dir);
         } catch (\InvalidArgumentException $e) {
             $io->error($e->getMessage());
 
             return Command::FAILURE;
         }
 
-        $files = [
-            $this->store->saveApi($api, $merged['api'], $dir),
-            $this->store->saveResource($api, $endpoint->resource, $merged['resource'], $dir),
-        ];
-
-        $saved = $merged['resource']['operations'][$endpoint->operationName];
         $io->definitionList(
-            ['Resource' => $endpoint->resource],
-            ['Operation' => $endpoint->operationName],
-            ['Endpoint' => $saved['method'].' '.$saved['path']],
-            ['Files' => implode("\n", $files)],
+            ['Resource' => $result->resource],
+            ['Operation' => $result->operation],
+            ['Endpoint' => $result->endpoint],
+            ['Files' => implode("\n", $result->files)],
         );
-        $io->listing($merged['notes']);
-        if (isset($saved['review'])) {
-            $io->warning(array_merge(['To review in the descriptor:'], array_map(static fn (string $note) => '- '.$note, $saved['review'])));
+        $io->listing($result->notes);
+        if ([] !== $result->review) {
+            $io->warning(array_merge(['To review in the descriptor:'], array_map(static fn (string $note) => '- '.$note, $result->review)));
         }
 
         return Command::SUCCESS;
-    }
-
-    /**
-     * The documentation capture: the file given, or <example>.docs.md next to the response (or request) example.
-     */
-    private function docs(?string $docs, string $example): ?string
-    {
-        if (null === $docs) {
-            $docs = preg_replace('/\.[^.\/]+$/', '', $example).'.docs.md';
-            if (!is_file($docs)) {
-                return null;
-            }
-        }
-        $content = is_file($docs) ? file_get_contents($docs) : false;
-        if (false === $content) {
-            throw new \InvalidArgumentException(\sprintf('Cannot read file "%s".', $docs));
-        }
-
-        return $content;
     }
 }

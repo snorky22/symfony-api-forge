@@ -192,3 +192,18 @@ loader reads it: duplicate keys and unknown tags are errors.
 
 Comments can't be carried over: the full-line comments are listed on stderr. The descriptors themselves are
 still read from YAML; the converted file is for reading and composing shapes.
+
+## `api-forge:serve`
+
+Runs the local [web interface](web.md) of the workflow: a form for each step.
+
+```bash
+bin/console api-forge:serve [--port=8765] [--dry-run]
+```
+
+| Option | Default | |
+|---|---|---|
+| `--port` | `8765` | Port, on `127.0.0.1` |
+| `--dry-run` | | Print what would be started, and stop |
+
+Refuses to start in the `prod` environment.
