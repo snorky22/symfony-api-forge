@@ -1,6 +1,6 @@
 <h1 class="h3 mb-1">Generate the code <small class="text-secondary"><?= $e($api) ?></small></h1>
 <p class="text-secondary">Writes the services, the doctor and the HTTP client configuration from the descriptors. Generated files are never edited by hand:
-fix the examples and generate again.</p>
+fix the examples and generate again. The button runs <code><?= $e($command) ?></code> for you.</p>
 
 <?php if (null === $result): ?>
     <?php if ([] !== $progress['errors']): ?>

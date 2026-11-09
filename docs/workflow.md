@@ -38,6 +38,8 @@ its extension:
 | `<operation>-<resource>.json` | its example response | get-account.json, list-products.json |
 | `<operation>-<resource>.php` | the same, written by hand as an array when the docs describe it in prose: request and response | create-price.php, list-prices.php |
 | `<operation>-<resource>.docs.md` | the docs page of its response copied as text: required fields, nulls, enums | list-prices.docs.md |
+| `<operation>-<resource>.body.json` | the JSON body of its request, next to the .curl (an array example has "body") | create-products.body.json |
+| `<operation>-<resource>.body.docs.md` | the docs page of that body copied as text: required keys, enums | create-products.body.docs.md |
 | `<type>-type.json` | a data type the other examples point to by its file name (also .php) | duration-type.json, unit-price-override-type.php |
 | `<resource>-object.json` | an object example ("The product object") | transaction-object.json |
 | `webhook-events.md` | the events table of the docs | webhook-events.md |
@@ -65,7 +67,7 @@ pattern: the operation and the resource tell what the file is without opening it
 | a JSON response with no request sample | `list-prices.curl` with the request (`curl https://api.example.com/prices`), and the JSON | same |
 | the endpoint and its parameters in words (no sample) | `create-price.php`: the request and its response as an array ([below](#giving-the-request)) | `api-forge:import paddle …/create-price.php` |
 | query parameters (`?include=product`) | a second example of the same operation: a curl with the query string, or a `.php` with `query` | `api-forge:import` it: its query parameters join the operation |
-| a request body | `-d` in the curl, or `body` in the `.php` | same |
+| a request body (POST, PUT, PATCH) | the JSON in `<operation>-<resource>.body.json` next to the `.curl` (or `-d` in the curl, or `body` in the `.php`); the page of its parameters as `<operation>-<resource>.body.docs.md` | `api-forge:import` the `.curl`: it finds both |
 | a field that is described as a type elsewhere ("see the Duration object") | a type file `duration-type.json`, and its name as the value in the example | automatic, when the example is imported |
 | a page listing the fields (required, null, enums) | `list-prices.docs.md`: the page's field list copied as text | automatic, when the example is imported |
 | the object on its own ("The customer object") | `customer-object.json` | `api-forge:import-object <api> customers …/customer-object.json` |
@@ -121,6 +123,24 @@ return [
 
 Only `request` is needed. The other keys are optional, and the first import of an API needs the full URL since there
 is no base URI yet (the importer reads it, with the format and the authentication, from the first request).
+
+### The request body and the response: which JSON is which
+
+Next to `<operation>-<resource>.curl`, the two JSON files are told apart by their name:
+
+| File | Is | Docs page, as text |
+|---|---|---|
+| `create-products.json` | the **response** (what the API returns) | `create-products.docs.md` |
+| `create-products.body.json` | the **request body** (what you send) | `create-products.body.docs.md` |
+
+```bash
+bin/console api-forge:import paddle tests/Fixtures/paddle/create-products.curl --response=tests/Fixtures/paddle/create-products.json
+```
+
+`create-products.curl` holds the method and the URL (`curl -X POST https://api.paddle.com/products`), not the body: the importer
+finds `create-products.body.json` (or `.body.array`) next to it and uses it as the body; a body given twice (`-d` and the
+file) is refused. The body docs page tells the keys the API requires: without it every key of the body is typed
+as required and a note asks you to mark the optional ones with `?`.
 
 ### What the importer does with each part
 
@@ -220,6 +240,11 @@ indentation, no parents).
 | `string \| null` | `?string`, `…\|null` |
 | `Values` listing all the values | `'day'\|'week'\|'month'\|'year'` (the doctor warns about other values); not for lists cut by "Show all values" or longer than 12 values |
 | an `object`, `integer`… where the example only has `null` or `[]` | `array<string, mixed>`, `int`…: no more `mixed` note |
+
+The notes about the docs say what to do and where: a field the page describes and the example lacks (with where it sits in
+the page, and its values: add it to the example), a field the example has and the page text does not describe (complete
+the pasted text, or remove it), an object the page describes with fields and the example shows empty (give it an example
+value), an object the docs call free-form and the example fills (replace its value with `{}`: one note, not one per key).
 
 A name is aligned only when the page and the example hold it the same number of times (`unit_price` four times in
 the page, three in the example: the example lacks one). Then nothing is applied to that name and the review

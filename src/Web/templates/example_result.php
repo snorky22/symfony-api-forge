@@ -8,12 +8,31 @@
 <div class="card mb-3"><div class="card-body">
     <dl class="row mb-0">
         <dt class="col-sm-3">Operation</dt><dd class="col-sm-9"><code><?= $e($result->resource) ?>.<?= $e($result->operation) ?></code></dd>
-        <dt class="col-sm-3">Endpoint</dt><dd class="col-sm-9"><code><?= $e($result->endpoint) ?></code></dd>
-        <dt class="col-sm-3">Examples written</dt><dd class="col-sm-9"><?php foreach ($files as $file): ?><a class="me-2" href="/api/<?= $e($api) ?>/file?name=<?= $e(rawurlencode($file)) ?>&amp;area=examples" data-af-open><code><?= $e($file) ?></code></a><?php endforeach ?></dd>
-        <dt class="col-sm-3">Descriptors</dt><dd class="col-sm-9"><?php foreach ($descriptors as $file): ?><a class="me-2" href="/api/<?= $e($api) ?>/file?name=<?= $e(rawurlencode($file)) ?>&amp;area=descriptors" data-af-open><code><?= $e($file) ?></code></a><?php endforeach ?></dd>
+        <dt class="col-sm-3">Endpoint</dt><dd class="col-sm-9 mb-0"><code><?= $e($result->endpoint) ?></code></dd>
     </dl>
     <?php if ([] !== $result->notes): ?><ul class="mt-2 mb-0"><?php foreach ($result->notes as $note): ?><li><?= $e($note) ?></li><?php endforeach ?></ul><?php endif ?>
 </div></div>
+
+<div class="mb-3">
+    <div class="mb-3">
+        <h2 class="h6">Examples written</h2>
+        <ul class="list-group">
+        <?php foreach ($files as $file): ?>
+            <li class="list-group-item d-flex justify-content-between align-items-center"><code><?= $e($file) ?></code>
+                <a href="/api/<?= $e($api) ?>/file?name=<?= $e(rawurlencode($file)) ?>&amp;area=examples" data-af-open>Edit</a></li>
+        <?php endforeach ?>
+        </ul>
+    </div>
+    <div>
+        <h2 class="h6">Descriptors</h2>
+        <ul class="list-group">
+        <?php foreach ($descriptors as $file): ?>
+            <li class="list-group-item d-flex justify-content-between align-items-center"><code><?= $e($file) ?></code>
+                <a href="/api/<?= $e($api) ?>/file?name=<?= $e(rawurlencode($file)) ?>&amp;area=descriptors" data-af-open>Edit</a></li>
+        <?php endforeach ?>
+        </ul>
+    </div>
+</div>
 
 <?php if ([] !== $result->review): ?>
     <div class="alert alert-warning">

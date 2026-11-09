@@ -42,6 +42,7 @@ final class EndpointImporter
      * @param ?string $format        known API format ("json" or "jsonapi"); detected from the headers when null
      * @param ?string $docs          text capture of the documentation of the response (DocsCapture): optional fields, nulls,
      *                               enums and the types the example leaves unknown come from it
+     * @param ?string $bodyDocs      the same for the request body: the keys it does not require are optional
      */
     public function import(
         CurlRequest $request,
@@ -52,6 +53,7 @@ final class EndpointImporter
         ?string $operationName = null,
         ?string $format = null,
         ?string $docs = null,
+        ?string $bodyDocs = null,
     ): ImportedEndpoint {
         $review = [];
         foreach ($request->unknownOptions as $option) {
@@ -101,7 +103,16 @@ final class EndpointImporter
                     $operation['body']['id'] = true;
                 }
             } elseif (null !== $body) {
-                $operation['body'] = ['shape' => $this->shapeGenerator->generate($body)];
+                $hints = [];
+                if (null !== $bodyDocs) {
+                    $alignment = $this->docsAnnotator->annotate($this->docsCapture->parse($bodyDocs), [$body]);
+                    $hints = $alignment->hints;
+                    array_push($review, ...array_map(static fn (string $note) => 'body '.$note, $alignment->notes));
+                }
+                $operation['body'] = ['shape' => $this->shapeGenerator->generate($body, false, $hints)];
+                if (null === $bodyDocs) {
+                    $review[] = 'request body: every key is typed as required: mark the optional ones with "?", or add the docs page of the body (<example>.body.docs.md) to do it';
+                }
                 $this->reviewShape($operation['body']['shape'], 'request body', $review);
             } else {
                 $operation['body'] = ['raw' => $request->body];

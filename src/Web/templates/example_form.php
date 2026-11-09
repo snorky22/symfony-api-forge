@@ -8,8 +8,14 @@ See <em>Which file for what the docs give you</em> in docs/workflow.md.</p>
 <?php endif ?>
 <?php if ([] !== $errors): ?>
     <div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $error): ?><li><?= $e($error) ?></li><?php endforeach ?></ul>
-    <?php if ([] !== $saved): ?><div class="mt-2">Saved files:
-        <?php foreach ($saved as $file): ?><a class="me-2" href="/api/<?= $e($api) ?>/file?name=<?= $e(rawurlencode($file)) ?>&amp;area=examples" data-af-open><code><?= $e($file) ?></code></a><?php endforeach ?></div><?php endif ?>
+    <?php if ([] !== $saved): ?>
+        <div class="mt-2">Saved files:</div>
+        <ul class="list-group list-group-flush">
+        <?php foreach ($saved as $file): ?>
+            <li class="list-group-item bg-transparent px-0 py-1"><a href="/api/<?= $e($api) ?>/file?name=<?= $e(rawurlencode($file)) ?>&amp;area=examples" data-af-open><code><?= $e($file) ?></code></a></li>
+        <?php endforeach ?>
+        </ul>
+    <?php endif ?>
     </div>
 <?php endif ?>
 
@@ -44,6 +50,10 @@ or
 ['request' => 'GET /prices', 'query' => ['include' => 'product']]"><?= $e($values['request']) ?></textarea>
     <div class="form-text mb-3">An array has <code>request</code> (<code>'METHOD /path'</code>), and optionally <code>query</code>, <code>headers</code>, <code>body</code>, <code>response</code>.</div>
 
+    <label class="form-label" for="body">Request body, as JSON <span class="text-secondary">(a POST, PUT or PATCH; optional)</span></label>
+    <textarea class="form-control font-monospace mb-1" id="body" name="body" rows="6" data-af-code="json" placeholder='{"name": "Analytics", "tax_category": "standard"}'><?= $e($values['body']) ?></textarea>
+    <div class="form-text mb-3">Saved as <code>&lt;operation&gt;-&lt;resource&gt;.body.json</code>, next to the cURL sample. Leave it empty if the sample has <code>-d</code>.</div>
+
     <div class="mb-2">
         <span class="form-label d-block">Response <span class="text-secondary">(for a cURL sample; optional)</span></span>
         <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="response_format" id="rsp-json" value="json"<?= 'json' === $values['response_format'] ? ' checked' : '' ?>><label class="form-check-label" for="rsp-json">JSON</label></div>
@@ -54,6 +64,10 @@ or
     <label class="form-label" for="docs">The docs page of the response, as text <span class="text-secondary">(optional)</span></label>
     <textarea class="form-control font-monospace mb-1" id="docs" name="docs" rows="5" data-af-code="text" placeholder="idstringrequired&#10;..."><?= $e($values['docs']) ?></textarea>
     <div class="form-text mb-3">The page's field list, copied: it gives the optional keys, the nulls and the enums.</div>
+
+    <label class="form-label" for="body_docs">The docs page of the request body, as text <span class="text-secondary">(optional)</span></label>
+    <textarea class="form-control font-monospace mb-1" id="body_docs" name="body_docs" rows="4" data-af-code="text" placeholder="namestringrequired&#10;..."><?= $e($values['body_docs']) ?></textarea>
+    <div class="form-text mb-3">The parameters of the body, copied: it tells which keys are required (the others become optional).</div>
 
     <div class="form-check"><input class="form-check-input" type="checkbox" name="overwrite" id="overwrite" value="1"<?= '' !== $values['overwrite'] ? ' checked' : '' ?>><label class="form-check-label" for="overwrite">Replace the files if they exist</label></div>
     <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="force" id="force" value="1"<?= '' !== $values['force'] ? ' checked' : '' ?>><label class="form-check-label" for="force">Replace the operation if the descriptors have it (<code>--force</code>)</label></div>

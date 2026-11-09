@@ -5,6 +5,53 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- Web editor: two chevron buttons make the editor shorter or taller by five lines (120 px to 95% of the window)
+
+- Web interface, editing a done step: every button of the first four steps stays enabled (**Edit** the description of the
+  API, which keeps what the form does not hold; **New endpoint** and an **Edit** link per endpoint; **Review**; **Generate
+  again**). A step is done only if the previous ones are, so editing one makes the next ones to do again, and the doctor
+  is to do again when a descriptor or the generated code is newer than its last run. An endpoint that exists can be
+  edited or replaced from **New endpoint** instead of being refused
+
+- Review notes that say what to do. The docs annotation groups its notes by cause: an object the docs call free-form and
+  the example fills is one note (not one per key), the fields the docs describe inside an object the example shows
+  empty are one note, a field the docs have and the example lacks says where it sits in the docs ("between "a" and
+  "b"") and its values, a field the example has and the docs lack says to complete the pasted text or remove it. In the
+  web interface each note is a sentence naming the file to change, with the files of the part concerned (body or
+  response, with the docs page at the line of the note) and their role, and a **Make it free-form** fix
+  (`JsonText`, an edit of the example that keeps its layout)
+
+- Web interface: the doctor step of the dashboard is done (green) when the last run found no problem and no descriptor changed
+  since; it says when it ran, or that it found problems; the last run is kept in `var/api-forge/web/doctor-<api>.json`
+
+- Web interface, **New endpoint**: step 2 is a wizard of four screens (method and path; request: query parameters, body and its
+  docs page; response and its docs page; import), each one writing its files, which are the only state: the dashboard lists
+  the endpoints (method, path, "no response yet", "not imported") and continues one where it was left. The operation and the
+  resource come from the method and the path; a variant names a second example of the same endpoint. "Add an example" stays
+  as an advanced option
+
+- Request bodies: `<operation>-<resource>.body.json` (or `.body.array`) next to the `.curl` is the body of the request, as
+  `<operation>-<resource>.json` is its response; `<operation>-<resource>.body.docs.md` is the docs page of the body, whose
+  `required` marks make the other keys optional (without it a note asks to mark them); a body given twice (`-d` and the
+  file) is refused. The web form has a box for each. Documented in `docs/workflow.md` (the files, and which JSON is which)
+
+- Web interface, step 2 starts from the examples already in `tests/Fixtures/<api>/`: the ones not imported are flagged and
+  imported together (`POST /api/<api>/import-all`), and an invalid descriptor shows an "Import <example> again" button that
+  makes it again from its example; the blank form is only for a new example
+
+- Web interface, review notes: a **Fix** form for each key a `mixed` / `list<mixed>` note lists (what is it: one of the type
+  files, text, a number, yes/no, a free-form object, a list); the page writes the value in the example, imports it again
+  with its variants and shows the notes again. The examples come first in a note, the descriptor is under "Advanced".
+  Descriptor errors are said the plain way (`DescriptorErrors`), with a hint when a shape holds a file name; the checkboxes
+  of the notes no longer wrap the other forms
+
+- Web interface: nothing to run in a terminal. The generate and doctor pages say which command their button runs
+  (`php bin/console api-forge:doctor <api>`) and which variables the doctor reads (key, host); the doctor page has no
+  checkbox anymore; the editor of an example has **Save & import** (saves, imports the example again with `--force` and
+  its variants after it, links to the notes or to generate); `POST /api/<api>/import` answers JSON
+
+- Web editor: typing `{` closes it (Ace only does so before a closing bracket, or on Enter), as `[`, `(` and quotes do
+
 - Web interface: an Ace editor wherever a file is to be edited (`docs/web.md`): the edit links of the dashboard, the notes
   (descriptor, examples, the docs page at the line of the note) and the results open the file in the page, with Save and
   Restore, error lines marked, Ctrl-S, JSON format, find, go to line, wrap, invisible characters, text size, all the

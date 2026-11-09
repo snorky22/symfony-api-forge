@@ -41,7 +41,7 @@ final class DocsAnnotatorTest extends TestCase
 
         // "allowances" is not in the example: its fields and "product" (usage_unit_id, amount, id, name…) don't count
         self::assertSame(
-            ['docs: "allowances" (line 89) is not in the example: add it to the example'],
+            ['docs: "allowances" (line 89) is not in the example: add it to the example (in the docs it sits between "custom_data" and "meta")'],
             array_values(array_filter($alignment->notes, static fn (string $note) => str_starts_with($note, 'docs: "'))),
         );
         self::assertSame('data[].id', array_keys($alignment->hints)[1]);
@@ -64,7 +64,7 @@ final class DocsAnnotatorTest extends TestCase
     {
         $alignment = $this->annotate('{"data": [{"id": "p1", "surprise": 1}]}');
 
-        self::assertContains('example: "surprise" (data[].surprise) is not in the docs', $alignment->notes);
+        self::assertContains('example: "surprise" (data[].surprise) is not in the docs: complete the docs page text, or remove it from the example', $alignment->notes);
     }
 
     public function testReportsATypeThatDiffersFromTheDocs(): void
@@ -91,5 +91,40 @@ final class DocsAnnotatorTest extends TestCase
         $alignment = (new DocsAnnotator())->annotate((new DocsCapture())->parse('foo'), [(new LenientJsonDecoder())->decode('{"a": 1}', false)]);
 
         self::assertSame([], $alignment->hints);
+    }
+
+    private function notes(string $docs, string $json): array
+    {
+        return (new DocsAnnotator())->annotate((new DocsCapture())->parse($docs), [(new LenientJsonDecoder())->decode($json, false)])->notes;
+    }
+
+    public function testAFreeFormObjectTheExampleFillsIsOneNoteNotOnePerKey(): void
+    {
+        $docs = "namestringrequired\n\ncustom_dataobject | null\n\nstatusstringrequired\n";
+        $json = '{"name": "A", "custom_data": {"features": {"sso": true, "route": false}, "tags": ["x"]}, "status": "active"}';
+
+        $notes = $this->notes($docs, $json);
+
+        self::assertSame(['example: "custom_data" (custom_data) is a free-form object in the docs (no field is described), but the example gives it fields (features, tags): replace its value with {} in the example'], $notes);
+    }
+
+    public function testFieldsOfAnObjectTheExampleShowsEmptyAreOneNote(): void
+    {
+        $docs = "idstringrequired\n\nimport_metaobject | nullrequired\n\nexternal_idstring | null\n\nimported_fromstringrequired\n\nstatusstringrequired\n";
+        $json = '{"id": "p", "import_meta": null, "status": "a"}';
+
+        $notes = $this->notes($docs, $json);
+
+        self::assertSame(['docs: "import_meta" (import_meta) shows no fields in the example (null or empty), but the docs describe external_id, imported_from: give it an example value'], $notes);
+    }
+
+    public function testAMissingFieldSaysWhereItSitsInTheDocsAndItsValues(): void
+    {
+        $docs = "descriptionstring | null\n\ntypestring\n\nValues\n\n*   `custom`\n\n*   `standard`\n\ntax_categorystringrequired\n";
+        $json = '{"description": "d", "tax_category": "standard"}';
+
+        $notes = $this->notes($docs, $json);
+
+        self::assertSame(['docs: "type" (line 3) is not in the example: add it to the example (in the docs it sits between "description" and "tax_category"; values in the docs: custom, standard)'], $notes);
     }
 }

@@ -28,6 +28,8 @@ final class Guide
         ['<operation>-<resource>.json', 'its example response', 'get-account.json, list-products.json'],
         ['<operation>-<resource>.php', 'the same, written by hand as an array when the docs describe it in prose: request and response', 'create-price.php, list-prices.php'],
         ['<operation>-<resource>.docs.md', 'the docs page of its response copied as text: required fields, nulls, enums', 'list-prices.docs.md'],
+        ['<operation>-<resource>.body.json', 'the JSON body of its request, next to the .curl (an array example has "body")', 'create-products.body.json'],
+        ['<operation>-<resource>.body.docs.md', 'the docs page of that body copied as text: required keys, enums', 'create-products.body.docs.md'],
         ['<type>-type.json', 'a data type the other examples point to by its file name (also .php)', 'duration-type.json, unit-price-override-type.php'],
         ['<resource>-object.json', 'an object example ("The product object")', 'transaction-object.json'],
         ['webhook-events.md', 'the events table of the docs', 'webhook-events.md'],

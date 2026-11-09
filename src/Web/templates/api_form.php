@@ -1,17 +1,17 @@
-<h1 class="h3 mb-1">Describe an API</h1>
+<h1 class="h3 mb-1"><?= $edit ? 'Edit the description of '.$e($values['name']) : 'Describe an API' ?></h1>
 <p class="text-secondary">Step 1. What the importer would otherwise guess from the first request: where the API is, how it
-authenticates. You can still change it in <code>config/api/&lt;name&gt;/_api.yaml</code>.</p>
+authenticates. <?php if ($edit): ?>Saving changes <code>config/api/<?= $e($values['name']) ?>/_api.yaml</code>: the generated code and the doctor are then to do again.<?php else: ?>You can still change it in <code>config/api/&lt;name&gt;/_api.yaml</code>.<?php endif ?></p>
 
 <?php if ([] !== $errors): ?>
     <div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $error): ?><li><?= $e($error) ?></li><?php endforeach ?></ul></div>
 <?php endif ?>
 
-<form method="post" action="/new" class="card card-body">
+<form method="post" action="<?= $edit ? '/api/'.$e($values['name']).'/describe' : '/new' ?>" class="card card-body">
     <input type="hidden" name="_token" value="<?= $e($token) ?>">
     <div class="row g-3">
         <div class="col-md-4">
             <label class="form-label" for="name">Name</label>
-            <input class="form-control" id="name" name="name" value="<?= $e($values['name']) ?>" placeholder="paddle" required>
+            <input class="form-control" id="name" name="name" value="<?= $e($values['name']) ?>" placeholder="paddle" required<?= $edit ? ' readonly' : '' ?>>
             <div class="form-text">Lowercase; the folder of its descriptors and examples.</div>
         </div>
         <div class="col-md-8">
@@ -62,5 +62,5 @@ authenticates. You can still change it in <code>config/api/&lt;name&gt;/_api.yam
             <div class="form-text">Derived from the name when empty.</div>
         </div>
     </div>
-    <div class="mt-3"><button class="btn btn-primary">Create the API</button> <a class="btn btn-link" href="/">Cancel</a></div>
+    <div class="mt-3"><button class="btn btn-primary"><?= $edit ? 'Save' : 'Create the API' ?></button> <a class="btn btn-link" href="<?= $edit ? '/api/'.$e($values['name']) : '/' ?>">Cancel</a></div>
 </form>

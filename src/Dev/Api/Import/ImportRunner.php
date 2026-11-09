@@ -3,6 +3,7 @@
 namespace Snorky22\ApiForge\Dev\Api\Import;
 
 use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
+use Snorky22\ApiForge\Dev\Api\Curl\CurlRequest;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
 use Snorky22\ApiForge\Dev\Api\Example\ExampleReader;
 
@@ -41,8 +42,9 @@ final class ImportRunner
             throw new \InvalidArgumentException(\sprintf('The response is given twice: "response" in %s and --response.', $example));
         }
 
+        $request = $this->withBody($this->curlParser->parse($read->curl), $example);
         $endpoint = $this->importer->import(
-            $this->curlParser->parse($read->curl),
+            $request,
             $api,
             null !== $response ? $this->examples->json($response) : $read->response,
             isset($existingApi['base_uri']) ? [$existingApi['base_uri'], ...array_values($existingApi['environments'] ?? [])] : null,
@@ -50,6 +52,7 @@ final class ImportRunner
             $operation,
             $existingApi['format'] ?? null,
             $this->docs($docs, $response ?? $example),
+            $this->bodyDocs($example),
         );
         $merged = $this->merger->merge($existingApi, $this->store->loadResource($api, $endpoint->resource, $dir), $endpoint, $force);
 
@@ -60,6 +63,37 @@ final class ImportRunner
         $saved = $merged['resource']['operations'][$endpoint->operationName];
 
         return new ImportResult($endpoint->resource, $endpoint->operationName, $saved['method'].' '.$saved['path'], $files, $merged['notes'], $saved['review'] ?? []);
+    }
+
+    /**
+     * The JSON body of the request, from <example>.body.json (or .body.array) next to the curl file: a request with a
+     * body and no method is a POST.
+     *
+     * @throws \InvalidArgumentException when the body is given twice
+     */
+    private function withBody(CurlRequest $request, string $example): CurlRequest
+    {
+        $base = (string) preg_replace('/\.[^.\/]+$/', '', $example);
+        foreach (['json', 'array'] as $extension) {
+            $file = $base.'.body.'.$extension;
+            if (!is_file($file)) {
+                continue;
+            }
+            if (null !== $request->body) {
+                throw new \InvalidArgumentException(\sprintf('The request body is given twice: "-d" in %s and %s.', $example, basename($file)));
+            }
+
+            return new CurlRequest('GET' === $request->method ? 'POST' : $request->method, $request->url, $request->headers, $this->examples->json($file), $request->user, $request->unknownOptions);
+        }
+
+        return $request;
+    }
+
+    private function bodyDocs(string $example): ?string
+    {
+        $file = preg_replace('/\.[^.\/]+$/', '', $example).'.body.docs.md';
+
+        return is_file($file) ? (string) file_get_contents($file) : null;
     }
 
     private function docs(?string $docs, string $example): ?string

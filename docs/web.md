@@ -19,12 +19,32 @@ the command line: do a step in the browser and the next one in the terminal, or 
 | Step | The form | What it does |
 |---|---|---|
 | 1. Describe the API | name, base URI (and sandbox), the variable choosing the host, format, authentication, headers | writes `config/api/<api>/_api.yaml` |
-| 2. Add examples | operation, resource, optional variant; paste the request (cURL, or an array), the response (JSON or array), the docs page as text | writes `tests/Fixtures/<api>/<operation>-<resource>.…` with the right names, then imports it |
+| 2. New endpoint | four screens: **Endpoint** (method and path: `POST` `/products`), **Request** (query parameters, and for POST, PUT and PATCH the body as JSON and its docs page), **Response** (the example as JSON, and its docs page), **Import** (the files it has, and a button) | each screen writes its files in `tests/Fixtures/<api>/` (`create-products.curl`, `.body.json`, `.json`, `.docs.md`…): the operation and the resource are worked out from the method and the path, and the endpoint can be left and continued from the dashboard; the last screen imports it |
+| 2a. Add an example (advanced) | operation, resource, optional variant; paste the request (cURL, or an array), the body, the response (JSON or array), the docs pages | for what the screens do not cover (an array example, a variant): writes the files with the right names, then imports |
 | 2b. Add a type file | name, JSON or array | writes `<name>-type.json` / `.array`, to point to from the examples |
 | 2c. Edit an example | the file in a text area | saves it, then **Import again** (with `--force` if you tick it) |
-| 3. Review the notes | the notes the importer left, with what to do about each | deletes the notes you tick from the descriptors |
+| 3. Review the notes | the notes the importer left, with what to do about each; for a field the example leaves unknown (`mixed`, an empty list) a **Fix** form per key: choose what it is (one of your type files, text, a number, yes/no, a free-form object, a list) | each note is said as a sentence (what it means, which file to change, how), with the files that hold the part it is about (the body example and its docs page for a body note, the response example and its docs page for a response note) and their role; **Fix** writes a value for the key in the example (the first `null` or `[]` of that key, the rest of the file untouched), makes an object **free-form** (`{}`) when the docs describe none of its fields, imports the example again (and its variants) and shows the notes again; deleting removes the notes you tick from the descriptors |
 | 4. Generate | a button | writes the generated code, lists the files changed |
-| 5. Check | "I put the API key in `.env.local`", a button | runs `api-forge:doctor` and shows its report |
+| 5. Check | a button (the page shows the command, and the variables to set in `.env.local`) | runs `api-forge:doctor` and shows its report; the dashboard remembers the last run (`var/api-forge/web/doctor-<api>.json`): the step is **done** (green) when it found no problem and no descriptor changed since, otherwise it asks to run it again |
+
+You never need a terminal: each button runs on the server the command it names (the generate and doctor pages print it,
+e.g. `php bin/console api-forge:generate paddle`). The only manual task is setting the API key in `.env.local`, which
+the doctor checks and reports on.
+
+Descriptors are the importer's output: the notes offer the examples first, and the descriptor under **Advanced**, with a
+reminder that the next import of the example replaces what you change there.
+
+Step 2 starts from what is already in `tests/Fixtures/<api>/`: examples not imported yet are listed with an **Import them**
+button, and a descriptor that is invalid (an edit gone wrong) comes with an **Import <example> again** button, which makes
+it again from its example. The blank "Add an example" form is for a new example only.
+
+Every button of the first four steps keeps working once the step is done, to edit it: **Edit** the description of the API
+(step 1: saving changes `_api.yaml`, and keeps what the form does not hold), **New endpoint** or **Edit** next to an
+endpoint of the list (step 2), **Review** (step 3), **Generate again** (step 4). A step is done only if the steps before it
+are: editing one makes the next ones to do again ("to do again after step 2"), and the doctor is to do again when a
+descriptor or the generated code is newer than its last run. A **New endpoint** whose method and path name an existing
+endpoint offers to **edit** it or **replace** it (its request is rewritten; its body, response and docs pages are kept and
+shown on the next screens, to change or to keep).
 
 The dashboard of an API shows the five steps as done / next / to do, from the state of the files (the same
 information as `api-forge:guide`). Webhooks are not in the interface yet: use the commands of
@@ -53,10 +73,10 @@ pages that have an editor only):
 
 | | |
 |---|---|
-| **Save**, **Restore** | Save posts the file to the server, which checks it (JSON, curl, array, YAML) and answers in the editor, with the line of an error marked in the margin. Restore discards your changes and reloads the file from disk. Ctrl/Cmd-S saves. The **×** of the panel closes the editor (it asks first if there are unsaved changes; on the page of a file it goes back to the API). A page with unsaved changes asks before it is left |
+| **Save**, **Save & import**, **Restore** | **Save & import** (for an example, or the response or docs page next to it) saves, then imports the example again on the server (`--force`, then its variants such as `list-prices-include.php`, which add their query parameters) and links to the next step. Save posts the file to the server, which checks it (JSON, curl, array, YAML) and answers in the editor, with the line of an error marked in the margin. Restore discards your changes and reloads the file from disk. Ctrl/Cmd-S saves. The **×** of the panel closes the editor (it asks first if there are unsaved changes; on the page of a file it goes back to the API). A page with unsaved changes asks before it is left |
 | Languages | JSON (with live syntax check), PHP arrays (also without `<?php`), YAML, Markdown, cURL (shell), text |
 | Themes | Light and Cobalt, remembered in the browser |
-| Options | line numbers, folding, undo/redo (Ctrl-Z), auto-indent with indentation detection, find and replace (Ctrl-F), go to line (Ctrl-L), soft wrap, invisible characters, text size, **Format** for JSON, and every other Ace option in **Settings** (Ctrl-,) |
+| Options | line numbers, folding, undo/redo (Ctrl-Z), auto-indent with indentation detection, automatic closing of `{`, `[`, `(` and quotes (typing the closing one goes over it, Enter between braces opens a block), find and replace (Ctrl-F), go to line (Ctrl-L), soft wrap, invisible characters, text size, the height of the editor (the chevron buttons make it shorter or taller by five lines, from 120 px to 95% of the window; the bottom edge can be dragged too), **Format** for JSON, and every other Ace option in **Settings** (Ctrl-,) |
 
 Without JavaScript, or if Ace does not load, the pages work with plain text areas and the edit links open a page with
 a text area and a Save button. Descriptors are saved as soon as they are valid YAML; if the loader then finds them

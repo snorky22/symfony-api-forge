@@ -1,6 +1,6 @@
 <div class="af-panel card mb-3" data-af-panel
      data-url="/api/<?= $e($api) ?>/file" data-area="<?= $e($area) ?>" data-name="<?= $e($name) ?>"
-     data-mode="<?= $e($mode) ?>" data-line="<?= $e($line) ?>">
+     data-mode="<?= $e($mode) ?>" data-line="<?= $e($line) ?>" data-import="<?= $e($importTarget ?? '') ?>">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span><code><?= $e('descriptors' === $area ? 'config/api/'.$api : 'tests/Fixtures/'.$api) ?>/<?= $e($name) ?></code></span>
         <span class="small text-secondary" data-af-status></span>

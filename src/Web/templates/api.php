@@ -1,9 +1,24 @@
 <h1 class="h3 mb-3"><?= $e($api) ?></h1>
 
-<?php if ([] !== $progress['errors']): ?>
-    <div class="alert alert-danger">
-        <strong>The descriptors are invalid:</strong>
-        <ul class="mb-0"><?php foreach (array_slice($progress['errors'], 0, 8) as $error): ?><li><?= $e(str_replace($projectDir.'/', '', $error)) ?></li><?php endforeach ?></ul>
+<?php if ([] !== $problems): ?>
+    <div class="alert alert-danger" id="problems">
+        <strong>A descriptor is invalid:</strong>
+        <ul class="mb-0 mt-1">
+        <?php foreach ($problems as $problem): ?>
+            <li class="mb-2"><?= $e($problem['error']) ?>
+                <?php foreach ($problem['examples'] as $example): ?>
+                    <form method="post" action="/api/<?= $e($api) ?>/import" class="mt-1">
+                        <input type="hidden" name="_token" value="<?= $e($token) ?>">
+                        <input type="hidden" name="name" value="<?= $e($example) ?>">
+                        <input type="hidden" name="force" value="1">
+                        <input type="hidden" name="family" value="1">
+                        <button class="btn btn-sm btn-danger">Import <?= $e($example) ?> again</button>
+                        <span class="small">replaces the descriptor from the example</span>
+                    </form>
+                <?php endforeach ?>
+            </li>
+        <?php endforeach ?>
+        </ul>
     </div>
 <?php endif ?>
 
@@ -21,18 +36,46 @@
 <?php endforeach ?>
 </ol>
 
-<div class="d-flex justify-content-between align-items-center mb-2">
-    <h2 class="h5 mb-0">Examples <span class="text-secondary small"><code>tests/Fixtures/<?= $e($api) ?>/</code></span></h2>
-    <div><a class="btn btn-sm btn-outline-primary" href="/api/<?= $e($api) ?>/example">Add an example</a>
-        <a class="btn btn-sm btn-outline-primary" href="/api/<?= $e($api) ?>/type">Add a type file</a></div>
+<?php if ([] !== $endpoints): ?>
+<h2 class="h5 mb-2">Endpoints</h2>
+<ul class="list-group mb-4">
+<?php foreach ($endpoints as $endpoint): ?>
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+        <span><code><?= $e($endpoint['method']) ?></code> <?= $e($endpoint['path']) ?>
+            <?php if (!$endpoint['response']): ?><span class="badge text-bg-warning">no response yet</span><?php endif ?>
+            <?php if (false === $endpoint['imported']): ?><span class="badge text-bg-warning">not imported</span><?php endif ?>
+            <span class="text-secondary small"><?= $e($endpoint['base']) ?></span></span>
+        <span>
+            <a href="/api/<?= $e($api) ?>/endpoint?base=<?= $e($endpoint['base']) ?>&amp;step=request">Edit</a>
+            <?php if (!$endpoint['response'] || false === $endpoint['imported']): ?>
+                · <a href="/api/<?= $e($api) ?>/endpoint?base=<?= $e($endpoint['base']) ?>&amp;step=<?= $endpoint['response'] ? 'import' : 'response' ?>">Continue</a>
+            <?php endif ?>
+        </span>
+    </li>
+<?php endforeach ?>
+</ul>
+<?php endif ?>
+
+<div class="d-flex justify-content-between align-items-center mb-2" id="examples">
+    <h2 class="h5 mb-0">Files <span class="text-secondary small"><code>tests/Fixtures/<?= $e($api) ?>/</code></span></h2>
+    <div><a class="btn btn-sm btn-primary" href="/api/<?= $e($api) ?>/endpoint">New endpoint</a>
+        <a class="btn btn-sm btn-outline-primary" href="/api/<?= $e($api) ?>/type">Add a type file</a>
+        <a class="btn btn-sm btn-link" href="/api/<?= $e($api) ?>/example">Add an example (advanced)</a></div>
 </div>
+<?php if ([] !== $notImported): ?>
+    <form method="post" action="/api/<?= $e($api) ?>/import-all" class="alert alert-warning d-flex justify-content-between align-items-center py-2">
+        <input type="hidden" name="_token" value="<?= $e($token) ?>">
+        <span><?= count($notImported) ?> example(s) not imported yet: <?= $e(implode(', ', $notImported)) ?>.</span>
+        <button class="btn btn-sm btn-primary">Import them</button>
+    </form>
+<?php endif ?>
 <?php if ([] === $files): ?>
     <p class="text-secondary">No example yet.</p>
 <?php else: ?>
     <ul class="list-group">
     <?php foreach ($files as $file): ?>
         <li class="list-group-item d-flex justify-content-between">
-            <code><?= $e($file) ?></code>
+            <span><code><?= $e($file) ?></code><?php if (in_array($file, $notImported, true)): ?> <span class="badge text-bg-warning">not imported</span><?php endif ?></span>
             <a href="/api/<?= $e($api) ?>/file?name=<?= $e(rawurlencode($file)) ?>&amp;area=examples" data-af-open>Edit</a>
         </li>
     <?php endforeach ?>

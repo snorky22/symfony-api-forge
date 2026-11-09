@@ -42,7 +42,7 @@ final class DocsAnnotator
         $setAside = [];
         do {
             $before = \count($setAside);
-            [$bound, $setAside, $reliable, $unplaced] = $this->align($entries, $root, $inExample, $setAside);
+            [$bound, $setAside, $reliable, $unplaced, $underEmpty] = $this->align($entries, $root, $inExample, $setAside);
         } while (\count($setAside) !== $before);
 
         $hints = [];
@@ -57,10 +57,21 @@ final class DocsAnnotator
             }
         }
 
+        // The docs fields of an object the example shows empty (null, []): one note for the object, not one per field
+        $explained = [];
+        foreach ($underEmpty as $path => $indexes) {
+            $field = $this->find($root, $path);
+            $names = array_values(array_unique(array_map(static fn (int $i) => $entries[$i]->name, $indexes)));
+            $notes[] = \sprintf('docs: "%s" (%s) shows no fields in the example (null or empty), but the docs describe %s: give it an example value', $field?->name ?? $path, $path, implode(', ', $names));
+            foreach ($indexes as $index) {
+                $explained[$index] = true;
+            }
+        }
+
         $documented = [];
         foreach ($entries as $index => $entry) {
-            if (!isset($setAside[$index])) {
-                $documented[$entry->name][] = $entry;
+            if (!isset($setAside[$index]) && !isset($explained[$index])) {
+                $documented[$entry->name][] = [$index, $entry];
             }
         }
         foreach ($documented as $name => $docs) {
@@ -68,16 +79,48 @@ final class DocsAnnotator
                 continue;
             }
             $found = \count($inExample[$name] ?? []);
-            $lines = implode(', ', array_map(static fn (DocsEntry $entry) => (string) $entry->line, $docs));
-            $notes[] = 0 === $found
-                ? \sprintf('docs: "%s" (line %s) is not in the example: add it to the example', $name, $lines)
-                : \sprintf('docs: "%s" is described %d time(s) (line %s) and found %d time(s) in the example: add the missing ones to the example, nothing is applied to "%s"', $name, \count($docs), $lines, $found, $name);
+            $lines = implode(', ', array_map(static fn (array $doc) => (string) $doc[1]->line, $docs));
+            if (0 === $found) {
+                $values = $docs[0][1]->values;
+                $notes[] = \sprintf('docs: "%s" (line %s) is not in the example: add it to the example (in the docs it sits %s%s)', $name, $lines, $this->neighbours($entries, $docs[0][0], array_flip(array_values($bound))), null !== $values ? '; values in the docs: '.implode(', ', $values) : '');
+            } else {
+                $notes[] = \sprintf('docs: "%s" is described %d time(s) (line %s) and found %d time(s) in the example: add the missing ones to the example, nothing is applied to "%s"', $name, \count($docs), $lines, $found, $name);
+            }
         }
         foreach ($unplaced as $index) {
-            $notes[] = \sprintf('docs: "%s" (line %d) has the right count in the example but no place in it: its parent is not the one of the docs, check where the example holds it', $entries[$index]->name, $entries[$index]->line);
+            if (!isset($explained[$index])) {
+                $notes[] = \sprintf('docs: "%s" (line %d) has the right count in the example but no place in it: its parent is not the one of the docs, check where the example holds it', $entries[$index]->name, $entries[$index]->line);
+            }
         }
-        foreach (array_diff_key($inExample, $documented) as $name => $fields) {
-            $notes[] = \sprintf('example: "%s" (%s) is not in the docs', $name, $fields[0]->path());
+
+        // An object the docs call free-form (no field described) that the example fills: one note, not one per key
+        $freeForm = [];
+        foreach ($this->fields($root) as $field) {
+            $entry = $hints[$field->path()] ?? null;
+            if (null === $entry || 'object' !== $entry->type || !$field->isObject || [] === $field->children) {
+                continue;
+            }
+            $described = array_filter($field->children, static fn (Field $child) => isset($hints[$child->path()]));
+            if ([] === $described) {
+                $freeForm[$field->path()] = $field;
+                $notes[] = \sprintf('example: "%s" (%s) is a free-form object in the docs (no field is described), but the example gives it fields (%s): replace its value with {} in the example', $field->name, $field->path(), implode(', ', array_keys($field->children)));
+            }
+        }
+        $covered = static function (string $path) use ($freeForm): bool {
+            foreach (array_keys($freeForm) as $parent) {
+                if (str_starts_with($path, $parent.'.') || str_starts_with($path, $parent.'[')) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+        foreach (array_diff_key($inExample, array_diff_key($documented, $reliable) + $reliable) as $name => $fields) {
+            foreach ($fields as $field) {
+                if (!isset($hints[$field->path()]) && !$covered($field->path()) && !isset($freeForm[$field->path()])) {
+                    $notes[] = \sprintf('example: "%s" (%s) is not in the docs: complete the docs page text, or remove it from the example', $name, $field->path());
+                }
+            }
         }
 
         return new DocsAlignment($hints, $notes);
@@ -88,7 +131,7 @@ final class DocsAnnotator
      * @param array<string, list<Field>> $inExample
      * @param array<int, true>       $setAside entries (by position) left out of the count
      *
-     * @return array{array<string, int>, array<int, true>, array<string, true>, list<int>} path => entry position, entries set aside, names aligned, aligned names found nowhere
+     * @return array{array<string, int>, array<int, true>, array<string, true>, list<int>, array<string, list<int>>} path => entry position, entries set aside, names aligned, aligned names found nowhere, entries under an object the example shows empty (by its path)
      */
     private function align(array $entries, Field $root, array $inExample, array $setAside): array
     {
@@ -107,6 +150,8 @@ final class DocsAnnotator
 
         $bound = [];
         $unplaced = [];
+        $underEmpty = [];
+        $owners = [];
         $stack = [$root->container()];
         foreach ($entries as $index => $entry) {
             $opens = \in_array($entry->type, ['object', 'array'], true);
@@ -117,11 +162,13 @@ final class DocsAnnotator
                     $field = $stack[$depth] instanceof Field ? ($stack[$depth]->children[$entry->name] ?? null) : null;
                     if (null !== $field && !isset($bound[$field->path()])) {
                         $stack = \array_slice($stack, 0, $depth + 1);
+                        $owners = array_filter($owners, static fn (int $at) => $at <= $depth, \ARRAY_FILTER_USE_KEY);
                         $bound[$field->path()] = $index;
                         if ($opens && null !== $container = $field->container()) {
                             $stack[] = $container;
                         } elseif ($opens) {
                             $stack[] = self::UNCERTAIN;
+                            $owners[\count($stack) - 1] = $field->path();
                         }
                         continue 2;
                     }
@@ -129,10 +176,16 @@ final class DocsAnnotator
             }
 
             // Not aligned: inside an object set aside, it is set aside too
+            $top = \count($stack) - 1;
             if ($inside) {
                 $setAside[$index] = true;
-            } elseif (isset($reliable[$entry->name]) && !isset($setAside[$index])) {
-                $unplaced[] = $index;
+            } elseif (isset($owners[$top]) && self::UNCERTAIN === $stack[$top] && !isset($reliable[$entry->name])) {
+                // A field of an object the example shows empty
+                $underEmpty[$owners[$top]][] = $index;
+            } else {
+                if (isset($reliable[$entry->name]) && !isset($setAside[$index])) {
+                    $unplaced[] = $index;
+                }
             }
             if ($opens) {
                 // What the example doesn't have (a name of the docs only): its fields are not the example's
@@ -140,7 +193,48 @@ final class DocsAnnotator
             }
         }
 
-        return [$bound, $setAside, $reliable, $unplaced];
+        return [$bound, $setAside, $reliable, $unplaced, $underEmpty];
+    }
+
+    /**
+     * Where a field of the docs sits, in the order of the page: between the fields before and after it that the example has.
+     *
+     * @param list<DocsEntry>  $entries
+     * @param array<int, int>  $bound   the positions of the entries bound to a field of the example
+     */
+    private function neighbours(array $entries, int $index, array $bound): string
+    {
+        $before = $after = null;
+        for ($i = $index - 1; $i >= 0; --$i) {
+            if (isset($bound[$i])) {
+                $before = $entries[$i]->name;
+                break;
+            }
+        }
+        for ($i = $index + 1; $i < \count($entries); ++$i) {
+            if (isset($bound[$i])) {
+                $after = $entries[$i]->name;
+                break;
+            }
+        }
+
+        return match (true) {
+            null !== $before && null !== $after => \sprintf('between "%s" and "%s"', $before, $after),
+            null !== $before => \sprintf('after "%s"', $before),
+            null !== $after => \sprintf('before "%s"', $after),
+            default => 'at the top level',
+        };
+    }
+
+    private function find(Field $root, string $path): ?Field
+    {
+        foreach ($this->fields($root) as $field) {
+            if ($field->path() === $path) {
+                return $field;
+            }
+        }
+
+        return null;
     }
 
     /**

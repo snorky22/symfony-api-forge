@@ -26,6 +26,7 @@ final class WebServices
     public readonly ExampleReader $examples;
     public readonly CurlParser $curl;
     public readonly LenientJsonDecoder $decoder;
+    public readonly EndpointImporter $importer;
     public readonly ImportRunner $import;
     public readonly GenerateRunner $generate;
     public readonly Guide $guide;
@@ -36,7 +37,8 @@ final class WebServices
         $this->examples = new ExampleReader([new PhpArrayExample()]);
         $this->curl = new CurlParser();
         $this->decoder = new LenientJsonDecoder();
-        $importer = new EndpointImporter($this->decoder, new ArrayShapeGenerator());
+        $this->importer = new EndpointImporter($this->decoder, new ArrayShapeGenerator());
+        $importer = $this->importer;
         $loader = new DescriptorLoader($this->store, new ShapeValidator());
         $generator = new ServiceGenerator($config->namespace, $config->sourceDir, $config->configDir);
 

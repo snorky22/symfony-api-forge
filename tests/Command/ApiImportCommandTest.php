@@ -137,7 +137,7 @@ final class ApiImportCommandTest extends KernelTestCase
         self::assertStringContainsString('custom_data: array<string, mixed>|null,', $operation['response']['shape']);
         self::assertStringContainsString('estimated_total?: int,', $operation['response']['shape']);
         self::assertStringContainsString('unit_price?: array{', $operation['response']['shape']);
-        self::assertContains('docs: "allowances" (line 89) is not in the example: add it to the example', $operation['review']);
+        self::assertNotEmpty(array_filter($operation['review'], static fn (string $note) => str_starts_with($note, 'docs: "allowances" (line 89) is not in the example: add it to the example (in the docs it sits ')));
         self::assertNotContains('response: "mixed" marks values that are null in the example, their real type is unknown (data[].name, data[].custom_data)', $operation['review']);
 
         // --docs names the capture, a missing file is an error
@@ -157,6 +157,30 @@ final class ApiImportCommandTest extends KernelTestCase
 
         $shape = Yaml::parseFile($this->dir.'/paddle/prices.yaml')['operations']['list']['response']['shape'];
         self::assertStringContainsString('name: mixed,', $shape);
+    }
+
+    public function testTheBodyJsonNextToTheCurlIsTheBodyOfTheRequest(): void
+    {
+        (new Filesystem())->mkdir($this->dir.'/fixtures');
+        file_put_contents($this->dir.'/fixtures/create-products.curl', "curl -X POST https://api.paddle.com/products -H 'Content-Type: application/json'");
+        file_put_contents($this->dir.'/fixtures/create-products.body.json', '{"name": "A", "tax_category": "standard", "description": null}');
+        file_put_contents($this->dir.'/fixtures/create-products.json', '{"data": {"id": "pro_1", "name": "A"}}');
+        file_put_contents($this->dir.'/fixtures/create-products.body.docs.md', "namestringrequired\n\ntax_categorystringrequired\n\ndescriptionstring | null\n");
+        $tester = new CommandTester((new Application(self::bootKernel()))->find('api-forge:import'));
+
+        $tester->execute(['api' => 'paddle', 'curl' => $this->dir.'/fixtures/create-products.curl', '--response' => $this->dir.'/fixtures/create-products.json', '--dir' => $this->dir]);
+
+        $tester->assertCommandIsSuccessful();
+        $operation = Yaml::parseFile($this->dir.'/paddle/products.yaml')['operations']['create'];
+        self::assertSame('POST', $operation['method']);
+        self::assertStringContainsString('name: string,', $operation['body']['shape']);
+        self::assertStringContainsString('description?: ?string,', $operation['body']['shape']);
+
+        // The body is given once
+        file_put_contents($this->dir.'/fixtures/create-products.curl', "curl -X POST https://api.paddle.com/products -d '{\"a\": 1}'");
+        $tester->execute(['api' => 'paddle', 'curl' => $this->dir.'/fixtures/create-products.curl', '--force' => true, '--dir' => $this->dir]);
+        self::assertSame(Command::FAILURE, $tester->getStatusCode());
+        self::assertStringContainsString('given twice', $tester->getDisplay());
     }
 
     public function testRefusesAnArrayExampleThatIsNotData(): void
