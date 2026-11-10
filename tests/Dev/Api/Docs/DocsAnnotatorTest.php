@@ -118,6 +118,16 @@ final class DocsAnnotatorTest extends TestCase
         self::assertSame(['docs: "import_meta" (import_meta) shows no fields in the example (null or empty), but the docs describe external_id, imported_from: give it an example value'], $notes);
     }
 
+    public function testACountThatIncludesFieldsOfAnEmptyObjectSaysSo(): void
+    {
+        // trial_period is null: its unit_price may be the one of line 49 or 73, the page has no indentation, so nothing
+        // is applied (no guess), and the note counts both and names the object to fill
+        $alignment = $this->annotate('{"data": [{"id": "p1", "type": "standard", "name": "x", "trial_period": null, "unit_price": {"amount": "1", "currency_code": "EUR"}, "custom_data": null}], "meta": {"next": "u"}}');
+
+        self::assertArrayNotHasKey('data[].unit_price', $alignment->hints);
+        self::assertContains('docs: "unit_price" is described 2 time(s) (line 49, 73) and found 1 time(s) in the example: line 49 under an object the example shows empty (see its note): give that object an example value, nothing is applied to "unit_price"', $alignment->notes);
+    }
+
     public function testAMissingFieldSaysWhereItSitsInTheDocsAndItsValues(): void
     {
         $docs = "descriptionstring | null\n\ntypestring\n\nValues\n\n*   `custom`\n\n*   `standard`\n\ntax_categorystringrequired\n";

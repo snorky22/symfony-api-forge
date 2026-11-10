@@ -84,7 +84,25 @@ final class DocsAnnotator
                 $values = $docs[0][1]->values;
                 $notes[] = \sprintf('docs: "%s" (line %s) is not in the example: add it to the example (in the docs it sits %s%s)', $name, $lines, $this->neighbours($entries, $docs[0][0], array_flip(array_values($bound))), null !== $values ? '; values in the docs: '.implode(', ', $values) : '');
             } else {
-                $notes[] = \sprintf('docs: "%s" is described %d time(s) (line %s) and found %d time(s) in the example: add the missing ones to the example, nothing is applied to "%s"', $name, \count($docs), $lines, $found, $name);
+                // The count includes the occurrences under an object the example shows empty: say which they are
+                $emptied = [];
+                foreach (array_keys($explained) as $index) {
+                    if ($entries[$index]->name === $name) {
+                        $emptied[] = $entries[$index]->line;
+                    }
+                }
+                sort($emptied);
+                $all = array_merge(array_map(static fn (array $doc) => $doc[1]->line, $docs), $emptied);
+                sort($all);
+                $notes[] = \sprintf(
+                    'docs: "%s" is described %d time(s) (line %s) and found %d time(s) in the example: %s, nothing is applied to "%s"',
+                    $name,
+                    \count($all),
+                    implode(', ', $all),
+                    $found,
+                    [] === $emptied ? 'add the missing ones to the example' : \sprintf('line %s under an object the example shows empty (see its note): give that object an example value', implode(', ', $emptied)),
+                    $name,
+                );
             }
         }
         foreach ($unplaced as $index) {

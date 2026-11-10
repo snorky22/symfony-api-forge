@@ -46,10 +46,11 @@ final class WebhookMerger
      * @param ?string                $event    event name; read from the payload when null
      * @param ?string                $resource resource of the payload data (JSON:API)
      * @param list<string>           $review   notes about the event
+     * @param bool                   $replace  the payload replaces the shape and the notes of the event (re-import)
      *
      * @return array{webhooks: array<string, mixed>, notes: list<string>}
      */
-    public function mergePayload(?array $webhooks, string $apiName, array $payload, ?string $event, ?string $resource, array $review = []): array
+    public function mergePayload(?array $webhooks, string $apiName, array $payload, ?string $event, ?string $resource, array $review = [], bool $replace = false): array
     {
         $event ??= $payload['event'] ?? throw new \InvalidArgumentException('The event name was not found in the payload: give it with --event.');
         $webhooks ??= $this->skeleton($apiName);
@@ -67,6 +68,9 @@ final class WebhookMerger
 
         $existing = $webhooks['events'][$event] ?? null;
         $new = array_filter(['resource' => $resource, 'shape' => null === $resource ? $payload['shape'] : null], static fn ($value) => null !== $value);
+        if ($replace && null !== $existing) {
+            unset($existing['resource'], $existing['shape'], $existing['review']);
+        }
         $merged = ($existing ?? []) + $new;
         foreach ($review as $note) {
             $merged['review'] = $this->addNote($merged['review'] ?? [], $note);

@@ -68,6 +68,15 @@ final class WebhookMergerTest extends TestCase
         self::assertContains(WebhookMerger::MISSING_EVENT_NAME_NOTE, $webhooks['review']);
     }
 
+    public function testAReplacingPayloadKeepsTheOtherValuesOfTheEvent(): void
+    {
+        $existing = ['event_name' => ['path' => 'type'], 'events' => ['ping' => ['shape' => 'array{id: int}', 'description' => 'A ping.', 'review' => ['old note']]]];
+        $payload = ['event' => 'ping', 'event_path' => 'type', 'type' => null, 'meta' => null, 'data' => null, 'shape' => 'array{id: string}'];
+
+        self::assertSame(['shape' => 'array{id: int}', 'description' => 'A ping.', 'review' => ['old note']], (new WebhookMerger())->mergePayload($existing, 'shop', $payload, null, null)['webhooks']['events']['ping']);
+        self::assertSame(['shape' => 'array{id: string}', 'description' => 'A ping.', 'review' => ['new note']], (new WebhookMerger())->mergePayload($existing, 'shop', $payload, null, null, ['new note'], true)['webhooks']['events']['ping']);
+    }
+
     public function testEventNameIsRequired(): void
     {
         $this->expectException(\InvalidArgumentException::class);

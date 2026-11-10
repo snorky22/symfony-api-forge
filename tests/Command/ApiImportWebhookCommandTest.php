@@ -76,6 +76,30 @@ final class ApiImportWebhookCommandTest extends KernelTestCase
         self::assertStringContainsString('        affiliate_id?: int,', $shape);
     }
 
+    public function testTheDocsPageNextToThePayloadIsReadAndForceReplacesTheShape(): void
+    {
+        (new Filesystem())->dumpFile($this->dir.'/shop/_api.yaml', Yaml::dump(['base_uri' => 'https://api.shop.test/', 'format' => 'json']));
+        $payload = $this->dir.'/fixtures/webhook-transaction.completed.json';
+        (new Filesystem())->dumpFile($payload, '{"event_type": "transaction.completed", "data": {"billed_at": "2026-11-10"}}');
+        $run = function (array $input): CommandTester {
+            $tester = new CommandTester((new Application(self::bootKernel()))->find('api-forge:import-webhook'));
+            $tester->execute(['api' => 'shop', '--dir' => $this->dir] + $input);
+
+            return $tester;
+        };
+
+        $run(['--payload' => [$payload]])->assertCommandIsSuccessful();
+        self::assertStringContainsString('billed_at: string,', Yaml::parseFile($this->dir.'/shop/_webhooks.yaml')['events']['transaction.completed']['shape']);
+
+        (new Filesystem())->dumpFile($this->dir.'/fixtures/webhook-transaction.completed.docs.md', "event_typestringrequired\n\ndataobjectrequired\n\nbilled_atstring | nullrequired\n");
+        $tester = $run(['--payload' => [$payload]]);
+        self::assertStringContainsString('docs page read:', $tester->getDisplay());
+        self::assertStringContainsString('billed_at: string,', Yaml::parseFile($this->dir.'/shop/_webhooks.yaml')['events']['transaction.completed']['shape'], 'existing values win');
+
+        $run(['--payload' => [$payload], '--force' => true])->assertCommandIsSuccessful();
+        self::assertStringContainsString('billed_at: ?string,', Yaml::parseFile($this->dir.'/shop/_webhooks.yaml')['events']['transaction.completed']['shape']);
+    }
+
     public function testRequiresInput(): void
     {
         self::assertSame(Command::FAILURE, $this->execute('api-forge:import-webhook', [])->getStatusCode());

@@ -2,6 +2,9 @@
 
 namespace Snorky22\ApiForge\Dev\Api\Import;
 
+use Snorky22\ApiForge\Dev\Api\Docs\DocsAnnotator;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsCapture;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsEntry;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 use Symfony\Component\String\Inflector\EnglishInflector;
@@ -19,6 +22,8 @@ final class WebhookImporter
     public function __construct(
         private readonly LenientJsonDecoder $decoder,
         private readonly ArrayShapeGenerator $shapeGenerator,
+        private readonly DocsCapture $docsCapture = new DocsCapture(),
+        private readonly DocsAnnotator $docsAnnotator = new DocsAnnotator(),
     ) {
     }
 
@@ -62,13 +67,14 @@ final class WebhookImporter
     /**
      * Describes an example payload.
      *
-     * @param string $format API format, "json" or "jsonapi"
+     * @param string  $format API format, "json" or "jsonapi"
+     * @param ?string $docs   text capture of the docs page of the payload (DocsCapture): optional fields, nulls, enums
      *
-     * @return array{event: ?string, event_path: ?string, type: ?string, meta: ?string, data: ?string, shape: ?string}
+     * @return array{event: ?string, event_path: ?string, type: ?string, meta: ?string, data: ?string, shape: ?string, review: list<string>}
      *                event name and its location, JSON:API type, shapes of "meta" and "data" (JSON:API),
-     *                or of the whole payload (JSON)
+     *                or of the whole payload (JSON), and what the docs page could not settle
      */
-    public function importPayload(string $json, string $format): array
+    public function importPayload(string $json, string $format, ?string $docs = null): array
     {
         try {
             $payload = $this->decoder->decode($json, false);
@@ -79,7 +85,16 @@ final class WebhookImporter
             throw new \InvalidArgumentException('The payload example is not a JSON object.');
         }
 
-        $result = ['event' => null, 'event_path' => null, 'type' => null, 'meta' => null, 'data' => null, 'shape' => null];
+        $result = ['event' => null, 'event_path' => null, 'type' => null, 'meta' => null, 'data' => null, 'shape' => null, 'review' => []];
+        $hints = [];
+        if (null !== $docs) {
+            $alignment = $this->docsAnnotator->annotate($this->docsCapture->parse($docs), [$payload]);
+            $hints = $alignment->hints;
+            $result['review'] = $alignment->notes;
+            if ([] === $hints) {
+                $result['review'][] = 'docs: no field of the documentation capture matches the example, nothing applied';
+            }
+        }
         foreach (self::EVENT_NAME_PATHS as $path) {
             $value = $payload;
             foreach (explode('.', $path) as $key) {
@@ -95,13 +110,34 @@ final class WebhookImporter
         $data = $payload->data ?? null;
         if ('jsonapi' === $format && $data instanceof \stdClass && \is_string($data->type ?? null)) {
             $result['type'] = $data->type;
-            $result['data'] = $this->shapeGenerator->generate($data);
-            $result['meta'] = isset($payload->meta) ? $this->shapeGenerator->generate($payload->meta) : null;
+            $result['data'] = $this->shapeGenerator->generate($data, false, self::under('data', $hints));
+            $result['meta'] = isset($payload->meta) ? $this->shapeGenerator->generate($payload->meta, false, self::under('meta', $hints)) : null;
         } else {
-            $result['shape'] = $this->shapeGenerator->generate($payload);
+            $result['shape'] = $this->shapeGenerator->generate($payload, false, $hints);
         }
 
         return $result;
+    }
+
+    /**
+     * The hints of the fields under a member of the payload, by their path in that member.
+     *
+     * @param array<string, DocsEntry> $hints
+     *
+     * @return array<string, DocsEntry>
+     */
+    private static function under(string $member, array $hints): array
+    {
+        $under = [];
+        foreach ($hints as $path => $entry) {
+            if ($path === $member) {
+                $under[''] = $entry;
+            } elseif (str_starts_with($path, $member.'.')) {
+                $under[substr($path, \strlen($member) + 1)] = $entry;
+            }
+        }
+
+        return $under;
     }
 
     private function plainText(string $markdown): string

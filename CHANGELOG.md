@@ -5,6 +5,13 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- `api-forge:import-webhook` reads the docs page of a payload copied as text (`webhook-<event>.docs.md` next to it, or
+  `--docs`): required fields, nulls and enums, as for responses (for JSON:API, applied to `data` and `meta`); what it
+  cannot settle goes to the event's `review`. `--force` replaces the shape of the event of each payload.
+- Docs page as text: a name counted differently by the page and the example now counts, and lists, its occurrences under
+  an object the example shows empty (`null`, `[]`), and says to give that object an example value (it said "described 1
+  time, found 1 time"). Still nothing is applied to such a name: without indentation, the page cannot tell which
+  occurrence is the example's.
 - Pluggable webhook signature schemes: the signed content can include the timestamp (`content: '{timestamp}:{body}'`),
   the signature header can be structured (`parts`: `ts=…;h1=…`, `t=…,v1=…`, with its `separator`), several signatures
   in the header are accepted while a secret rotates, and a `tolerance` rejects stale timestamps. Generated parsers only

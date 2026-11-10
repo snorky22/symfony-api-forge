@@ -59,6 +59,59 @@ final class WebhookImporterTest extends TestCase
         self::assertSame("array{\n    type: string,\n    object: array{\n        id: int,\n    },\n}", $payload['shape']);
     }
 
+    private const PAYLOAD_DOCS = <<<'DOCS'
+        event_idstringrequired
+
+        Unique ID of the event.
+
+        event_typestringrequired
+
+        Type of event.
+
+        dataobjectrequired
+
+        The entity.
+
+        statusstringrequired
+
+        Status of the entity.
+
+        Values
+
+        *   `completed`
+        *   `paid`
+
+        billed_atstring | nullrequired
+
+        When it was billed.
+        DOCS;
+
+    public function testAJsonPayloadWithItsDocsPage(): void
+    {
+        $payload = $this->importer()->importPayload('{"event_id": "evt_1", "event_type": "transaction.completed", "data": {"status": "completed", "billed_at": "2026-11-10"}}', 'json', self::PAYLOAD_DOCS);
+
+        self::assertStringContainsString("        status: 'completed'|'paid',\n", $payload['shape']);
+        self::assertStringContainsString("        billed_at: ?string,\n", $payload['shape']);
+        self::assertSame([], $payload['review']);
+    }
+
+    public function testAJsonApiPayloadWithItsDocsPage(): void
+    {
+        $docs = "metaobjectrequired\n\nevent_namestringrequired\n\ndataobjectrequired\n\ntypestringrequired\n\nidstringrequired\n\nattributesobjectrequired\n\nstatusstringrequired\n\nValues\n\n*   `paid`\n*   `refunded`\n\nrefunded_atstring | nullrequired\n";
+        $payload = $this->importer()->importPayload('{"meta": {"event_name": "order_created"}, "data": {"type": "orders", "id": "1", "attributes": {"status": "paid", "refunded_at": null}}}', 'jsonapi', $docs);
+
+        self::assertStringContainsString("        status: 'paid'|'refunded',\n", $payload['data']);
+        self::assertStringContainsString("        refunded_at: ?string,\n", $payload['data']);
+        self::assertSame("array{\n    event_name: string,\n}", $payload['meta']);
+    }
+
+    public function testADocsPageThatMatchesNothingIsReported(): void
+    {
+        $payload = $this->importer()->importPayload('{"type": "ping"}', 'json', "otherstringrequired\n\nSomething else.\n");
+
+        self::assertContains('docs: no field of the documentation capture matches the example, nothing applied', $payload['review']);
+    }
+
     public function testRejectsInvalidPayload(): void
     {
         $this->expectException(\InvalidArgumentException::class);

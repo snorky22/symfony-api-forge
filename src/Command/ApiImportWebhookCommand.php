@@ -25,7 +25,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
         --events reads a Markdown table of events (event name, object sent, description).
         --payload reads example payloads (repeatable). For JSON:API APIs, the payload data is checked
         against the object shape of its resource, or gives it when the resource has none yet.
-        Existing descriptor values are kept. Guesses are listed under "review".
+        The docs page of a payload, copied as text, is read from <payload>.docs.md next to it
+        (or --docs, for a single payload): optional fields, nulls, enums.
+        Existing descriptor values are kept (--force: the payload replaces the shape of its event).
+        Guesses are listed under "review".
         HELP,
 )]
 final class ApiImportWebhookCommand
@@ -48,6 +51,8 @@ final class ApiImportWebhookCommand
         #[Option('Markdown file with the table of events')] ?string $events = null,
         #[Option('File with an example payload (repeatable): JSON, or an array (.php)')] array $payload = [],
         #[Option('Event name of the payload, when it cannot be read from it')] ?string $event = null,
+        #[Option('Text capture of the docs page of the payload (default: <payload>.docs.md next to it, if any)')] ?string $docs = null,
+        #[Option('Replace the shape of the event of each payload (its other values are kept)')] bool $force = false,
         #[Option('Descriptor directory (default: api_forge.descriptor_dir, config/api)')] ?string $dir = null,
     ): int {
         if (null === $events && [] === $payload) {
@@ -55,8 +60,8 @@ final class ApiImportWebhookCommand
 
             return Command::FAILURE;
         }
-        if (null !== $event && \count($payload) > 1) {
-            $io->error('--event can only be used with a single --payload.');
+        if ((null !== $event || null !== $docs) && \count($payload) > 1) {
+            $io->error('--event and --docs can only be used with a single --payload.');
 
             return Command::FAILURE;
         }
@@ -74,9 +79,16 @@ final class ApiImportWebhookCommand
             }
 
             foreach ($payload as $file) {
-                $description = $this->importer->importPayload($this->examples->json($file), $format);
+                $docsFile = $docs ?? preg_replace('/\.[^.\/]+$/', '', $file).'.docs.md';
+                if (null === $docs && !is_file($docsFile)) {
+                    $docsFile = null;
+                }
+                $description = $this->importer->importPayload($this->examples->json($file), $format, null !== $docsFile ? $this->read($docsFile) : null);
+                if (null !== $docsFile) {
+                    $notes[] = \sprintf('docs page read: %s', $docsFile);
+                }
                 $resource = null;
-                $review = [];
+                $review = $description['review'];
 
                 if (null !== $description['type']) {
                     $resource = $this->resourceOfType($api, $description['type'], $dir);
@@ -92,7 +104,7 @@ final class ApiImportWebhookCommand
                     }
                 }
 
-                $merged = $this->webhookMerger->mergePayload($webhooks, $api, $description, $event, $resource, $review);
+                $merged = $this->webhookMerger->mergePayload($webhooks, $api, $description, $event, $resource, $review, $force);
                 $webhooks = $merged['webhooks'];
                 $notes = array_merge($notes, $merged['notes']);
             }

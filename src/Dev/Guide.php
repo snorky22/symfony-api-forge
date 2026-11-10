@@ -34,6 +34,7 @@ final class Guide
         ['<resource>-object.json', 'an object example ("The product object")', 'transaction-object.json'],
         ['webhook-events.md', 'the events table of the docs', 'webhook-events.md'],
         ['webhook-<event>.json', 'a webhook payload example', 'webhook-transaction.completed.json'],
+        ['webhook-<event>.docs.md', 'the docs page of that payload copied as text: required fields, nulls, enums', 'webhook-transaction.completed.docs.md'],
     ];
 
     /** The workflow: step, command */

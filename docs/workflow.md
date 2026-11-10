@@ -44,6 +44,7 @@ its extension:
 | `<resource>-object.json` | an object example ("The product object") | transaction-object.json |
 | `webhook-events.md` | the events table of the docs | webhook-events.md |
 | `webhook-<event>.json` | a webhook payload example | webhook-transaction.completed.json |
+| `webhook-<event>.docs.md` | the docs page of that payload copied as text: required fields, nulls, enums | webhook-transaction.completed.docs.md |
 
 `<operation>` is `list`, `get`, `create`, `update`, `delete`, or the action of the docs (`refund`, `cancel`).
 For a second example of the same operation, add a variant: `list-prices-include.php`, `list-customers-by-email.curl`.
@@ -330,7 +331,11 @@ the resource). Re-importing rewrites the YAML file, so YAML comments are lost: k
    bin/console api-forge:import-webhook lemonsqueezy --events=path/to/events.md \
        --payload=path/to/order-created-payload.json
    ```
-   The first import creates `config/api/<api>/_webhooks.yaml`.
+   The first import creates `config/api/<api>/_webhooks.yaml`. The docs page of a payload, copied as text
+   next to it (`webhook-transaction.completed.docs.md`, or `--docs`), is read like the docs page of a response:
+   required fields, nulls, enums. What it cannot settle is listed under the event's `review` (an object the
+   example shows `null`: give it an example value). Existing values win: to apply an improved payload or docs
+   page to an event already described, add `--force` (it replaces the event's shape, keeps its description).
 2. Check the `signature` scheme against the API docs: the importer writes a default
    (HMAC-SHA256 of the raw body, hex, in `X-Signature`), as signing schemes cannot be read from examples.
 3. Payload data often differs from the documented resource object (e.g. Lemon Squeezy sends
