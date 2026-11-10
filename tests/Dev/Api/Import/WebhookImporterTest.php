@@ -112,6 +112,24 @@ final class WebhookImporterTest extends TestCase
         self::assertContains('docs: no field of the documentation capture matches the example, nothing applied', $payload['review']);
     }
 
+    public function testAPlainJsonPayloadHoldingAnObjectGivesItAndItsEnvelope(): void
+    {
+        $payload = $this->importer()->importPayload('{"event_id": "evt_1", "event_type": "transaction.completed", "data": {"id": "txn_1"}}', 'json', self::PAYLOAD_DOCS);
+
+        self::assertSame("array{\n    id: string,\n}", $payload['data']);
+        self::assertSame("array{\n    event_id: string,\n    event_type: string,\n}", $payload['envelope']);
+        self::assertStringContainsString('    data: array{', $payload['shape']);
+        self::assertNull($this->importer()->importPayload('{"type": "ping", "data": [1]}', 'json')['envelope'], 'a list is not an object');
+    }
+
+    public function testTheResourceOfAnEventComesFromItsEntity(): void
+    {
+        self::assertSame('transactions', $this->importer()->resourceOfEvent('transaction.completed'));
+        self::assertSame('payment-methods', $this->importer()->resourceOfEvent('payment_method.saved'));
+        self::assertSame('subscriptions', $this->importer()->resourceOfEvent('subscription:created'));
+        self::assertNull($this->importer()->resourceOfEvent('order_created'));
+    }
+
     public function testRejectsInvalidPayload(): void
     {
         $this->expectException(\InvalidArgumentException::class);

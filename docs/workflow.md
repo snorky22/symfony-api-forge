@@ -336,6 +336,13 @@ the resource). Re-importing rewrites the YAML file, so YAML comments are lost: k
    required fields, nulls, enums. What it cannot settle is listed under the event's `review` (an object the
    example shows `null`: give it an example value). Existing values win: to apply an improved payload or docs
    page to an event already described, add `--force` (it replaces the event's shape, keeps its description).
+
+   A payload holding an object (JSON:API `data`; in plain JSON a `data` object, such as Paddle's
+   `{"event_id": …, "event_type": "transaction.completed", "data": {…}}`) describes a resource: the object
+   becomes the `object` shape of the resource (`transactions.yaml`; in plain JSON the resource comes from the
+   event name), the other members the `envelope`, and the other events of the same entity
+   (`transaction.paid`…) get the resource too, listed in a review note. One payload and its docs page per
+   entity type all its events. `--force` replaces the object shape and the envelope.
 2. Check the `signature` scheme against the API docs: the importer writes a default
    (HMAC-SHA256 of the raw body, hex, in `X-Signature`), as signing schemes cannot be read from examples.
 3. Payload data often differs from the documented resource object (e.g. Lemon Squeezy sends

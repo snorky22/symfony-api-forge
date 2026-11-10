@@ -204,6 +204,19 @@ final class DescriptorLoaderTest extends TestCase
         self::assertStringContainsString('Must contain {body}', implode("\n", $this->errors(self::API, [], $webhooks(['content' => '{timestamp}', 'parts' => ['timestamp' => 'ts', 'signature' => 'h1']]))));
     }
 
+    public function testPlainJsonEventsHoldingAnObjectOfAResource(): void
+    {
+        $api = ['base_uri' => 'https://api.shop.test/', 'format' => 'json'];
+        $resources = ['transactions' => ['resource' => 'transactions', 'object' => ['shape' => 'array{id: string}'], 'operations' => []]];
+        $webhooks = ['signature' => ['header' => 'Shop-Signature', 'env' => 'SHOP_SECRET'], 'event_name' => ['path' => 'event_type'], 'envelope' => ['shape' => "array{\n    event_type: string,\n}"], 'events' => ['transaction.paid' => ['resource' => 'transactions']]];
+
+        $definition = $this->load($api, $resources, $webhooks);
+        self::assertSame(['shape' => "array{\n    event_type: string,\n}", 'data' => 'data'], $definition->webhooks['envelope']);
+
+        self::assertSame(['_webhooks.yaml: envelope.shape must be an array shape, "array{...}", without the object key.'], $this->errors($api, $resources, ['envelope' => ['shape' => 'string']] + $webhooks));
+        self::assertSame(['_webhooks.yaml: "envelope" is for plain JSON payloads; JSON:API payloads hold their object in "data", with "meta".'], $this->errors(['format' => 'jsonapi'] + $api, $resources, $webhooks));
+    }
+
     public function testLoadsWebhooks(): void
     {
         $definition = $this->load(self::API, [
@@ -241,7 +254,7 @@ final class DescriptorLoaderTest extends TestCase
         ]);
 
         self::assertSame([
-            '_webhooks.yaml: event "order.created": "resource" requires the "jsonapi" API format, use "shape" instead.',
+            '_webhooks.yaml: event "order.created": "resource" needs "envelope" in plain JSON (the key of the object and the shape around it), or use "shape".',
             '_webhooks.yaml: event "order_created": its constant "ORDER_CREATED" or method "onOrderCreated" is invalid or already used by "order.created".',
             '_webhooks.yaml: event "order_created": "shape" is not a valid PHPDoc type: Unexpected token "", expected type at offset 6 on line 1',
         ], $errors);

@@ -76,28 +76,63 @@ final class ApiImportWebhookCommandTest extends KernelTestCase
         self::assertStringContainsString('        affiliate_id?: int,', $shape);
     }
 
-    public function testTheDocsPageNextToThePayloadIsReadAndForceReplacesTheShape(): void
+    private function runShop(array $input): CommandTester
+    {
+        $tester = new CommandTester((new Application(self::bootKernel()))->find('api-forge:import-webhook'));
+        $tester->execute(['api' => 'shop', '--dir' => $this->dir] + $input);
+
+        return $tester;
+    }
+
+    public function testAPlainJsonPayloadGivesTheObjectOfItsResourceAndTheEnvelope(): void
+    {
+        $filesystem = new Filesystem();
+        $filesystem->dumpFile($this->dir.'/shop/_api.yaml', Yaml::dump(['base_uri' => 'https://api.shop.test/', 'format' => 'json']));
+        $events = $this->dir.'/fixtures/webhook-events.md';
+        $filesystem->dumpFile($events, "| Event | Group | Description |\n|---|---|---|\n| `transaction.completed` | Transaction | Completed. |\n| `transaction.paid` | Transaction | Paid. |\n| `customer.created` | Customer | Created. |\n");
+        $payload = $this->dir.'/fixtures/webhook-transaction.completed.json';
+        $filesystem->dumpFile($payload, '{"event_id": "evt_1", "event_type": "transaction.completed", "data": {"id": "txn_1", "billed_at": "2026-11-10"}}');
+
+        $this->runShop(['--events' => $events])->assertCommandIsSuccessful();
+        $webhooks = Yaml::parseFile($this->dir.'/shop/_webhooks.yaml');
+        self::assertSame(['description' => 'Completed.'], $webhooks['events']['transaction.completed'], 'no resource guessed from the table');
+        self::assertNotContains('events: resources were derived from the object names of the events doc', $webhooks['review']);
+
+        $display = $this->runShop(['--payload' => [$payload]])->getDisplay();
+        self::assertStringContainsString('object of the "transactions" resource set from the payload', $display);
+        $webhooks = Yaml::parseFile($this->dir.'/shop/_webhooks.yaml');
+        self::assertSame("array{\n    event_id: string,\n    event_type: string,\n}", $webhooks['envelope']['shape']);
+        self::assertSame('data', $webhooks['envelope']['data']);
+        self::assertSame('transactions', $webhooks['events']['transaction.completed']['resource']);
+        self::assertArrayNotHasKey('shape', $webhooks['events']['transaction.completed']);
+        self::assertSame('transactions', $webhooks['events']['transaction.paid']['resource'], 'same entity');
+        self::assertArrayNotHasKey('resource', $webhooks['events']['customer.created']);
+        self::assertContains('events: resource "transactions" set on transaction.paid from the payload of "transaction.completed", by their name: check that their payloads hold the same object', $webhooks['review']);
+        self::assertStringContainsString('billed_at: string,', Yaml::parseFile($this->dir.'/shop/transactions.yaml')['object']['shape']);
+
+        // The docs page next to the payload: existing values win, --force replaces the object shape
+        $filesystem->dumpFile($this->dir.'/fixtures/webhook-transaction.completed.docs.md', "event_idstringrequired\n\nevent_typestringrequired\n\ndataobjectrequired\n\nidstringrequired\n\nbilled_atstring | nullrequired\n");
+        $display = $this->runShop(['--payload' => [$payload]])->getDisplay();
+        self::assertStringContainsString('docs page read:', $display);
+        self::assertStringStartsWith('payload data differs from the "transactions" object shape', Yaml::parseFile($this->dir.'/shop/_webhooks.yaml')['events']['transaction.completed']['review'][1]);
+        self::assertStringContainsString('billed_at: string,', Yaml::parseFile($this->dir.'/shop/transactions.yaml')['object']['shape']);
+
+        self::assertStringContainsString('object of the "transactions" resource replaced from the payload', $this->runShop(['--payload' => [$payload], '--force' => true])->getDisplay());
+        self::assertStringContainsString('billed_at: ?string,', Yaml::parseFile($this->dir.'/shop/transactions.yaml')['object']['shape']);
+        self::assertSame(['resource "transactions" derived from the event name: rename the file and this value if the API calls it otherwise'], Yaml::parseFile($this->dir.'/shop/_webhooks.yaml')['events']['transaction.completed']['review'], 'the notes of the replaced example are gone');
+    }
+
+    public function testAPlainJsonPayloadWithoutObjectIsTheShapeOfItsEvent(): void
     {
         (new Filesystem())->dumpFile($this->dir.'/shop/_api.yaml', Yaml::dump(['base_uri' => 'https://api.shop.test/', 'format' => 'json']));
-        $payload = $this->dir.'/fixtures/webhook-transaction.completed.json';
-        (new Filesystem())->dumpFile($payload, '{"event_type": "transaction.completed", "data": {"billed_at": "2026-11-10"}}');
-        $run = function (array $input): CommandTester {
-            $tester = new CommandTester((new Application(self::bootKernel()))->find('api-forge:import-webhook'));
-            $tester->execute(['api' => 'shop', '--dir' => $this->dir] + $input);
+        $payload = $this->dir.'/fixtures/ping.json';
+        (new Filesystem())->dumpFile($payload, '{"type": "ping", "sent_at": 1}');
 
-            return $tester;
-        };
+        $this->runShop(['--payload' => [$payload]])->assertCommandIsSuccessful();
 
-        $run(['--payload' => [$payload]])->assertCommandIsSuccessful();
-        self::assertStringContainsString('billed_at: string,', Yaml::parseFile($this->dir.'/shop/_webhooks.yaml')['events']['transaction.completed']['shape']);
-
-        (new Filesystem())->dumpFile($this->dir.'/fixtures/webhook-transaction.completed.docs.md', "event_typestringrequired\n\ndataobjectrequired\n\nbilled_atstring | nullrequired\n");
-        $tester = $run(['--payload' => [$payload]]);
-        self::assertStringContainsString('docs page read:', $tester->getDisplay());
-        self::assertStringContainsString('billed_at: string,', Yaml::parseFile($this->dir.'/shop/_webhooks.yaml')['events']['transaction.completed']['shape'], 'existing values win');
-
-        $run(['--payload' => [$payload], '--force' => true])->assertCommandIsSuccessful();
-        self::assertStringContainsString('billed_at: ?string,', Yaml::parseFile($this->dir.'/shop/_webhooks.yaml')['events']['transaction.completed']['shape']);
+        $webhooks = Yaml::parseFile($this->dir.'/shop/_webhooks.yaml');
+        self::assertSame("array{\n    type: string,\n    sent_at: int,\n}", $webhooks['events']['ping']['shape']);
+        self::assertArrayNotHasKey('envelope', $webhooks);
     }
 
     public function testRequiresInput(): void

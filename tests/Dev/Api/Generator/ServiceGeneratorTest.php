@@ -250,6 +250,33 @@ final class ServiceGeneratorTest extends TestCase
         self::assertStringNotContainsString('SIGNATURE_TOLERANCE', $code);
     }
 
+    public function testPlainJsonPayloadsOfAResourceAreTheEnvelopeAndItsObject(): void
+    {
+        $filesystem = new Filesystem();
+        $dir = sys_get_temp_dir().'/service-generator-envelope-'.bin2hex(random_bytes(4));
+        $filesystem->dumpFile($dir.'/config/api/plain/_api.yaml', Yaml::dump(['base_uri' => 'https://api.plain.test/', 'format' => 'json', 'namespace' => 'Plain']));
+        $filesystem->dumpFile($dir.'/config/api/plain/transactions.yaml', Yaml::dump(['resource' => 'transactions', 'object' => ['shape' => "array{\n    id: string,\n    status: 'paid'|'completed',\n}"], 'operations' => []], 10));
+        $filesystem->dumpFile($dir.'/config/api/plain/_webhooks.yaml', Yaml::dump([
+            'signature' => ['header' => 'Plain-Signature', 'env' => 'PLAIN_WEBHOOK_SECRET'],
+            'event_name' => ['path' => 'event_type'],
+            'envelope' => ['shape' => "array{\n    event_id: string,\n    event_type: string,\n    sender: array{\n        id: int,\n    },\n}"],
+            'events' => ['transaction.paid' => ['resource' => 'transactions'], 'customer.created' => ['resource' => 'customers'], 'ping' => []],
+        ], 10));
+
+        try {
+            $definition = (new DescriptorLoader(new DescriptorStore($dir.'/config/api'), new ShapeValidator()))->load('plain');
+            $code = (new ServiceGenerator())->generate($definition, 'config/api/plain')['src/Api/Plain/Generated/Webhook/PlainWebhookEvents.php'];
+        } finally {
+            $filesystem->remove($dir);
+        }
+
+        self::assertStringContainsString(' * @phpstan-import-type Transaction from \\App\\Api\\Plain\\Generated\\Resource\\Transactions'."\n", $code);
+        self::assertStringContainsString(" * @phpstan-type TransactionPaidPayload array{\n *     event_id: string,\n *     event_type: string,\n *     sender: array{\n *         id: int,\n *     },\n *     data: Transaction,\n * }\n", $code);
+        // A resource without object: the object is untyped
+        self::assertStringContainsString(" *     data: array<string, mixed>,\n * }\n * @phpstan-type PingPayload array<string, mixed>\n", $code);
+        self::assertStringNotContainsString('WebhookMeta', $code);
+    }
+
     public function testWebhookParserAndConsumer(): void
     {
         self::generate();

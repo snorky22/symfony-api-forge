@@ -70,9 +70,10 @@ final class WebhookImporter
      * @param string  $format API format, "json" or "jsonapi"
      * @param ?string $docs   text capture of the docs page of the payload (DocsCapture): optional fields, nulls, enums
      *
-     * @return array{event: ?string, event_path: ?string, type: ?string, meta: ?string, data: ?string, shape: ?string, review: list<string>}
-     *                event name and its location, JSON:API type, shapes of "meta" and "data" (JSON:API),
-     *                or of the whole payload (JSON), and what the docs page could not settle
+     * @return array{event: ?string, event_path: ?string, type: ?string, meta: ?string, data: ?string, envelope: ?string, shape: ?string, review: list<string>}
+     *                event name and its location, JSON:API type, shapes of "meta" and "data" (JSON:API); in plain
+     *                JSON, of the whole payload, and when "data" is an object, of it and of the other members
+     *                ("envelope"); what the docs page could not settle
      */
     public function importPayload(string $json, string $format, ?string $docs = null): array
     {
@@ -85,7 +86,7 @@ final class WebhookImporter
             throw new \InvalidArgumentException('The payload example is not a JSON object.');
         }
 
-        $result = ['event' => null, 'event_path' => null, 'type' => null, 'meta' => null, 'data' => null, 'shape' => null, 'review' => []];
+        $result = ['event' => null, 'event_path' => null, 'type' => null, 'meta' => null, 'data' => null, 'envelope' => null, 'shape' => null, 'review' => []];
         $hints = [];
         if (null !== $docs) {
             $alignment = $this->docsAnnotator->annotate($this->docsCapture->parse($docs), [$payload]);
@@ -114,6 +115,13 @@ final class WebhookImporter
             $result['meta'] = isset($payload->meta) ? $this->shapeGenerator->generate($payload->meta, false, self::under('meta', $hints)) : null;
         } else {
             $result['shape'] = $this->shapeGenerator->generate($payload, false, $hints);
+            if ($data instanceof \stdClass) {
+                // An object of a resource, in an envelope (event id, name, date…)
+                $envelope = clone $payload;
+                unset($envelope->data);
+                $result['data'] = $this->shapeGenerator->generate($data, false, self::under('data', $hints));
+                $result['envelope'] = $this->shapeGenerator->generate($envelope, false, array_filter($hints, static fn (string $path) => 'data' !== $path && !str_starts_with($path, 'data.') && !str_starts_with($path, 'data['), \ARRAY_FILTER_USE_KEY));
+            }
         }
 
         return $result;
@@ -145,6 +153,21 @@ final class WebhookImporter
         $text = preg_replace('/\[([^\]]*)\]\([^)]*\)/', '$1', $markdown); // [text](url) → text
 
         return trim(str_replace('`', '', $text));
+    }
+
+    /**
+     * The resource of the object an event carries, from the entity of its name: "transaction.completed" gives
+     * "transactions", "payment_method.saved" gives "payment-methods". Null when the name has no entity.
+     */
+    public function resourceOfEvent(string $event): ?string
+    {
+        if (!preg_match('/^([a-z][a-z0-9_]*)[.:]/i', $event, $match)) {
+            return null;
+        }
+        $words = explode('_', strtolower($match[1]));
+        $words[] = (new EnglishInflector())->pluralize(array_pop($words))[0];
+
+        return implode('-', $words);
     }
 
     private function resourceName(string $objectName): string

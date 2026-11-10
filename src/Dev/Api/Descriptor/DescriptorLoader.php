@@ -165,6 +165,17 @@ final class DescriptorLoader
                 $errors[] = $file.': '.$message;
             });
         }
+        if (isset($webhooks['envelope'])) {
+            if ('jsonapi' === $api['format']) {
+                $errors[] = $file.': "envelope" is for plain JSON payloads; JSON:API payloads hold their object in "data", with "meta".';
+            } elseif (!str_starts_with(trim($webhooks['envelope']['shape']), 'array{')) {
+                $errors[] = $file.': envelope.shape must be an array shape, "array{...}", without the object key.';
+            } else {
+                $this->checkShape($webhooks['envelope']['shape'], 'envelope.shape', static function (string $message) use ($file, &$errors): void {
+                    $errors[] = $file.': '.$message;
+                });
+            }
+        }
 
         $constants = $methods = $untyped = [];
         foreach ($webhooks['events'] as $event => $definition) {
@@ -184,8 +195,8 @@ final class DescriptorLoader
                 $this->checkShape($definition['shape'], 'shape', $error);
             }
             if (null !== $definition['resource']) {
-                if ('jsonapi' !== $api['format']) {
-                    $error('"resource" requires the "jsonapi" API format, use "shape" instead.');
+                if ('jsonapi' !== $api['format'] && !isset($webhooks['envelope'])) {
+                    $error('"resource" needs "envelope" in plain JSON (the key of the object and the shape around it), or use "shape".');
                 } elseif (!isset($resources[$definition['resource']]['object'])) {
                     $untyped[$definition['resource']][] = $event;
                 }

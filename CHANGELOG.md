@@ -5,6 +5,12 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- Plain JSON webhook payloads holding an object of a resource: `envelope` in `_webhooks.yaml` (key of the object, default
+  `data`, and the shape of the other members) lets events use `resource`, as in JSON:API; their payload type is the
+  envelope plus `data: <Object>`. `api-forge:import-webhook --payload` sets the object shape of the resource (named after
+  the event entity: `transaction.completed` gives `transactions`), the envelope, and the resource of the other events
+  of the entity (with a review note). The events table no longer guesses resources for plain JSON APIs. `--force` also
+  replaces the object shape and the envelope.
 - `api-forge:import-webhook` reads the docs page of a payload copied as text (`webhook-<event>.docs.md` next to it, or
   `--docs`): required fields, nulls and enums, as for responses (for JSON:API, applied to `data` and `meta`); what it
   cannot settle goes to the event's `review`. `--force` replaces the shape of the event of each payload.

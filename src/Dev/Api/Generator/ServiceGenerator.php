@@ -546,13 +546,29 @@ final class ServiceGenerator
         if (null !== $event['shape']) {
             return trim($event['shape']);
         }
-        if ('jsonapi' !== $definition->api['format']) {
+        $resource = $event['resource'] ?? null;
+        $envelope = $definition->webhooks['envelope'] ?? null;
+        if ('jsonapi' !== $definition->api['format'] && (null === $resource || null === $envelope)) {
             return 'array<string, mixed>';
         }
 
-        $resource = $event['resource'] ?? null;
         $alias = null !== $resource ? Naming::aliasName($definition->resources[$resource]['type'] ?? $resource) : null;
         $data = null !== $alias && isset($imports[$alias]) ? $alias : 'array<string, mixed>';
+        if (null !== $envelope) {
+            // The members of the envelope, then the object
+            // (a multi-line shape keeps its indentation, a one-line shape gives one line)
+            $members = rtrim(trim(substr(trim($envelope['shape']), \strlen('array{'), -1)), ',');
+            $lines = str_contains($members, "\n")
+                ? array_values(array_filter(array_map('rtrim', explode("\n", substr(trim($envelope['shape']), \strlen('array{'), -1))), static fn (string $line) => '' !== trim($line)))
+                : ['    '.$members];
+            if ('' === $members) {
+                $lines = [];
+            } elseif (!str_ends_with($lines[\count($lines) - 1], ',')) {
+                $lines[\count($lines) - 1] .= ',';
+            }
+
+            return "array{\n".implode('', array_map(static fn (string $line) => $line."\n", $lines))."    {$envelope['data']}: {$data},\n}";
+        }
 
         return "array{\n    meta: WebhookMeta,\n    data: {$data},\n}";
     }

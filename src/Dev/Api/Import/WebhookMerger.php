@@ -13,19 +13,25 @@ final class WebhookMerger
 {
     public const DEFAULT_SIGNATURE_NOTE = 'signature: default scheme (HMAC-SHA256 of the raw body, hex-encoded, in the X-Signature header), check it against the API docs';
     public const MISSING_EVENT_NAME_NOTE = 'event_name: set where the event name is, "path" in the payload or "header"';
-    private const KEYS = ['signature', 'event_name', 'event_id', 'meta', 'events', 'review'];
+    private const KEYS = ['signature', 'event_name', 'event_id', 'registration', 'meta', 'envelope', 'events', 'review'];
     private const EVENT_KEYS = ['resource', 'shape', 'description', 'review'];
 
     /**
      * @param ?array<string, mixed>                                         $webhooks content of _webhooks.yaml, null if it does not exist yet
      * @param array<string, array{resource?: string, description?: string}> $events
+     * @param bool                                                          $resources keep the resources derived from the
+     *                                                                                 object names (JSON:API); plain JSON
+     *                                                                                 events get theirs from a payload
      *
      * @return array{webhooks: array<string, mixed>, notes: list<string>}
      */
-    public function mergeEvents(?array $webhooks, string $apiName, array $events): array
+    public function mergeEvents(?array $webhooks, string $apiName, array $events, bool $resources = true): array
     {
         $webhooks ??= $this->skeleton($apiName);
         $added = 0;
+        if (!$resources) {
+            $events = array_map(static fn (array $event) => array_diff_key($event, ['resource' => true]), $events);
+        }
         foreach ($events as $name => $event) {
             $existing = $webhooks['events'][$name] ?? [];
             $webhooks['events'][$name] = $this->sortKeys($existing + $event, self::EVENT_KEYS);
@@ -33,7 +39,7 @@ final class WebhookMerger
         }
 
         $notes = [\sprintf('%d event(s) added, %d already known', $added, \count($events) - $added)];
-        if ($added > 0) {
+        if ($added > 0 && [] !== array_filter($events, static fn (array $event) => isset($event['resource']))) {
             $webhooks['review'] = $this->addNote($webhooks['review'] ?? [], 'events: resources were derived from the object names of the events doc');
         }
 
@@ -66,6 +72,11 @@ final class WebhookMerger
             $webhooks['review'] = $this->addNote($webhooks['review'] ?? [], 'meta: the shape comes from one example, it may lack optional keys');
         }
 
+        if (null !== $resource && null !== ($payload['envelope'] ?? null) && (!isset($webhooks['envelope']) || $replace)) {
+            $webhooks['envelope'] = ['data' => $webhooks['envelope']['data'] ?? 'data', 'shape' => $payload['envelope']];
+            $notes[] = 'envelope (the members around the object) set from the payload';
+        }
+
         $existing = $webhooks['events'][$event] ?? null;
         $new = array_filter(['resource' => $resource, 'shape' => null === $resource ? $payload['shape'] : null], static fn ($value) => null !== $value);
         if ($replace && null !== $existing) {
@@ -77,6 +88,23 @@ final class WebhookMerger
         }
         $webhooks['events'][$event] = $this->sortKeys($merged, self::EVENT_KEYS);
         $notes[] = \sprintf('event "%s" %s', $event, null === $existing ? 'added' : 'updated');
+
+        // The other events of the same entity ("transaction.paid" for "transaction.completed") carry the same object
+        if (null !== $resource && null !== ($payload['envelope'] ?? null) && preg_match('/^([^.:]+[.:])/', $event, $match)) {
+            $siblings = [];
+            foreach ($webhooks['events'] as $name => $definition) {
+                $name = (string) $name;
+                if ($name !== $event && str_starts_with($name, $match[1]) && !isset($definition['resource']) && !isset($definition['shape'])) {
+                    $webhooks['events'][$name] = $this->sortKeys(['resource' => $resource] + $definition, self::EVENT_KEYS);
+                    $siblings[] = $name;
+                }
+            }
+            if ([] !== $siblings) {
+                $note = \sprintf('events: resource "%s" set on %s from the payload of "%s", by their name: check that their payloads hold the same object', $resource, implode(', ', $siblings), $event);
+                $webhooks['review'] = $this->addNote($webhooks['review'] ?? [], $note);
+                $notes[] = \sprintf('resource "%s" also set on %d other "%s*" event(s)', $resource, \count($siblings), $match[1]);
+            }
+        }
 
         return ['webhooks' => $this->sortKeys($webhooks, self::KEYS), 'notes' => $notes];
     }

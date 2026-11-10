@@ -166,14 +166,22 @@ event_id:                                  # optional, a unique delivery id; def
     # header: X-Delivery-Id
 meta:                                      # JSON:API: shape of the payload "meta" member
     shape: 'array{event_name: string}'
+# envelope:                                # plain JSON: payloads holding an object of a resource
+#     data: data                           #   top-level key of the object (default "data")
+#     shape: 'array{event_id: string, event_type: string}'   # the other members, shared by the events
 events:
     order_created:                         # event name, as sent by the API
-        resource: orders                   # JSON:API: data is an object of this resource
-        # shape: 'array{...}'              # or: shape of the whole payload (plain JSON APIs)
+        resource: orders                   # the payload holds an object of this resource (its "object" shape):
+                                           #   "data" in JSON:API, envelope.data in plain JSON (needs "envelope")
+        # shape: 'array{...}'              # or: shape of the whole payload
         description: 'Occurs when a new order is successfully placed.'
         review: []
 review: []
 ```
+
+With `resource`, the events of an entity share one shape, the object of the resource, which its API
+operations can use too: in plain JSON, `TransactionPaidPayload` is the members of `envelope.shape` plus
+`data: Transaction`.
 
 Each event gives a constant (`ORDER_CREATED`), a payload type (`OrderCreatedPayload`) and a consumer
 method (`onOrderCreated`); these names must be unique. An event whose resource has no object shape

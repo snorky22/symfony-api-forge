@@ -23,11 +23,15 @@ use Symfony\Component\Console\Style\SymfonyStyle;
           <info>php %command.full_name% lemonsqueezy --payload=tests/Fixtures/order-created-payload.json</info>
 
         --events reads a Markdown table of events (event name, object sent, description).
-        --payload reads example payloads (repeatable). For JSON:API APIs, the payload data is checked
-        against the object shape of its resource, or gives it when the resource has none yet.
+        --payload reads example payloads (repeatable). When the payload holds an object of a resource
+        (JSON:API "data"; in plain JSON, a "data" object: its resource comes from the event name,
+        "transaction.completed" gives "transactions"), the object is checked against the object shape of
+        the resource, or gives it when the resource has none yet; in plain JSON, the other members give
+        the "envelope", and the other events of the same entity get the resource too.
         The docs page of a payload, copied as text, is read from <payload>.docs.md next to it
         (or --docs, for a single payload): optional fields, nulls, enums.
-        Existing descriptor values are kept (--force: the payload replaces the shape of its event).
+        Existing descriptor values are kept (--force: the payload replaces the shape of its event, or the
+        object shape of its resource and the envelope).
         Guesses are listed under "review".
         HELP,
 )]
@@ -52,7 +56,7 @@ final class ApiImportWebhookCommand
         #[Option('File with an example payload (repeatable): JSON, or an array (.php)')] array $payload = [],
         #[Option('Event name of the payload, when it cannot be read from it')] ?string $event = null,
         #[Option('Text capture of the docs page of the payload (default: <payload>.docs.md next to it, if any)')] ?string $docs = null,
-        #[Option('Replace the shape of the event of each payload (its other values are kept)')] bool $force = false,
+        #[Option('Replace the shape of the event of each payload, or the object shape of its resource and the envelope (other values are kept)')] bool $force = false,
         #[Option('Descriptor directory (default: api_forge.descriptor_dir, config/api)')] ?string $dir = null,
     ): int {
         if (null === $events && [] === $payload) {
@@ -73,7 +77,7 @@ final class ApiImportWebhookCommand
 
         try {
             if (null !== $events) {
-                $merged = $this->webhookMerger->mergeEvents($webhooks, $api, $this->importer->importEvents($this->read($events)));
+                $merged = $this->webhookMerger->mergeEvents($webhooks, $api, $this->importer->importEvents($this->read($events)), 'jsonapi' === $format);
                 $webhooks = $merged['webhooks'];
                 $notes = array_merge($notes, $merged['notes']);
             }
@@ -90,17 +94,26 @@ final class ApiImportWebhookCommand
                 $resource = null;
                 $review = $description['review'];
 
+                // The payload holds an object of a resource: JSON:API "data" (by its type), or plain JSON "data" in
+                // an envelope (by the entity of the event name)
                 if (null !== $description['type']) {
                     $resource = $this->resourceOfType($api, $description['type'], $dir);
+                } elseif (null !== $description['data'] && null !== $name = $event ?? $description['event']) {
+                    $resource = $this->importer->resourceOfEvent($name);
+                }
+                if (null !== $resource) {
                     $descriptor = $this->store->loadResource($api, $resource, $dir);
-                    if (isset($descriptor['object'])) {
-                        if ($descriptor['object']['shape'] !== $description['data']) {
-                            $review[] = \sprintf('payload data differs from the "%s" object shape: merge both examples into the object shape with api-forge:import-object --force, or edit it', $resource);
-                        }
+                    if (isset($descriptor['object']) && $descriptor['object']['shape'] === $description['data']) {
+                        // Already described so
+                    } elseif (isset($descriptor['object']) && !$force) {
+                        $review[] = \sprintf('payload data differs from the "%s" object shape: import the payload again with --force to replace it, or merge both examples into the object shape with api-forge:import-object --force', $resource);
                     } else {
-                        $merged = $this->descriptorMerger->mergeObject($descriptor, $resource, $description['type'], ['shape' => $description['data']]);
+                        $merged = $this->descriptorMerger->mergeObject($descriptor, $resource, $description['type'], ['shape' => $description['data']], $force);
                         $files[] = $this->store->saveResource($api, $resource, $merged['resource'], $dir);
-                        $notes[] = \sprintf('object of the "%s" resource set from the payload', $resource);
+                        $notes[] = \sprintf('object of the "%s" resource %s from the payload', $resource, isset($descriptor['object']) ? 'replaced' : 'set');
+                        if (null === $description['type']) {
+                            $review[] = \sprintf('resource "%s" derived from the event name: rename the file and this value if the API calls it otherwise', $resource);
+                        }
                     }
                 }
 
