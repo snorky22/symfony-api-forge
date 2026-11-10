@@ -36,6 +36,19 @@
 <?php endforeach ?>
 </ol>
 
+<div class="card mb-4" id="webhooks"><div class="card-body d-flex justify-content-between align-items-center">
+    <div>
+        <h2 class="h6 mb-1">Webhooks
+            <?php if ($webhooks['described']): ?>
+                <span class="badge <?= $webhooks['typed'] === $webhooks['total'] ? 'text-bg-success' : 'text-bg-warning' ?>"><?= $webhooks['typed'] ?> of <?= $webhooks['total'] ?> events typed</span>
+                <?php if ($webhooks['notes'] > 0): ?><span class="badge text-bg-warning"><?= $webhooks['notes'] ?> note(s)</span><?php endif ?>
+            <?php else: ?><span class="badge text-bg-secondary">none</span><?php endif ?>
+        </h2>
+        <span class="small text-secondary"><?= $webhooks['described'] ? 'received on /webhook/'.$e($api).($webhooks['secret'] ? ', secret in '.$e($webhooks['secret']) : '') : 'if the API sends events: add a payload example and its docs page' ?></span>
+    </div>
+    <a class="btn btn-sm btn-outline-primary" href="/api/<?= $e($api) ?>/webhooks"><?= $webhooks['described'] ? 'Webhooks' : 'Add webhooks' ?></a>
+</div></div>
+
 <?php if ([] !== $endpoints): ?>
 <h2 class="h5 mb-2">Endpoints</h2>
 <ul class="list-group mb-4">

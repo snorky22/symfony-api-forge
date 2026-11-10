@@ -5,6 +5,17 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- Web interface, review notes: grouped by where they apply (descriptor, operation or event), with a summary of their
+  kinds; each note is an accordion item (native `<details>`, no script) titled by the issue in a line and a badge of its
+  kind; opened, it says what api-forge found, what it means for the generated code, and what you can do, as lists, with
+  names, files, paths and lines highlighted. `NoteGuide` says every kind of note (it replaces `NoteExplainer` and
+  `NoteAdvice`); unknown notes still get a title and a way out. The kinds of the summary filter the notes: click a kind to
+  see only it (again: all), Shift-click to hide or show it (`assets/notes.js`, remembered per API in the browser).
+- Web interface: webhooks. A card on the dashboard, a **Webhooks** page (how deliveries are received, the events by
+  entity, typed or not, with their notes) and a **Webhook payload** screen (the payload example and the docs page of an
+  event, checked, saved as `webhook-<event>.json` / `.docs.md`, imported). Notes of an event link its payload and docs
+  page, and **Fix** writes in the payload and imports it again. `WebhookImportRunner` holds the work of
+  `api-forge:import-webhook`, for the command and the web interface.
 - Plain JSON webhook payloads holding an object of a resource: `envelope` in `_webhooks.yaml` (key of the object, default
   `data`, and the shape of the other members) lets events use `resource`, as in JSON:API; their payload type is the
   envelope plus `data: <Object>`. `api-forge:import-webhook --payload` sets the object shape of the resource (named after

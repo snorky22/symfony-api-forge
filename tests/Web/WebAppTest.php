@@ -275,7 +275,7 @@ final class WebAppTest extends TestCase
 
         $notes = $this->get('/api/shop/notes')->body;
         self::assertStringContainsString('name', $notes);
-        self::assertStringContainsString('Use Fix below', $notes);
+        self::assertStringContainsString('Fix below: say what each one is.', $notes);
 
         preg_match_all('/name="notes\[\]" id="n\d+" value="([^"]+)"/', $notes, $matches);
         self::assertNotEmpty($matches[1]);
@@ -968,27 +968,29 @@ final class WebAppTest extends TestCase
     {
         $this->createProductExample();
 
-        $page = html_entity_decode($this->get('/api/shop/notes')->body);
+        // What the notes say (the page highlights names and files: compared without the tags)
+        $html = html_entity_decode($this->get('/api/shop/notes')->body);
+        $page = strip_tags($html);
 
-        self::assertStringContainsString('The docs page of the body describes "type" (line 5)', $page);
-        self::assertStringContainsString('Add it to create-products.body.json, for example "type": "custom" (the docs allow custom, standard)', $page);
-        self::assertStringContainsString('The body example has "image_url" (image_url), and the text of the docs page does not describe it', $page);
+        self::assertStringContainsString('type is in the docs, but missing from the example', $page);
+        self::assertStringContainsString('The docs describe type (line 5)', $page);
+        self::assertStringContainsString('Add type to create-products.body.json, for example "type": "custom", then import again.', $page);
+        self::assertStringContainsString('image_url is in the example, but not in the docs page', $page);
         self::assertStringContainsString('open create-products.body.docs.md and paste the missing part', $page);
-        self::assertStringContainsString('The docs say "custom_data" is a free-form object', $page);
-        self::assertStringContainsString('Replace its value with {} in create-products.body.json', $page);
-        self::assertStringContainsString('Replace its value with {} in create-products.json', $page);
-        self::assertStringContainsString('The docs describe fields inside "import_meta" (external_id)', $page);
+        self::assertStringContainsString('custom_data is free-form in the docs, but the example gives it fields', $page);
+        self::assertStringContainsString('The docs describe fields inside import_meta (data.import_meta): external_id', $page);
+        self::assertStringContainsString('Or write a real value for import_meta in create-products.json', $page);
         // Each file with its role; the notes of the body open the body files only
         self::assertStringContainsString('the body example', $page);
         self::assertStringContainsString('the docs page of the body', $page);
         self::assertStringContainsString('the response example', $page);
-        $start = (int) strpos($page, 'The docs page of the body describes "type"');
-        $block = substr($page, $start, (int) strpos($page, 'type="checkbox"', $start) - $start);
+        $start = (int) strpos($html, '<code>type</code> is in the docs, but missing from the example');
+        $block = substr($html, $start, (int) strpos($html, '</details>', (int) strpos($html, 'Raw note', $start)) - $start);
         self::assertStringContainsString('create-products.body.json</code>', $block);
         self::assertStringContainsString('create-products.body.docs.md</code>', $block);
         self::assertStringNotContainsString('create-products.json</code>', $block);
         // Far fewer notes than one per key
-        self::assertLessThanOrEqual(9, substr_count($page, 'type="checkbox" name="notes[]"'));
+        self::assertLessThanOrEqual(9, substr_count($html, 'type="checkbox" name="notes[]"'));
     }
 
     public function testAFreeFormObjectIsFixedInOneClickInTheBodyAndTheResponse(): void
@@ -1152,5 +1154,79 @@ final class WebAppTest extends TestCase
         touch($this->project.'/src/Api/Shop/Generated/ShopApi.php', time() + 60);
 
         self::assertStringContainsString('or the generated code changed since', $this->doctorStepOf($this->get('/api/shop')->body));
+    }
+
+    private const PAYLOAD = '{"event_id": "evt_1", "event_type": "transaction.completed", "data": {"id": "txn_1", "billed_at": "2026-11-10"}}';
+
+    public function testWebhooksStartFromAPayloadExample(): void
+    {
+        $this->createApi();
+        self::assertStringContainsString('Add webhooks', $this->get('/api/shop')->body);
+        self::assertStringContainsString('No webhook described yet', $this->get('/api/shop/webhooks')->body);
+
+        $response = $this->post('/api/shop/webhook', ['event' => '', 'payload' => self::PAYLOAD, 'docs' => "event_idstringrequired\n\nevent_typestringrequired\n\ndataobjectrequired\n\nidstringrequired\n\nbilled_atstring | nullrequired\n", 'force' => '1']);
+
+        self::assertSame(200, $response->status);
+        self::assertStringContainsString('object of the &quot;transactions&quot; resource set from the payload', $response->body);
+        self::assertStringContainsString('envelope (the members around the object) set from the payload', $response->body);
+        self::assertStringContainsString('webhook-transaction.completed.docs.md', $response->body);
+        self::assertSame(self::PAYLOAD."\n", file_get_contents($this->project.'/tests/Fixtures/shop/webhook-transaction.completed.json'), 'saved as pasted');
+        self::assertStringContainsString('billed_at: ?string,', Yaml::parseFile($this->project.'/config/api/shop/transactions.yaml')['object']['shape']);
+        self::assertSame('transactions', Yaml::parseFile($this->project.'/config/api/shop/_webhooks.yaml')['events']['transaction.completed']['resource']);
+
+        $page = $this->get('/api/shop/webhooks')->body;
+        self::assertStringContainsString('1 of 1 typed', $page);
+        self::assertStringContainsString('object of transactions', $page);
+        self::assertStringContainsString('Edit the payload', $page);
+        self::assertStringContainsString('1 of 1 events typed', $this->get('/api/shop')->body);
+
+        // The screen of the event shows its files
+        $form = $this->get('/api/shop/webhook', ['event' => 'transaction.completed'])->body;
+        self::assertStringContainsString('already typed (object of transactions)', $form);
+        self::assertStringContainsString('billed_atstring | nullrequired', $form);
+    }
+
+    public function testAPayloadIsCheckedBeforeAnythingIsWritten(): void
+    {
+        $this->createApi();
+
+        self::assertStringContainsString('Payload: Not JSON', $this->post('/api/shop/webhook', ['event' => '', 'payload' => "{'a': 1}"])->body);
+        self::assertStringContainsString('The payload is a &quot;transaction.completed&quot; event, not &quot;transaction.paid&quot;', $this->post('/api/shop/webhook', ['event' => 'transaction.paid', 'payload' => self::PAYLOAD])->body);
+        self::assertStringContainsString('choose the event', $this->post('/api/shop/webhook', ['event' => '', 'payload' => '{"id": 1}'])->body);
+        self::assertFileDoesNotExist($this->project.'/tests/Fixtures/shop/webhook-transaction.completed.json');
+        self::assertFileDoesNotExist($this->project.'/config/api/shop/_webhooks.yaml');
+    }
+
+    public function testANoteOfAWebhookPayloadIsFixedInThePayloadAndImportedAgain(): void
+    {
+        $this->createApi();
+        // An endpoint example with the same null key: the fix must not go there
+        $this->example(['response' => '{"data": [{"id": "p1", "name": "x", "trial_period": null}]}']);
+        $this->post('/api/shop/webhook', ['event' => '', 'payload' => '{"event_type": "transaction.completed", "data": {"id": "txn_1", "trial_period": null}}', 'docs' => "event_typestringrequired\n\ndataobjectrequired\n\nidstringrequired\n\ntrial_periodobject | nullrequired\n\nintervalstringrequired\n", 'force' => '1']);
+
+        $notes = $this->get('/api/shop/notes')->body;
+        self::assertStringContainsString('Or write a real value for <code>trial_period</code> in <code>webhook-transaction.completed.json</code>, then import again.', $notes);
+        self::assertStringContainsString('name="file" value="webhook-transaction.completed.json"', $notes);
+
+        $fixed = $this->post('/api/shop/fix', ['kind' => 'null', 'key' => 'trial_period', 'file' => 'webhook-transaction.completed.json', 'choice' => 'object']);
+        self::assertStringContainsString('Fixed &quot;trial_period&quot;: wrote {} in webhook-transaction.completed.json, and imported it again.', $fixed->body);
+        self::assertStringContainsString('trial_period: array', Yaml::parseFile($this->project.'/config/api/shop/transactions.yaml')['object']['shape']);
+    }
+
+    public function testTheKindsOfNotesFilterTheNotes(): void
+    {
+        $this->createProductExample();
+
+        $page = $this->get('/api/shop/notes')->body;
+        preg_match_all('/data-af-kind-toggle="([^"]+)"/', $page, $toggles);
+        preg_match_all('/<details class="accordion-item" id="note-\d+" data-af-kind="([^"]+)"/', $page, $notes);
+
+        self::assertNotEmpty($toggles[1]);
+        // Every note belongs to a kind of the summary, and every kind has notes
+        self::assertSame([], array_diff($notes[1], $toggles[1]));
+        self::assertSame([], array_diff($toggles[1], $notes[1]));
+        self::assertStringContainsString('data-af-kinds="shop"', $page);
+        self::assertStringContainsString('<script src="/assets/notes.js"></script>', $page);
+        self::assertFileExists(\dirname(__DIR__, 2).'/src/Web/public/assets/notes.js');
     }
 }

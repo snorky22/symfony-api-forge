@@ -31,6 +31,7 @@ use Snorky22\ApiForge\Dev\Api\Import\DescriptorMerger;
 use Snorky22\ApiForge\Dev\Api\Import\EndpointImporter;
 use Snorky22\ApiForge\Dev\Api\Import\ImportRunner;
 use Snorky22\ApiForge\Dev\Api\Import\WebhookImporter;
+use Snorky22\ApiForge\Dev\Api\Import\WebhookImportRunner;
 use Snorky22\ApiForge\Dev\Api\Import\WebhookMerger;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 use Snorky22\ApiForge\Dev\Doctor\AbstractApiDoctor;
@@ -121,6 +122,7 @@ final class ApiForgeBundle extends AbstractBundle
             ImportRunner::class,
             DescriptorMerger::class,
             WebhookImporter::class,
+            WebhookImportRunner::class,
             WebhookMerger::class,
             ShapeValidator::class,
             DescriptorLoader::class,

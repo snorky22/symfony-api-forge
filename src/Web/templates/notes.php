@@ -14,24 +14,62 @@ example and imports it again. Tick the notes you accept and delete them (they ar
     <div class="alert alert-success">No note left.</div>
     <a class="btn btn-primary" href="/api/<?= $e($api) ?>/generate">Generate the code</a>
 <?php elseif ([] !== $notes): ?>
+<?php
+    // By where they apply (file and part), in the order of the notes; and how many of each kind
+    $groups = [];
+    $kinds = [];
+    foreach ($notes as $i => $note) {
+        $groups[$note['location']['group']][$i] = $note;
+        $kinds[$note['kind']['label']] ??= ['count' => 0, 'colour' => $note['kind']['colour'], 'asks' => $note['kind']['asks'], 'slug' => trim((string) preg_replace('/[^a-z0-9]+/', '-', strtolower($note['kind']['label'])), '-')];
+        $kinds[$note['kind']['label']]['count']++;
+    }
+?>
+<div class="card card-body mb-3 py-2" data-af-kinds="<?= $e($api) ?>">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="small text-secondary"><?= count($notes) ?> note(s) in <?= count($groups) ?> place(s), by kind<span data-af-shown></span>:</span>
+        <button type="button" class="btn btn-sm btn-link py-0 d-none" data-af-show-all>Show all</button>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+    <?php foreach ($kinds as $label => $kind): ?>
+        <button type="button" class="btn btn-sm btn-<?= $e($kind['colour']) ?> af-kind" data-af-kind-toggle="<?= $e($kind['slug']) ?>" aria-pressed="true"
+                title="<?= $e(ucfirst($kind['asks'])) ?>. Click: only these notes (again: all). Shift-click: hide or show them.">
+            <span class="badge text-bg-light me-1"><?= $kind['count'] ?></span><?= $e($label) ?>
+        </button>
+    <?php endforeach ?>
+    </div>
+    <div class="small text-secondary mt-2">Click a kind to see only its notes, one routine at a time (click it again to see all); Shift-click to hide or show a kind. Each note has its <strong>Fix</strong> when the page can do it, or <strong>Accept</strong> when nothing needs to change.</div>
+</div>
+
 <div data-af-notes>
-    <ul class="list-group mb-3">
-    <?php foreach ($notes as $i => $note): ?>
-        <li class="list-group-item">
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="notes[]" id="n<?= $i ?>" value="<?= $e($note['note']) ?>" form="notes-delete">
-                <label class="form-check-label" for="n<?= $i ?>"><?= $e($note['shown']) ?></label>
-            </div>
-            <?php if (null !== $note['explained']): ?><div class="ms-4 mt-1"><?= $e($note['explained']) ?></div>
-            <?php elseif (null !== $note['advice']): ?><div class="small text-secondary ms-4 mt-1"><?= $e($note['advice']) ?></div><?php endif ?>
-            <form method="post" action="/api/<?= $e($api) ?>/notes" class="ms-4 mt-2">
-                <input type="hidden" name="_token" value="<?= $e($token) ?>">
-                <input type="hidden" name="notes[]" value="<?= $e($note['note']) ?>">
-                <button class="btn btn-sm btn-outline-success" title="Nothing to change: delete this note">Accept</button>
-            </form>
+    <?php foreach ($groups as $group => $members): ?>
+    <?php $first = reset($members)['location']; ?>
+    <section data-af-group>
+    <h2 class="h6 mt-4 mb-2 d-flex align-items-center gap-2">
+        <code><?= $e('' !== $first['file'] ? $first['file'] : 'the API') ?></code>
+        <?php if (null !== $first['part']): ?><span class="text-secondary">›</span> <span><?= $e(explode(' ', $first['part'], 2)[0]) ?> <code><?= $e(explode(' ', $first['part'], 2)[1] ?? '') ?></code></span><?php endif ?>
+        <span class="badge rounded-pill text-bg-light border" data-af-group-count data-total="<?= count($members) ?>"><?= count($members) ?></span>
+    </h2>
+    <div class="accordion af-accordion mb-3">
+    <?php foreach ($members as $i => $note): ?>
+        <details class="accordion-item" id="note-<?= $i ?>" data-af-kind="<?= $e($kinds[$note['kind']['label']]['slug']) ?>">
+            <summary class="accordion-button py-2">
+                <span class="badge text-bg-<?= $e($note['kind']['colour']) ?> me-2 flex-shrink-0"><?= $e($note['kind']['label']) ?></span>
+                <span><?= $highlight($note['guide']['title']) ?></span>
+            </summary>
+            <div class="accordion-body">
+                <?php if ([] !== $note['guide']['found']): ?>
+                    <h3 class="h6 text-secondary mb-1">What api-forge found</h3>
+                    <ul class="mb-3"><?php foreach ($note['guide']['found'] as $line): ?><li><?= $highlight($line) ?></li><?php endforeach ?></ul>
+                <?php endif ?>
+                <?php if (null !== $note['guide']['impact']): ?>
+                    <h3 class="h6 text-secondary mb-1">What it means for the code</h3>
+                    <p class="mb-3"><?= $highlight($note['guide']['impact']) ?></p>
+                <?php endif ?>
+                <h3 class="h6 text-secondary mb-1">What you can do</h3>
+                <ul class="mb-2"><?php foreach ($note['guide']['options'] as $line): ?><li><?= $highlight($line) ?></li><?php endforeach ?></ul>
 
             <?php if (null !== $note['fix']): ?>
-                <div class="ms-4 mt-2">
+                <div class="mt-3">
                 <?php foreach ($note['fix']['keys'] as $j => $key): ?>
                     <form method="post" action="/api/<?= $e($api) ?>/fix" class="row g-2 align-items-center mb-2">
                         <input type="hidden" name="_token" value="<?= $e($token) ?>">
@@ -79,9 +117,21 @@ example and imports it again. Tick the notes you accept and delete them (they ar
                 </div>
             <?php endif ?>
 
+            <div class="d-flex align-items-center gap-3 mt-3">
+                <form method="post" action="/api/<?= $e($api) ?>/notes">
+                    <input type="hidden" name="_token" value="<?= $e($token) ?>">
+                    <input type="hidden" name="notes[]" value="<?= $e($note['note']) ?>">
+                    <button class="btn btn-sm btn-outline-success" title="Nothing to change: delete this note">Accept</button>
+                </form>
+                <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" name="notes[]" id="n<?= $i ?>" value="<?= $e($note['note']) ?>" form="notes-delete">
+                    <label class="form-check-label small text-secondary" for="n<?= $i ?>">select, to accept several at once (button at the bottom)</label>
+                </div>
+            </div>
+
             <?php if ([] !== $note['examples']): ?>
-                <div class="small text-secondary ms-4 mt-2">Open to edit:</div>
-                <ul class="list-group list-group-flush small ms-4">
+                <div class="small text-secondary mt-3">Open to edit:</div>
+                <ul class="list-group list-group-flush small">
                 <?php foreach ($note['examples'] as $link): ?>
                     <li class="list-group-item px-0 py-1"><a href="<?= $e($link['url']) ?>" data-af-open><code><?= $e($link['label']) ?></code></a>
                         <span class="text-secondary"><?= $e($link['role']) ?></span></li>
@@ -89,7 +139,7 @@ example and imports it again. Tick the notes you accept and delete them (they ar
                 </ul>
             <?php endif ?>
             <?php if (null !== $note['descriptor']): ?>
-                <details class="small ms-4 mt-1">
+                <details class="small mt-2">
                     <summary class="text-secondary">Advanced: the descriptor</summary>
                     <ul class="list-group list-group-flush small">
                         <li class="list-group-item px-0 py-1"><a href="<?= $e($note['descriptor']['url']) ?>" data-af-open><code><?= $e($note['descriptor']['label']) ?></code></a>
@@ -97,13 +147,19 @@ example and imports it again. Tick the notes you accept and delete them (they ar
                     </ul>
                 </details>
             <?php endif ?>
-        </li>
+                <details class="small mt-1"><summary class="text-secondary">Raw note</summary><span class="text-secondary"><?= $e($note['shown']) ?></span></details>
+            </div>
+        </details>
     <?php endforeach ?>
-    </ul>
+    </div>
+    </section>
+    <?php endforeach ?>
+    <p class="text-secondary d-none" data-af-none>All the kinds are hidden: click one above, or <em>Show all</em>.</p>
     <form id="notes-delete" method="post" action="/api/<?= $e($api) ?>/notes">
         <input type="hidden" name="_token" value="<?= $e($token) ?>">
-        <button class="btn btn-primary">Delete the checked notes</button>
+        <button class="btn btn-primary">Accept the selected notes</button>
         <a class="btn btn-outline-secondary" href="/api/<?= $e($api) ?>">Back to <?= $e($api) ?></a>
     </form>
 </div>
 <?php endif ?>
+<script src="/assets/notes.js"></script>

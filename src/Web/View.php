@@ -50,6 +50,7 @@ final class View
         return (function (string $__file, array $__vars): string {
             extract($__vars, \EXTR_SKIP);
             $e = View::e(...);
+            $highlight = NoteFormatter::highlight(...);
             $partial = fn (string $template, array $values = []): string => $this->include($template, $values + $__vars);
             ob_start();
             try {

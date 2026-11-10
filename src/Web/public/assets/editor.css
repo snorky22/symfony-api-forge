@@ -35,3 +35,22 @@
 .af-ace::after {
     content: "";
 }
+
+/* Accordions made of <details> (no script): Bootstrap's accordion look, open and closed */
+.af-accordion details.accordion-item > summary { list-style: none; cursor: pointer; }
+.af-accordion details.accordion-item > summary::-webkit-details-marker { display: none; }
+.af-accordion details.accordion-item:not([open]) > .accordion-button {
+    color: var(--bs-accordion-btn-color);
+    background-color: var(--bs-accordion-btn-bg);
+    box-shadow: none;
+}
+.af-accordion details.accordion-item:not([open]) > .accordion-button::after {
+    background-image: var(--bs-accordion-btn-icon);
+    transform: none;
+}
+.af-accordion details.accordion-item:first-of-type > .accordion-button { border-top-left-radius: var(--bs-accordion-inner-border-radius); border-top-right-radius: var(--bs-accordion-inner-border-radius); }
+.af-accordion .accordion-body h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
+
+/* Kinds of notes as toggles: a hidden kind is drawn as an outline */
+.af-kind.af-kind-off { background-color: transparent; color: var(--bs-btn-bg); opacity: .65; }
+.af-kind.af-kind-off .badge { background-color: var(--bs-secondary-bg) !important; }

@@ -13,6 +13,9 @@ use Snorky22\ApiForge\Dev\Api\Generator\ServiceGenerator;
 use Snorky22\ApiForge\Dev\Api\Import\DescriptorMerger;
 use Snorky22\ApiForge\Dev\Api\Import\EndpointImporter;
 use Snorky22\ApiForge\Dev\Api\Import\ImportRunner;
+use Snorky22\ApiForge\Dev\Api\Import\WebhookImporter;
+use Snorky22\ApiForge\Dev\Api\Import\WebhookImportRunner;
+use Snorky22\ApiForge\Dev\Api\Import\WebhookMerger;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 use Snorky22\ApiForge\Dev\Guide;
 use Snorky22\ApiForge\Dev\LenientJsonDecoder;
@@ -28,6 +31,8 @@ final class WebServices
     public readonly LenientJsonDecoder $decoder;
     public readonly EndpointImporter $importer;
     public readonly ImportRunner $import;
+    public readonly WebhookImporter $webhookImporter;
+    public readonly WebhookImportRunner $webhooks;
     public readonly GenerateRunner $generate;
     public readonly Guide $guide;
 
@@ -43,6 +48,8 @@ final class WebServices
         $generator = new ServiceGenerator($config->namespace, $config->sourceDir, $config->configDir);
 
         $this->import = new ImportRunner($this->curl, $importer, new DescriptorMerger(), $this->store, $this->examples);
+        $this->webhookImporter = new WebhookImporter($this->decoder, new ArrayShapeGenerator());
+        $this->webhooks = new WebhookImportRunner($this->webhookImporter, new WebhookMerger(), new DescriptorMerger(), $this->store, $this->examples);
         $this->generate = new GenerateRunner($loader, $generator, $config->projectDir, $config->descriptorDir);
         $this->guide = new Guide($loader, $generator, $this->store, $this->curl, $importer, $config->projectDir, $config->descriptorDir, $this->examples);
     }

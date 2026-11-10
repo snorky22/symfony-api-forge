@@ -2,11 +2,7 @@
 
 namespace Snorky22\ApiForge\Command;
 
-use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
-use Snorky22\ApiForge\Dev\Api\Example\ExampleReader;
-use Snorky22\ApiForge\Dev\Api\Import\DescriptorMerger;
-use Snorky22\ApiForge\Dev\Api\Import\WebhookImporter;
-use Snorky22\ApiForge\Dev\Api\Import\WebhookMerger;
+use Snorky22\ApiForge\Dev\Api\Import\WebhookImportRunner;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
@@ -37,13 +33,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class ApiImportWebhookCommand
 {
-    public function __construct(
-        private readonly WebhookImporter $importer,
-        private readonly WebhookMerger $webhookMerger,
-        private readonly DescriptorMerger $descriptorMerger,
-        private readonly DescriptorStore $store,
-        private readonly ExampleReader $examples,
-    ) {
+    public function __construct(private readonly WebhookImportRunner $runner)
+    {
     }
 
     /**
@@ -59,111 +50,19 @@ final class ApiImportWebhookCommand
         #[Option('Replace the shape of the event of each payload, or the object shape of its resource and the envelope (other values are kept)')] bool $force = false,
         #[Option('Descriptor directory (default: api_forge.descriptor_dir, config/api)')] ?string $dir = null,
     ): int {
-        if (null === $events && [] === $payload) {
-            $io->error('Give --events and/or --payload.');
-
-            return Command::FAILURE;
-        }
-        if ((null !== $event || null !== $docs) && \count($payload) > 1) {
-            $io->error('--event and --docs can only be used with a single --payload.');
-
-            return Command::FAILURE;
-        }
-
-        $webhooks = $this->store->loadWebhooks($api, $dir);
-        $format = $this->store->loadApi($api, $dir)['format'] ?? 'json';
-        $notes = [];
-        $files = [];
-
         try {
-            if (null !== $events) {
-                $merged = $this->webhookMerger->mergeEvents($webhooks, $api, $this->importer->importEvents($this->read($events)), 'jsonapi' === $format);
-                $webhooks = $merged['webhooks'];
-                $notes = array_merge($notes, $merged['notes']);
-            }
-
-            foreach ($payload as $file) {
-                $docsFile = $docs ?? preg_replace('/\.[^.\/]+$/', '', $file).'.docs.md';
-                if (null === $docs && !is_file($docsFile)) {
-                    $docsFile = null;
-                }
-                $description = $this->importer->importPayload($this->examples->json($file), $format, null !== $docsFile ? $this->read($docsFile) : null);
-                if (null !== $docsFile) {
-                    $notes[] = \sprintf('docs page read: %s', $docsFile);
-                }
-                $resource = null;
-                $review = $description['review'];
-
-                // The payload holds an object of a resource: JSON:API "data" (by its type), or plain JSON "data" in
-                // an envelope (by the entity of the event name)
-                if (null !== $description['type']) {
-                    $resource = $this->resourceOfType($api, $description['type'], $dir);
-                } elseif (null !== $description['data'] && null !== $name = $event ?? $description['event']) {
-                    $resource = $this->importer->resourceOfEvent($name);
-                }
-                if (null !== $resource) {
-                    $descriptor = $this->store->loadResource($api, $resource, $dir);
-                    if (isset($descriptor['object']) && $descriptor['object']['shape'] === $description['data']) {
-                        // Already described so
-                    } elseif (isset($descriptor['object']) && !$force) {
-                        $review[] = \sprintf('payload data differs from the "%s" object shape: import the payload again with --force to replace it, or merge both examples into the object shape with api-forge:import-object --force', $resource);
-                    } else {
-                        $merged = $this->descriptorMerger->mergeObject($descriptor, $resource, $description['type'], ['shape' => $description['data']], $force);
-                        $files[] = $this->store->saveResource($api, $resource, $merged['resource'], $dir);
-                        $notes[] = \sprintf('object of the "%s" resource %s from the payload', $resource, isset($descriptor['object']) ? 'replaced' : 'set');
-                        if (null === $description['type']) {
-                            $review[] = \sprintf('resource "%s" derived from the event name: rename the file and this value if the API calls it otherwise', $resource);
-                        }
-                    }
-                }
-
-                $merged = $this->webhookMerger->mergePayload($webhooks, $api, $description, $event, $resource, $review, $force);
-                $webhooks = $merged['webhooks'];
-                $notes = array_merge($notes, $merged['notes']);
-            }
+            $result = $this->runner->import($api, $events, $payload, $event, $docs, $force, $dir);
         } catch (\InvalidArgumentException $e) {
             $io->error($e->getMessage());
 
             return Command::FAILURE;
         }
 
-        $files[] = $this->store->saveWebhooks($api, $webhooks, $dir);
-        $io->listing(array_merge($notes, array_map(static fn (string $file) => 'written: '.$file, array_unique($files))));
-
-        $review = $webhooks['review'] ?? [];
-        foreach ($webhooks['events'] as $name => $definition) {
-            foreach ($definition['review'] ?? [] as $note) {
-                $review[] = \sprintf('event "%s": %s', $name, $note);
-            }
-        }
-        if ([] !== $review) {
-            $io->warning(array_merge(['To review in the descriptor:'], array_map(static fn (string $note) => '- '.$note, $review)));
+        $io->listing(array_merge($result['notes'], array_map(static fn (string $file) => 'written: '.$file, $result['files'])));
+        if ([] !== $result['review']) {
+            $io->warning(array_merge(['To review in the descriptor:'], array_map(static fn (string $note) => '- '.$note, $result['review'])));
         }
 
         return Command::SUCCESS;
-    }
-
-    /**
-     * The resource whose JSON:API type is $type, or the resource named after the type.
-     */
-    private function resourceOfType(string $api, string $type, ?string $dir): string
-    {
-        foreach (array_keys($this->store->resourceFiles($api, $dir)) as $resource) {
-            if ($type === ($this->store->loadResource($api, $resource, $dir)['type'] ?? null)) {
-                return $resource;
-            }
-        }
-
-        return $type;
-    }
-
-    private function read(string $file): string
-    {
-        $content = is_file($file) ? file_get_contents($file) : false;
-        if (false === $content) {
-            throw new \InvalidArgumentException(\sprintf('Cannot read file "%s".', $file));
-        }
-
-        return $content;
     }
 }

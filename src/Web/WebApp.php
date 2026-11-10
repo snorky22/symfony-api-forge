@@ -69,7 +69,7 @@ final class WebApp
         if ('/new' === $path) {
             return 'POST' === $request->method ? $this->createApi($request) : $this->page('api_form', ['values' => $this->apiDefaults(), 'errors' => [], 'edit' => false], 'New API');
         }
-        if (1 !== preg_match('#^/api/('.self::NAME.')(?:/(describe|endpoint|example|type|file|import|import-all|notes|fix|generate|doctor))?$#', $path, $matches)) {
+        if (1 !== preg_match('#^/api/('.self::NAME.')(?:/(describe|endpoint|example|type|file|import|import-all|notes|fix|generate|doctor|webhooks|webhook))?$#', $path, $matches)) {
             return $this->error(404, 'Not found.');
         }
         $api = $matches[1];
@@ -90,6 +90,8 @@ final class WebApp
             'fix' => 'POST' === $request->method ? $this->applyFix($api, $request) : Response::redirect('/api/'.$api.'/notes'),
             'generate' => 'POST' === $request->method ? $this->generate($api) : $this->generateForm($api),
             'doctor' => 'POST' === $request->method ? $this->doctor($api) : $this->doctorPage($api, null),
+            'webhooks' => $this->webhooks($api),
+            'webhook' => 'POST' === $request->method ? $this->importPayload($api, $request) : $this->payloadForm($api, (string) ($request->query['event'] ?? ''), [], null),
         };
     }
 
@@ -120,6 +122,7 @@ final class WebApp
             'problems' => $this->problems($fixtures, $progress['errors']),
             'notImported' => array_map('basename', array_keys($progress['pending'])),
             'endpoints' => $this->endpoints($fixtures, [] === $progress['errors'] ? array_map('basename', array_keys($progress['pending'])) : null),
+            'webhooks' => $this->webhookState($api),
         ], $api);
     }
 
@@ -698,6 +701,142 @@ final class WebApp
         return implode(' ', [...$console, ...$arguments]);
     }
 
+    // Webhooks: the events, and a screen per payload example (the JSON and its docs page), which describes the event,
+    // or the resource of its object and so all the events of that entity
+
+    /**
+     * What _webhooks.yaml describes, for the dashboard and the webhooks page.
+     *
+     * @return array{described: bool, format: string, signature: ?string, eventName: ?string, eventId: ?string, secret: ?string, envelope: ?string, registration: ?string, entities: array<string, list<array{name: string, description: ?string, typed: string, detail: string, example: bool, notes: int}>>, typed: int, total: int, notes: int}
+     */
+    private function webhookState(string $api): array
+    {
+        $webhooks = $this->services->store->loadWebhooks($api);
+        $format = $this->services->store->loadApi($api)['format'] ?? 'json';
+        $state = ['described' => null !== $webhooks, 'format' => $format, 'signature' => null, 'eventName' => null, 'eventId' => null, 'secret' => null, 'envelope' => null, 'registration' => null, 'entities' => [], 'typed' => 0, 'total' => 0, 'notes' => 0];
+        if (null === $webhooks) {
+            return $state;
+        }
+
+        $signature = $webhooks['signature'] ?? [];
+        $state['signature'] = isset($signature['header']) ? $signature['header'].': HMAC-'.strtoupper($signature['algorithm'] ?? 'sha256').' of '.($signature['content'] ?? '{body}').(isset($signature['parts']) ? ' ('.$signature['parts']['timestamp'].'=…'.($signature['parts']['separator'] ?? ';').$signature['parts']['signature'].'=…)' : '') : null;
+        $state['secret'] = $signature['env'] ?? null;
+        $state['eventName'] = $webhooks['event_name']['path'] ?? (isset($webhooks['event_name']['header']) ? 'header '.$webhooks['event_name']['header'] : null);
+        $state['eventId'] = $webhooks['event_id']['path'] ?? (isset($webhooks['event_id']['header']) ? 'header '.$webhooks['event_id']['header'] : null);
+        $state['envelope'] = isset($webhooks['envelope']) ? $webhooks['envelope']['data'] ?? 'data' : null;
+        $state['registration'] = $webhooks['registration']['operation'] ?? null;
+        $state['notes'] = \count($webhooks['review'] ?? []);
+
+        $fixtures = new FixtureDirectory($this->config->fixturesDir($api));
+        $objects = [];
+        foreach ($webhooks['events'] ?? [] as $name => $event) {
+            $name = (string) $name;
+            $resource = $event['resource'] ?? null;
+            if (null !== $resource && !\array_key_exists($resource, $objects)) {
+                $objects[$resource] = isset($this->services->store->loadResource($api, $resource)['object']);
+            }
+            [$typed, $detail] = match (true) {
+                isset($event['shape']) => ['shape', 'own shape'],
+                null !== $resource && $objects[$resource] => ['object', 'object of '.$resource],
+                null !== $resource => ['untyped', $resource.' has no object yet'],
+                default => ['untyped', 'no payload yet'],
+            };
+            $notes = \count($event['review'] ?? []);
+            $state['entities'][preg_match('/^([^.:]+)[.:]/', $name, $match) ? $match[1] : $name][] = ['name' => $name, 'description' => $event['description'] ?? null, 'typed' => $typed, 'detail' => $detail, 'example' => $fixtures->has('webhook-'.$name.'.json'), 'notes' => $notes];
+            $state['total']++;
+            $state['typed'] += 'untyped' === $typed ? 0 : 1;
+            $state['notes'] += $notes;
+        }
+
+        return $state;
+    }
+
+    private function webhooks(string $api): Response
+    {
+        return $this->page('webhooks', ['api' => $api, 'state' => $this->webhookState($api), 'command' => $this->commandLine('api-forge:import-webhook', $api, '--events=tests/Fixtures/'.$api.'/webhook-events.md')], 'Webhooks');
+    }
+
+    /**
+     * The screen of a payload example: the JSON, and the docs page of the payload.
+     *
+     * @param list<string> $errors
+     */
+    private function payloadForm(string $api, string $event, array $errors, ?array $values): Response
+    {
+        $fixtures = new FixtureDirectory($this->config->fixturesDir($api));
+        $state = $this->webhookState($api);
+        $known = null;
+        foreach ($state['entities'] as $events) {
+            foreach ($events as $candidate) {
+                if ($candidate['name'] === $event) {
+                    $known = $candidate;
+                }
+            }
+        }
+        $values ??= [
+            'event' => $event,
+            'payload' => '' !== $event ? $fixtures->read('webhook-'.$event.'.json') : '',
+            'docs' => '' !== $event ? $fixtures->read('webhook-'.$event.'.docs.md') : '',
+            'force' => true,
+        ];
+
+        return $this->page('webhook_form', ['api' => $api, 'values' => $values, 'errors' => $errors, 'state' => $state, 'known' => $known], '' !== $event ? $event : 'Webhook payload');
+    }
+
+    private function importPayload(string $api, Request $request): Response
+    {
+        $values = ['event' => trim($request->text('event')), 'payload' => trim($request->text('payload')), 'docs' => trim($request->text('docs')), 'force' => $request->flag('force')];
+        if ('' === $values['payload']) {
+            return $this->payloadForm($api, $values['event'], ['Paste the payload example: the JSON body of a delivery, from the docs or from a real one.'], $values);
+        }
+        try {
+            $this->checkJson($values['payload']);
+        } catch (\InvalidArgumentException $e) {
+            return $this->payloadForm($api, $values['event'], ['Payload: '.$e->getMessage()], $values);
+        }
+
+        // The event names the files: the one chosen, or the one the payload holds
+        $format = $this->services->store->loadApi($api)['format'] ?? 'json';
+        $found = $this->services->webhookImporter->importPayload($values['payload'], $format)['event'];
+        $event = '' !== $values['event'] ? $values['event'] : $found;
+        if (null === $event || '' === $event) {
+            return $this->payloadForm($api, '', ['The event name is not in the payload where api-forge looks (event_type, type, event, meta.event_name…): choose the event.'], $values);
+        }
+        if (null !== $found && $found !== $event) {
+            return $this->payloadForm($api, $values['event'], [\sprintf('The payload is a "%s" event, not "%s": choose "%s", or paste the payload of "%s".', $found, $event, $found, $event)], $values);
+        }
+
+        $fixtures = new FixtureDirectory($this->config->fixturesDir($api));
+        $written = [basename($fixtures->write('webhook-'.$event.'.json', $values['payload']."\n"))];
+        $docsName = 'webhook-'.$event.'.docs.md';
+        if ('' !== $values['docs']) {
+            $written[] = basename($fixtures->write($docsName, $values['docs']."\n"));
+        } elseif ($fixtures->has($docsName)) {
+            // Emptied in the form, which showed it: the payload is imported without it
+            unlink($fixtures->path($docsName));
+        }
+
+        try {
+            $result = $this->services->webhooks->import($api, null, [$fixtures->path('webhook-'.$event.'.json')], $event, null, $values['force']);
+        } catch (\InvalidArgumentException $e) {
+            return $this->payloadForm($api, $event, [$e->getMessage()], $values);
+        }
+
+        $relative = fn (string $note) => str_replace([$this->config->projectDir.'/', $this->config->descriptorDir.'/'.$api.'/'], '', $note);
+        $eventNotes = array_values(array_map(static fn (string $note) => substr($note, \strlen('event "'.$event.'": ')), array_filter($result['review'], static fn (string $note) => str_starts_with($note, 'event "'.$event.'": '))));
+
+        return $this->page('webhook_result', [
+            'api' => $api,
+            'event' => $event,
+            'written' => $written,
+            'done' => array_map($relative, array_values(array_filter($result['notes'], static fn (string $note) => !str_starts_with($note, 'docs page read: ')))),
+            'descriptors' => array_map('basename', $result['files']),
+            'eventNotes' => $eventNotes,
+            'otherNotes' => \count($result['review']) - \count($eventNotes),
+            'state' => $this->webhookState($api),
+        ], 'Imported');
+    }
+
     // Step 2: the endpoints. One screen per part of the request and the response; each one writes its files, which are
     // the only state: an endpoint can be left half way and continued.
 
@@ -989,11 +1128,14 @@ final class WebApp
             foreach ($related['examples'] as $example) {
                 $files[$example['key']] ??= $example['name'];
             }
+            $location = NoteFormatter::locate($note, $this->config->projectDir);
             $notes[] = [
                 'note' => $note,
                 'shown' => str_replace($this->config->projectDir.'/', '', $note),
-                'explained' => NoteExplainer::explain($note, $files),
-                'advice' => NoteAdvice::for($note),
+                'location' => $location,
+                'kind' => NoteFormatter::kind($note),
+                'subject' => NoteFormatter::subject($location['text']),
+                'guide' => NoteGuide::describe($location['text'], $files),
                 'examples' => $related['examples'],
                 'descriptor' => $related['descriptor'],
                 'fix' => $this->fixFor($api, $fixtures, $note),
@@ -1036,6 +1178,10 @@ final class WebApp
     {
         $scope = self::scopeOf($note);
         $candidates = array_values(array_filter($fixtures->names(), static fn (string $name) => 1 === preg_match('/\.(json|array)$/', $name) && !str_contains($name, '-type.') && ('body' === $scope) === str_contains($name, '.body.')));
+        // A note of an event is about its payload only
+        if (1 === preg_match('#_webhooks\.yaml: event "([^"]+)": #', $note, $event)) {
+            $candidates = $fixtures->has('webhook-'.$event[1].'.json') ? ['webhook-'.$event[1].'.json'] : [];
+        }
         $find = static function (string $key, array $patterns) use ($candidates, $fixtures): ?array {
             foreach ($candidates as $name) {
                 foreach ($patterns as $kind => $pattern) {
@@ -1132,6 +1278,12 @@ final class WebApp
         try {
             $this->checkFile('examples', $file, $fixed);
             $fixtures->write($file, $fixed);
+            // A webhook payload: imported again, replacing what it described
+            if (1 === preg_match('/^webhook-(.+)\.json$/', $file, $event)) {
+                $this->services->webhooks->import($api, null, [$fixtures->path($file)], $event[1], null, true);
+
+                return $this->notes($api, \sprintf('Fixed "%s": wrote %s in %s, and imported it again.', $key, $literal, $file));
+            }
             $target = $this->importTarget($fixtures, $file);
             if (null === $target) {
                 return $this->notes($api, null, [\sprintf('Written in %s, but there is no request next to it to import: import the example that uses it.', $file)]);
@@ -1297,6 +1449,19 @@ final class WebApp
         }
         $result['descriptor'] = ['label' => $matches[1], 'url' => $link($api, 'descriptors', $matches[1])];
         $resource = basename($matches[1], '.yaml');
+        // A note of an event: its payload example and the docs page of the payload
+        if ('_webhooks' === $resource && 1 === preg_match('/: event "([^"]+)": /', $note, $event)) {
+            $fixtures = new FixtureDirectory($this->config->fixturesDir($api));
+            $line = 1 === preg_match('/\(line (\d+)/', $note, $lines) ? (int) $lines[1] : 0;
+            foreach (['json' => ['response', 'the payload example'], 'docs.md' => ['responseDocs', 'the docs page of the payload']] as $ext => [$key, $role]) {
+                $name = 'webhook-'.$event[1].'.'.$ext;
+                if ($fixtures->has($name)) {
+                    $result['examples'][] = ['label' => $name, 'name' => $name, 'role' => $role, 'key' => $key, 'url' => $link($api, 'examples', $name, 'docs.md' === $ext ? $line : 0)];
+                }
+            }
+
+            return $result;
+        }
         if (str_starts_with($resource, '_')) {
             return $result;
         }
@@ -1351,7 +1516,7 @@ final class WebApp
      */
     private function page(string $template, array $vars, string $title): Response
     {
-        return new Response(200, $this->view->render($template, $vars + ['token' => $this->token(), 'projectDir' => $this->config->projectDir, 'editor' => \in_array($template, ['file', 'api', 'notes', 'example_form', 'type_form', 'example_result', 'endpoint_request', 'endpoint_response', 'endpoint_import'], true)], $title));
+        return new Response(200, $this->view->render($template, $vars + ['token' => $this->token(), 'projectDir' => $this->config->projectDir, 'editor' => \in_array($template, ['file', 'api', 'notes', 'example_form', 'type_form', 'example_result', 'endpoint_request', 'endpoint_response', 'endpoint_import', 'webhook_form', 'webhook_result', 'webhooks'], true)], $title));
     }
 
     private function error(int $status, string $message): Response
