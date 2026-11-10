@@ -20,8 +20,6 @@
 
 ## Next
 
-- Pluggable webhook signing schemes: signed content with a timestamp (`ts:body`), signatures in a
-  structured header (`ts=…;h1=…`, `t=…,v1=…`), several signatures, timestamp tolerance.
 - Lemon Squeezy: import the affiliate object, to type the payload of `affiliate_activated`.
 
 ## Known limitations

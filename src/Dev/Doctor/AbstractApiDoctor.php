@@ -141,11 +141,31 @@ abstract class AbstractApiDoctor
             $registrations[] = [
                 'id' => null !== $id ? (string) (self::get($item, $id) ?? '') ?: null : null,
                 'url' => (string) self::get($item, $url),
-                'events' => null !== $events && \is_array($subscribed = self::get($item, $events)) ? array_values(array_map('strval', $subscribed)) : null,
+                'events' => null !== $events ? self::names($item, $events) : null,
             ];
         }
 
         return $registrations;
+    }
+
+    /**
+     * The subscribed event names of an item: a list of strings at the path, or with "[]" in the path (e.g.
+     * "subscribed_events[].name") a list of objects, each holding its name at the path after the brackets.
+     *
+     * @return ?list<string>
+     */
+    private static function names(mixed $item, string $path): ?array
+    {
+        [$listPath, $namePath] = array_pad(explode('[].', $path, 2), 2, null);
+        $list = self::get($item, $listPath);
+        if (!\is_array($list)) {
+            return null;
+        }
+        if (null !== $namePath) {
+            $list = array_map(static fn ($entry) => self::get($entry, $namePath), $list);
+        }
+
+        return array_values(array_map('strval', array_filter($list, \is_scalar(...))));
     }
 
     private static function get(mixed $value, string $path): mixed

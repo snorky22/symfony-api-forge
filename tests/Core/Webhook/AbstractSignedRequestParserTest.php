@@ -85,6 +85,69 @@ final class AbstractSignedRequestParserTest extends TestCase
         }
     }
 
+    public function testTimestampedSignatureInAStructuredHeader(): void
+    {
+        $body = '{"event_type": "transaction.completed", "event_id": "evt_1"}';
+        $parser = new TimestampParser();
+        $now = time();
+
+        $header = $parser->sign($body, self::SECRET, $now);
+        self::assertSame(\sprintf('ts=%d;h1=%s', $now, hash_hmac('sha256', $now.':'.$body, self::SECRET)), $header);
+
+        $event = $parser->parse($this->request($body, ['Paddle-Signature' => $header]), self::SECRET);
+        self::assertSame('transaction.completed', $event->getName());
+        self::assertSame('evt_1', $event->getId());
+    }
+
+    public function testSeveralSignaturesDuringRotation(): void
+    {
+        $body = '{"event_type": "ping"}';
+        $parser = new TimestampParser();
+        $now = time();
+        $old = hash_hmac('sha256', $now.':'.$body, 'old-secret');
+        $current = hash_hmac('sha256', $now.':'.$body, self::SECRET);
+
+        foreach (["ts=$now;h1=$old;h1=$current", "ts=$now;h1=$current;h1=$old"] as $header) {
+            self::assertSame('ping', $parser->parse($this->request($body, ['Paddle-Signature' => $header]), self::SECRET)->getName());
+        }
+    }
+
+    public function testTimestampOutsideTheToleranceIsRejected(): void
+    {
+        $body = '{"event_type": "ping"}';
+        $parser = new TimestampParser();
+
+        $this->expectException(RejectWebhookException::class);
+        $this->expectExceptionMessage('outside the tolerance');
+
+        $parser->parse($this->request($body, ['Paddle-Signature' => $parser->sign($body, self::SECRET, time() - 600)]), self::SECRET);
+    }
+
+    public function testTheTimestampIsSigned(): void
+    {
+        $body = '{"event_type": "ping"}';
+        $parser = new TimestampParser();
+        $now = time();
+        $forged = \sprintf('ts=%d;h1=%s', $now + 1, hash_hmac('sha256', $now.':'.$body, self::SECRET));
+
+        $this->expectException(RejectWebhookException::class);
+        $this->expectExceptionMessage('Invalid signature.');
+
+        $parser->parse($this->request($body, ['Paddle-Signature' => $forged]), self::SECRET);
+    }
+
+    public function testHeaderWithoutTimestampOrSignatureIsRejected(): void
+    {
+        foreach (['', 'garbage', 'ts=1', 'h1=abc', 'ts=x;h1=abc'] as $header) {
+            try {
+                (new TimestampParser())->parse($this->request('{"event_type": "ping"}', ['Paddle-Signature' => $header]), self::SECRET);
+                self::fail(\sprintf('"%s" accepted.', $header));
+            } catch (RejectWebhookException $e) {
+                self::assertSame(406, $e->getStatusCode());
+            }
+        }
+    }
+
     public function testGetRequestIsRejected(): void
     {
         $this->expectException(RejectWebhookException::class);
@@ -107,4 +170,14 @@ final class HeaderParser extends AbstractSignedRequestParser
     protected const SIGNATURE_PREFIX = 'sha1=';
     protected const EVENT_NAME_HEADER = 'Webhook-Event';
     protected const EVENT_ID_PATH = 'id';
+}
+
+final class TimestampParser extends AbstractSignedRequestParser
+{
+    protected const SIGNATURE_HEADER = 'Paddle-Signature';
+    protected const SIGNATURE_CONTENT = '{timestamp}:{body}';
+    protected const SIGNATURE_PARTS = ['separator' => ';', 'timestamp' => 'ts', 'signature' => 'h1'];
+    protected const SIGNATURE_TOLERANCE = 300;
+    protected const EVENT_NAME_PATH = 'event_type';
+    protected const EVENT_ID_PATH = 'event_id';
 }

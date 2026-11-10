@@ -189,6 +189,21 @@ final class DescriptorLoaderTest extends TestCase
         self::assertSame(['_webhooks.yaml: registration.operation "webhooks.create" is a POST operation: the doctor only makes harmless GET calls.'], $this->errors(self::API, $resources, $webhooks + ['registration' => ['operation' => 'webhooks.create', 'url' => 'url']]));
     }
 
+    public function testTimestampedSignatureNeedsParts(): void
+    {
+        $webhooks = fn (array $signature) => ['signature' => $signature + ['header' => 'Shop-Signature', 'env' => 'SHOP_SECRET'], 'event_name' => ['path' => 'type'], 'events' => []];
+
+        $definition = $this->load(self::API, [], $webhooks(['content' => '{timestamp}:{body}', 'parts' => ['timestamp' => 'ts', 'signature' => 'h1'], 'tolerance' => 300]));
+        self::assertEquals(['separator' => ';', 'timestamp' => 'ts', 'signature' => 'h1'], $definition->webhooks['signature']['parts']);
+        self::assertSame(300, $definition->webhooks['signature']['tolerance']);
+
+        foreach ([['content' => '{timestamp}:{body}'], ['tolerance' => 300]] as $signature) {
+            $errors = implode("\n", $this->errors(self::API, [], $webhooks($signature)));
+            self::assertStringContainsString('need "parts"', $errors);
+        }
+        self::assertStringContainsString('Must contain {body}', implode("\n", $this->errors(self::API, [], $webhooks(['content' => '{timestamp}', 'parts' => ['timestamp' => 'ts', 'signature' => 'h1']]))));
+    }
+
     public function testLoadsWebhooks(): void
     {
         $definition = $this->load(self::API, [
@@ -205,7 +220,7 @@ final class DescriptorLoaderTest extends TestCase
             'review' => ['check signature'],
         ]);
 
-        self::assertSame(['header' => 'X-Signature', 'env' => 'SHOP_WEBHOOK_SECRET', 'algorithm' => 'sha256', 'encoding' => 'hex', 'prefix' => ''], $definition->webhooks['signature']);
+        self::assertSame(['header' => 'X-Signature', 'env' => 'SHOP_WEBHOOK_SECRET', 'algorithm' => 'sha256', 'encoding' => 'hex', 'prefix' => '', 'content' => '{body}', 'tolerance' => null], $definition->webhooks['signature']);
         self::assertSame(['path' => 'meta.event_name', 'header' => null], $definition->webhooks['event_name']);
         self::assertSame(['resource' => 'orders', 'description' => 'New order', 'shape' => null, 'review' => []], $definition->webhooks['events']['order_created']);
         self::assertSame([

@@ -436,9 +436,25 @@ final class ServiceGenerator
             'EVENT_ID_PATH' => $webhooks['event_id']['path'] ?? null,
             'EVENT_ID_HEADER' => $webhooks['event_id']['header'] ?? null,
         ];
+        // Timestamped schemes: only written when used, the base class holds the defaults.
+        $signature = $webhooks['signature'];
+        if ('{body}' !== $signature['content']) {
+            $constants['SIGNATURE_CONTENT'] = $signature['content'];
+        }
+        if (null !== ($signature['parts'] ?? null)) {
+            $constants['SIGNATURE_PARTS'] = $signature['parts'];
+        }
+        if (null !== ($signature['tolerance'] ?? null)) {
+            $constants['SIGNATURE_TOLERANCE'] = $signature['tolerance'];
+        }
         $lines = [];
         foreach ($constants as $name => $value) {
-            $lines[] = '    protected const '.$name.' = '.(null === $value ? 'null' : $this->export($value)).';';
+            $lines[] = '    protected const '.$name.' = '.(match (true) {
+                null === $value => 'null',
+                \is_array($value) => $this->exportMap($value),
+                \is_int($value) => (string) $value,
+                default => $this->export($value),
+            }).';';
         }
 
         return $this->header($source)

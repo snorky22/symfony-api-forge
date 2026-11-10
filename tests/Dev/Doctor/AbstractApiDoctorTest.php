@@ -27,4 +27,25 @@ final class AbstractApiDoctorTest extends TestCase
         self::assertSame('ok: Host: https://api.shop.test/ (live, from SHOP_BASE_URI).', self::host('https://api.shop.test/'));
         self::assertSame(Check::WARNING.': Host: https://shop.example.com/ (from SHOP_BASE_URI) is not a known host of the API: https://api.shop.test/, https://sandbox-api.shop.test/.', self::host('https://shop.example.com/'));
     }
+
+    public function testRegisteredEventsAsNamesOrObjects(): void
+    {
+        $doctor = new class([], 'https://api.shop.test/') extends AbstractApiDoctor {
+            public const API = 'shop';
+            protected const BASE_URI = 'https://api.shop.test/';
+
+            public function read(array $response, string $events): array
+            {
+                return $this->registrations($response, 'data', 'destination', $events, 'id');
+            }
+        };
+        $response = ['data' => [
+            ['id' => 'ntfset_1', 'destination' => 'https://x.test/webhook/shop', 'names' => ['a.created', 'a.updated'], 'subscribed_events' => [['name' => 'b.created', 'description' => 'B'], ['name' => 'b.paid']]],
+            ['id' => 'ntfset_2', 'destination' => 'https://y.test'],
+        ]];
+
+        self::assertSame(['a.created', 'a.updated'], $doctor->read($response, 'names')[0]['events']);
+        self::assertSame(['b.created', 'b.paid'], $doctor->read($response, 'subscribed_events[].name')[0]['events']);
+        self::assertNull($doctor->read($response, 'subscribed_events[].name')[1]['events']);
+    }
 }

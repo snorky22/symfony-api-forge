@@ -26,6 +26,17 @@ abstract class AbstractSignedRequestParser extends AbstractRequestParser
     protected const SIGNATURE_ENCODING = 'hex';
     /** Prefix of the header value, e.g. "sha256=". */
     protected const SIGNATURE_PREFIX = '';
+    /** What is signed: "{body}" or, with SIGNATURE_PARTS, e.g. "{timestamp}:{body}" or "{timestamp}.{body}". */
+    protected const SIGNATURE_CONTENT = '{body}';
+    /**
+     * Structured header, e.g. "ts=1700000000;h1=abc" (separator ";", timestamp "ts", signature "h1"):
+     * the header holds "key=value" parts, and several signatures when the secret is being rotated.
+     *
+     * @var array{separator: string, timestamp: string, signature: string}|null
+     */
+    protected const SIGNATURE_PARTS = null;
+    /** Seconds a signed timestamp may differ from now (replay protection), or null to accept any. */
+    protected const SIGNATURE_TOLERANCE = null;
     /** Path of the event name in the payload, in dot notation, e.g. "meta.event_name"... */
     protected const EVENT_NAME_PATH = null;
     /** ...or header holding it. */
@@ -34,13 +45,18 @@ abstract class AbstractSignedRequestParser extends AbstractRequestParser
     protected const EVENT_ID_HEADER = null;
 
     /**
-     * Signature of a payload, as the API computes it.
+     * Value of the signature header for a payload, as the API computes it. The timestamp (default: now) only
+     * matters to schemes signing it.
      */
-    public function sign(string $payload, #[\SensitiveParameter] string $secret): string
+    public function sign(string $payload, #[\SensitiveParameter] string $secret, ?int $timestamp = null): string
     {
-        $hash = hash_hmac(static::SIGNATURE_ALGORITHM, $payload, $secret, true);
+        $timestamp ??= time();
+        $signature = $this->hmac($payload, $timestamp, $secret);
+        if (null === $parts = static::SIGNATURE_PARTS) {
+            return $signature;
+        }
 
-        return static::SIGNATURE_PREFIX.('base64' === static::SIGNATURE_ENCODING ? base64_encode($hash) : bin2hex($hash));
+        return \sprintf('%s=%d%s%s=%s', $parts['timestamp'], $timestamp, $parts['separator'], $parts['signature'], $signature);
     }
 
     /**
@@ -109,13 +125,7 @@ abstract class AbstractSignedRequestParser extends AbstractRequestParser
             throw new RejectWebhookException(500, 'The webhook secret is not configured.');
         }
 
-        $signature = (string) $request->headers->get(static::SIGNATURE_HEADER, '');
-        if ('hex' === static::SIGNATURE_ENCODING) {
-            $signature = strtolower($signature);
-        }
-        if (!hash_equals($this->sign($request->getContent(), $secret), $signature)) {
-            throw new RejectWebhookException(406, 'Invalid signature.');
-        }
+        $this->verify($request->getContent(), (string) $request->headers->get(static::SIGNATURE_HEADER, ''), $secret);
 
         $payload = $request->toArray();
 
@@ -126,6 +136,52 @@ abstract class AbstractSignedRequestParser extends AbstractRequestParser
         $id = $this->find($request, $payload, static::EVENT_ID_PATH, static::EVENT_ID_HEADER) ?? hash('sha256', $request->getContent());
 
         return new RemoteEvent($name, $id, $payload);
+    }
+
+    /**
+     * @throws RejectWebhookException when no signature of the header matches, or the timestamp is out of tolerance
+     */
+    private function verify(string $body, string $header, #[\SensitiveParameter] string $secret): void
+    {
+        $timestamp = 0;
+        $candidates = [$header];
+        if (null !== $parts = static::SIGNATURE_PARTS) {
+            $candidates = [];
+            $found = null;
+            foreach (explode($parts['separator'], $header) as $part) {
+                [$key, $value] = array_pad(explode('=', trim($part), 2), 2, '');
+                if ($key === $parts['timestamp'] && ctype_digit($value)) {
+                    $found = (int) $value;
+                } elseif ($key === $parts['signature']) {
+                    $candidates[] = $value;
+                }
+            }
+            if (null === $found || [] === $candidates) {
+                throw new RejectWebhookException(406, 'Invalid signature.');
+            }
+            $timestamp = $found;
+        }
+
+        $valid = false;
+        foreach ($candidates as $candidate) {
+            $candidate = 'hex' === static::SIGNATURE_ENCODING ? strtolower($candidate) : $candidate;
+            // Compare every candidate: the time does not tell which one matched.
+            $valid = hash_equals($this->hmac($body, $timestamp, $secret), $candidate) || $valid;
+        }
+        if (!$valid) {
+            throw new RejectWebhookException(406, 'Invalid signature.');
+        }
+        if (null !== static::SIGNATURE_PARTS && null !== static::SIGNATURE_TOLERANCE && abs(time() - $timestamp) > static::SIGNATURE_TOLERANCE) {
+            throw new RejectWebhookException(406, 'The signature timestamp is outside the tolerance.');
+        }
+    }
+
+    private function hmac(string $payload, int $timestamp, #[\SensitiveParameter] string $secret): string
+    {
+        $content = strtr(static::SIGNATURE_CONTENT, ['{timestamp}' => (string) $timestamp, '{body}' => $payload]);
+        $hash = hash_hmac(static::SIGNATURE_ALGORITHM, $content, $secret, true);
+
+        return static::SIGNATURE_PREFIX.('base64' === static::SIGNATURE_ENCODING ? base64_encode($hash) : bin2hex($hash));
     }
 
     /**

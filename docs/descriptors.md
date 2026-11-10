@@ -150,7 +150,13 @@ signature:                                 # HMAC of the raw request body
     header: X-Signature                    # required
     algorithm: sha256                      # any algorithm of hash_hmac_algos(), default sha256
     encoding: hex                          # hex (default) or base64
-    prefix: ''                             # prefix of the header value, e.g. "sha256="
+    prefix: ''                             # prefix of the signature, e.g. "sha256="
+    content: '{body}'                      # what is signed; with "parts": '{timestamp}:{body}' or '{timestamp}.{body}'
+    # parts:                               # the header holds key=value parts, e.g. "ts=1700000000;h1=abc"
+    #     separator: ';'                   #   between parts (default ";"; Stripe: ",")
+    #     timestamp: ts                    #   key of the timestamp (Stripe: t)
+    #     signature: h1                    #   key of the signature, repeated while the secret rotates (Stripe: v1)
+    # tolerance: 300                       # seconds the timestamp may differ from now (needs "parts")
     env: LEMONSQUEEZY_WEBHOOK_SECRET       # required, environment variable holding the secret
 event_name:                                # required, exactly one of:
     path: meta.event_name                  #   path in the payload, dot notation
@@ -182,7 +188,8 @@ registration:                          # how the doctor reads the webhooks regis
     query:                             # values of query parameters
         'filter[store_id]': '%env(SHOP_STORE_ID)%'
     url: attributes.url                # dot path of the URL in each item (required)
-    events: attributes.events          # dot path of the subscribed events, if any
+    events: attributes.events          # dot path of the subscribed events, if any; "subscribed_events[].name"
+                                       #   when they are objects, each holding its name at the path after "[]."
     items: null                        # key of the list: "data" for JSON:API by default
     id: id
 ```

@@ -5,6 +5,12 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- Pluggable webhook signature schemes: the signed content can include the timestamp (`content: '{timestamp}:{body}'`),
+  the signature header can be structured (`parts`: `ts=…;h1=…`, `t=…,v1=…`, with its `separator`), several signatures
+  in the header are accepted while a secret rotates, and a `tolerance` rejects stale timestamps. Generated parsers only
+  carry the new constants when the scheme uses them. `sign()` takes an optional timestamp.
+- Registration hint: `events` accepts `list[].name` when the provider lists its subscribed events as objects.
+
 ## 0.2.0 - 2026-11-09
 
 Doctors, local webhook testing, a local web interface, and documentation pages as an input.

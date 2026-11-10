@@ -240,6 +240,16 @@ final class ServiceGeneratorTest extends TestCase
         self::assertSame('invoice.paid', \App\Api\GenTest\Generated\Webhook\GenTestWebhookEvents::INVOICE_PAID);
     }
 
+    public function testParserConstantsOfTheDefaultSchemeAreNotWritten(): void
+    {
+        $code = self::generate()['src/Api/GenTest/Generated/Webhook/GenTestRequestParser.php'];
+
+        self::assertStringContainsString("protected const SIGNATURE_PREFIX = '';", $code);
+        self::assertStringNotContainsString('SIGNATURE_CONTENT', $code);
+        self::assertStringNotContainsString('SIGNATURE_PARTS', $code);
+        self::assertStringNotContainsString('SIGNATURE_TOLERANCE', $code);
+    }
+
     public function testWebhookParserAndConsumer(): void
     {
         self::generate();
