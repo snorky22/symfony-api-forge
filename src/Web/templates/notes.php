@@ -57,6 +57,30 @@ example and imports it again. Tick the notes you accept and delete them (they ar
                 <span><?= $highlight($note['guide']['title']) ?></span>
             </summary>
             <div class="accordion-body">
+                <?php if (null !== $note['object']): $object = $note['object']; ?>
+                    <div class="alert <?= $object['described'] ? 'alert-light border' : 'alert-warning' ?> d-flex justify-content-between align-items-center py-2 mb-3">
+                        <div class="small">
+                            <strong>The <?= $e($object['label']) ?> object</strong>
+                            <?php if (!$object['described']): ?>
+                                is not described yet<?= [] !== $object['payloads'] ? ': its file can be made from '.$e($object['payloads'][0]) : ': add a payload example that holds it (Webhooks page)' ?>.
+                            <?php elseif (count($object['sources']) > 1): ?>
+                                is described once, merged from <?= count($object['sources']) ?> examples: <?= $e(implode(', ', $object['sources'])) ?>; generated into <code><?= $e($object['resource']) ?>.yaml</code>.
+                            <?php elseif ($object['exists']): ?>
+                                is described once, in <code><?= $e($object['file']) ?></code><?= [] !== $object['pointing'] ? ', which '.$e(implode(', ', $object['pointing'])).' point'.(1 === count($object['pointing']) ? 's' : '').' to' : '' ?>; generated into <code><?= $e($object['resource']) ?>.yaml</code>.
+                            <?php else: ?>
+                                is described once, in <code><?= $e($object['resource']) ?>.yaml</code>, from <?= $e(implode(', ', $object['payloads']) ?: 'an example') ?>.
+                                Give it a file of its own to edit it as a PHP array.
+                            <?php endif ?>
+                        </div>
+                        <?php if ($object['exists'] || [] !== $object['payloads']): ?>
+                        <form method="post" action="/api/<?= $e($api) ?>/object" class="ms-3 flex-shrink-0">
+                            <input type="hidden" name="_token" value="<?= $e($token) ?>">
+                            <input type="hidden" name="resource" value="<?= $e($object['resource']) ?>">
+                            <button class="btn btn-sm btn-outline-primary" title="<?= $e($object['exists'] ? 'Opens '.$object['file'] : 'Creates '.$object['file'].' from the object of '.$object['payloads'][0].', points the payload to it, and opens it') ?>"><?= $object['exists'] ? 'Edit the '.$e($object['label']).' object' : 'Create '.$e($object['file']).' and edit it' ?></button>
+                        </form>
+                        <?php endif ?>
+                    </div>
+                <?php endif ?>
                 <?php if ([] !== $note['guide']['found']): ?>
                     <h3 class="h6 text-secondary mb-1">What api-forge found</h3>
                     <ul class="mb-3"><?php foreach ($note['guide']['found'] as $line): ?><li><?= $highlight($line) ?></li><?php endforeach ?></ul>
@@ -67,6 +91,18 @@ example and imports it again. Tick the notes you accept and delete them (they ar
                 <?php endif ?>
                 <h3 class="h6 text-secondary mb-1">What you can do</h3>
                 <ul class="mb-2"><?php foreach ($note['guide']['options'] as $line): ?><li><?= $highlight($line) ?></li><?php endforeach ?></ul>
+                <?php if (null !== $note['choice']): ?>
+                    <div class="d-flex gap-2 mt-2">
+                    <?php foreach (['merge' => ['Merge both', 'btn-primary', 'Describe the object from its examples and this one'], 'replace' => ['Replace with this one', 'btn-outline-primary', 'Describe the object from this example only']] as $mode => [$label, $class, $title]): ?>
+                        <form method="post" action="/api/<?= $e($api) ?>/object-choice">
+                            <input type="hidden" name="_token" value="<?= $e($token) ?>">
+                            <input type="hidden" name="example" value="<?= $e($note['choice']['example']) ?>">
+                            <input type="hidden" name="mode" value="<?= $e($mode) ?>">
+                            <button class="btn btn-sm <?= $class ?>" title="<?= $e($title) ?>"><?= $e($label) ?></button>
+                        </form>
+                    <?php endforeach ?>
+                    </div>
+                <?php endif ?>
 
             <?php if (null !== $note['fix']): ?>
                 <div class="mt-3">

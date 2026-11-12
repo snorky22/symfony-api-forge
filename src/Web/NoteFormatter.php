@@ -21,6 +21,7 @@ final class NoteFormatter
         'in the docs (line' => ['Type differs', 'danger', 'fix the example'],
         'is not JSON' => ['Not JSON', 'danger', 'fix the file'],
         'differs from the' => ['Example differs', 'danger', 'import again with Replace, or merge'],
+        'differ from the' => ['Example differs', 'danger', 'import again with Replace, or accept'],
     ];
     private const GUESS = ['Guess to check', 'primary', 'check it, then accept'];
 

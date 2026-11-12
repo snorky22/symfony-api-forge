@@ -130,7 +130,7 @@ body:                                  # JSON:API document, built from the metho
 
 ### Response
 
-At most one of:
+One of:
 
 ```yaml
 response:
@@ -139,7 +139,26 @@ response:
 response:
     data: object                       # JSON:API document of one resource object ("object" shape)
     # data: list                       # JSON:API document of a list of resource objects
+
+response:                              # plain JSON: "data" holds the resource object, or a list of them
+    data: list                         #   object or list, typed with the "object" shape of the resource
+    shape: 'array{meta: array{next: ?string}}'   # the other members of the response, if any
 ```
+
+The `object` of a resource records its `sources`, the examples it is described from (merged):
+
+```yaml
+object:
+    shape: 'array{…}'
+    sources:
+        - { example: tests/Fixtures/paddle/webhook-transaction.completed.json, path: data }
+        - { example: tests/Fixtures/paddle/list-transactions.json, path: 'data[]' }
+```
+
+With `data`, the resource object is described once (its `object` shape) and shared by the operations and the webhook
+events of the resource: `list()` returns `array{meta: …, data: list<Transaction>}`. The importer writes it when a
+plain JSON response holds objects in `data` (a list of objects, or one object) for an operation of the resource
+(`list`, `get`, `create`, `update`).
 
 Without `response`, the method returns `array<mixed>` (`[]` for an empty response).
 

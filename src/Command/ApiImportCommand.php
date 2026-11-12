@@ -40,9 +40,10 @@ final class ApiImportCommand
         #[Option('Operation name (default: inferred from method and path)')] ?string $operation = null,
         #[Option('Replace an existing operation with the same name')] bool $force = false,
         #[Option('Descriptor directory (default: api_forge.descriptor_dir, config/api)')] ?string $dir = null,
+        #[Option('When the objects of the response are already described from another example: keep it (default), merge the examples, or replace it (as --force)')] ?string $object = null,
     ): int {
         try {
-            $result = $this->runner->import($api, $curl, $response, $docs, $resource, $operation, $force, $dir);
+            $result = $this->runner->import($api, $curl, $response, $docs, $resource, $operation, $force, $dir, $object);
         } catch (\InvalidArgumentException $e) {
             $io->error($e->getMessage());
 

@@ -86,6 +86,12 @@ final class NoteGuide
                 'The generated type follows the example, and may be wrong.',
                 [\sprintf('Fix the value in %s, so that it has the documented type, then import again.', $example)],
             ),
+            $match('/the objects of (.+?) differ from the "([^"]+)" object already described(?: \(from ([^)]*)\))?/') => self::note(
+                \sprintf('This example\'s "%s" objects differ from the object already described', $m[2]),
+                array_values(array_filter([\sprintf('%s holds "%s" objects.', 'the response' === $m[1] ? 'The response' : $m[1], $m[2]), \sprintf('The object was described first from %s; the two differ.', '' !== ($m[3] ?? '') ? $m[3] : 'another example')])),
+                \sprintf('The "%s" object keeps its description, shared by its operations and events: this example is not used for it.', $m[2]),
+                ['Merge: describe the object from both examples (keys missing from one become optional).', 'Replace: describe it from this example only.', 'Or accept: the object stays as it is.'],
+            ),
             $match('/payload data differs from the "([^"]+)" object shape/') => self::note(
                 \sprintf('The payload\'s object differs from the "%s" object already described', $m[1]),
                 [\sprintf('The object of this payload does not match the object of "%s" (from another example).', $m[1])],
@@ -93,16 +99,16 @@ final class NoteGuide
                 ['Import the payload again with "Replace what is described" ticked, to replace it.', 'Or merge the examples into the object shape: api-forge:import-object --force with both files.'],
             ),
             $match('/resource "([^"]+)" derived from the event name/') => self::note(
-                \sprintf('Resource "%s" was named after the event', $m[1]),
-                [\sprintf('The payload holds an object; api-forge called its resource "%s", from the entity in the event name.', $m[1])],
-                \sprintf('It is described in %s.yaml, and its events and operations share its object.', $m[1]),
-                ['If the API calls it otherwise, rename the file and its "resource" value.', 'Otherwise accept.'],
+                \sprintf('The object of the payload was named "%s", after the event', $m[1]),
+                ['The payload holds an object (its "data").', \sprintf('api-forge named its resource "%s", from the entity in the event name, and described the object in %s.yaml.', $m[1], $m[1])],
+                \sprintf('The events of this entity, and the operations of "%s", share this one description of the object.', $m[1]),
+                [\sprintf('If the API calls the object otherwise, rename %s.yaml and its "resource" value.', $m[1]), 'Otherwise accept.'],
             ),
             $match('/events: resource "([^"]+)" set on (.+) from the payload of "([^"]+)", by their name/') => self::note(
-                \sprintf('%s typed with "%s", by their name', self::count($m[2], 'other event', 'other events'), $m[1]),
-                [\sprintf('These events share the entity of "%s": %s.', $m[3], $m[2]), \sprintf('They were given the "%s" object of its payload.', $m[1])],
-                \sprintf('Their payload types use the "%s" object.', $m[1]),
-                ['Accept if their docs say they carry the same object (they usually do, with the same entity name).', 'Otherwise add a payload for the one that differs: it gets its own shape.'],
+                \sprintf('%s assumed to carry the same object as "%s"', self::count($m[2], 'other event', 'other events'), $m[3]),
+                [\sprintf('Only "%s" has a payload example.', $m[3]), \sprintf('These events have the same entity in their name: %s.', $m[2]), \sprintf('api-forge assumed they send the same object, and pointed them to the "%s" object (%s.yaml).', $m[1], $m[1])],
+                \sprintf('All these events share one description of the object: improving it improves them all, and there is nothing to write per event.'),
+                ['Accept if the API docs say these events send this object (they usually do, when their name starts with the same entity).', 'If one of them sends something else, add a payload for that event: it gets its own shape.'],
             ),
             $match('/the resource "([^"]+)" has no object shape: the payload data of (.+) is untyped/') => self::note(
                 \sprintf('Events of "%s" are untyped: "%s" has no object yet', $m[1], $m[1]),

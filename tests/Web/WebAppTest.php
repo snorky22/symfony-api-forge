@@ -175,7 +175,7 @@ final class WebAppTest extends TestCase
         $operation = Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['operations']['get'];
         self::assertSame('prices/{priceId}', $operation['path']);
         self::assertSame('product', $operation['query']['include']['example']);
-        self::assertStringContainsString('name: ?string', $operation['response']['shape']);
+        self::assertStringContainsString('name: ?string', Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['object']['shape']);
     }
 
     public function testAnArrayExampleDoesNotTakeAResponseBox(): void
@@ -236,7 +236,7 @@ final class WebAppTest extends TestCase
 
         $imported = $this->post('/api/shop/import', ['name' => 'list-prices.curl', 'force' => '1']);
         self::assertStringContainsString('prices.list', $imported->body);
-        self::assertStringContainsString('name: string,', Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['operations']['list']['response']['shape']);
+        self::assertStringContainsString('name: string,', Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['object']['shape']);
     }
 
     public function testOnlyExamplesOfTheApiCanBeOpened(): void
@@ -495,7 +495,8 @@ final class WebAppTest extends TestCase
         self::assertSame(['list-prices.curl', 'list-prices-include.php'], array_column($data['results'], 'name'));
         self::assertSame('prices.list', $data['results'][0]['operation']);
         $operation = Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['operations']['list'];
-        self::assertStringContainsString('name: string,', $operation['response']['shape']);
+        self::assertSame('list', $operation['response']['data']);
+        self::assertStringContainsString('name: string,', Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['object']['shape']);
         // The replacement did not drop the query parameter of the variant
         self::assertSame('product', $operation['query']['include']['example']);
 
@@ -535,8 +536,9 @@ final class WebAppTest extends TestCase
         $notes = $this->get('/api/shop/notes')->body;
 
         self::assertStringContainsString('action="/api/shop/fix"', $notes);
-        self::assertStringContainsString('<code>data[].meta</code> is', $notes);
-        self::assertStringContainsString('<code>data[].tags</code> is', $notes);
+        // The objects of "data" describe the resource: the keys are the object's
+        self::assertStringContainsString('<code>meta</code> is', $notes);
+        self::assertStringContainsString('<code>tags</code> is', $notes);
         self::assertStringContainsString('value="type:meta-type.json"', $notes);
         self::assertStringContainsString('a list of meta-type.json', $notes);
         self::assertStringContainsString('<option value="object">', $notes);
@@ -559,7 +561,7 @@ final class WebAppTest extends TestCase
         $list = $this->post('/api/shop/fix', ['kind' => 'list', 'key' => 'tags', 'file' => 'list-prices.json', 'choice' => 'list-string']);
         self::assertStringContainsString('Fixed &quot;tags&quot;', $list->body);
 
-        $shape = Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['operations']['list']['response']['shape'];
+        $shape = Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['object']['shape'];
         self::assertStringContainsString('meta: array{', $shape);
         self::assertStringContainsString('origin: string', $shape);
         self::assertStringContainsString('tags: list<string>', $shape);
@@ -567,11 +569,11 @@ final class WebAppTest extends TestCase
 
         // The note of what is fixed is gone, the one of the key left remains, with its fix
         $notes = $this->get('/api/shop/notes')->body;
-        self::assertStringNotContainsString('<code>data[].meta</code> is', $notes);
-        self::assertStringContainsString('<code>data[].note</code> is', $notes);
+        self::assertStringNotContainsString('<code>meta</code> is', $notes);
+        self::assertStringContainsString('<code>note</code> is', $notes);
 
         $this->post('/api/shop/fix', ['kind' => 'null', 'key' => 'note', 'file' => 'list-prices.json', 'choice' => 'string']);
-        self::assertStringContainsString('note: string', Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['operations']['list']['response']['shape']);
+        self::assertStringContainsString('note: string', Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['object']['shape']);
         // Only the note about the probe is left, and it has no fix: accept it
         $left = $this->get('/api/shop/notes')->body;
         self::assertStringContainsString('probe guessed', $left);
@@ -808,7 +810,7 @@ final class WebAppTest extends TestCase
         self::assertStringContainsString('products.list', $result->body);
         $operation = Yaml::parseFile($this->project.'/config/api/shop/products.yaml')['operations']['list'];
         self::assertSame('product', $operation['query']['include']['example']);
-        self::assertStringContainsString('name: string,', $operation['response']['shape']);
+        self::assertStringContainsString('name: string,', Yaml::parseFile($this->project.'/config/api/shop/products.yaml')['object']['shape']);
 
         $dashboard = $this->get('/api/shop')->body;
         self::assertStringContainsString('<code>GET</code> /products', $dashboard);
@@ -1006,7 +1008,7 @@ final class WebAppTest extends TestCase
 
         $operation = Yaml::parseFile($this->project.'/config/api/shop/products.yaml')['operations']['create'];
         self::assertStringContainsString('custom_data?: array<string, mixed>|null', $operation['body']['shape']);
-        self::assertStringContainsString('custom_data?: array<string, mixed>|null', $operation['response']['shape']);
+        self::assertStringContainsString('custom_data?: array<string, mixed>|null', Yaml::parseFile($this->project.'/config/api/shop/products.yaml')['object']['shape']);
         $notes = html_entity_decode($this->get('/api/shop/notes')->body);
         self::assertStringNotContainsString('is a free-form object', $notes);
         self::assertStringNotContainsString('gives it fields', $notes);
@@ -1167,7 +1169,7 @@ final class WebAppTest extends TestCase
         $response = $this->post('/api/shop/webhook', ['event' => '', 'payload' => self::PAYLOAD, 'docs' => "event_idstringrequired\n\nevent_typestringrequired\n\ndataobjectrequired\n\nidstringrequired\n\nbilled_atstring | nullrequired\n", 'force' => '1']);
 
         self::assertSame(200, $response->status);
-        self::assertStringContainsString('object of the &quot;transactions&quot; resource set from the payload', $response->body);
+        self::assertStringContainsString('object of &quot;transactions&quot; set from ', $response->body);
         self::assertStringContainsString('envelope (the members around the object) set from the payload', $response->body);
         self::assertStringContainsString('webhook-transaction.completed.docs.md', $response->body);
         self::assertSame(self::PAYLOAD."\n", file_get_contents($this->project.'/tests/Fixtures/shop/webhook-transaction.completed.json'), 'saved as pasted');
@@ -1228,5 +1230,72 @@ final class WebAppTest extends TestCase
         self::assertStringContainsString('data-af-kinds="shop"', $page);
         self::assertStringContainsString('<script src="/assets/notes.js"></script>', $page);
         self::assertFileExists(\dirname(__DIR__, 2).'/src/Web/public/assets/notes.js');
+    }
+
+    public function testTheObjectOfAPayloadGetsAFileOfItsOwnToEdit(): void
+    {
+        $this->createApi();
+        $payload = "{\n    \"event_type\": \"transaction.completed\",\n    \"data\": {\"id\": \"txn_1\", \"trial_period\": null}\n}";
+        $docs = "event_typestringrequired\n\ndataobjectrequired\n\nidstringrequired\n\ntrial_periodobject | nullrequired\n\nintervalstringrequired\n";
+        $this->post('/api/shop/webhook', ['event' => '', 'payload' => $payload, 'docs' => $docs, 'force' => '1']);
+        $fixtures = $this->project.'/tests/Fixtures/shop/';
+
+        $notes = $this->get('/api/shop/notes')->body;
+        self::assertStringContainsString('<strong>The transaction object</strong>', $notes);
+        self::assertStringContainsString('Create transaction-object.array and edit it', $notes);
+
+        // Created from the object of the payload, which points to it; then its editor
+        $created = $this->post('/api/shop/object', ['resource' => 'transactions']);
+        self::assertSame(303, $created->status);
+        self::assertStringContainsString('name=transaction-object.array', $created->headers['Location']);
+        self::assertStringContainsString("'id' => 'txn_1',", (string) file_get_contents($fixtures.'transaction-object.array'));
+        self::assertSame("{\n    \"event_type\": \"transaction.completed\",\n    \"data\": \"transaction-object.array\"\n}\n", file_get_contents($fixtures.'webhook-transaction.completed.json'), 'only the object changed');
+        self::assertStringContainsString('data-import="transaction-object.array"', $this->get('/api/shop/file', ['name' => 'transaction-object.array', 'area' => 'examples'])->body);
+        self::assertStringContainsString('is described once, in <code>transaction-object.array</code>, which webhook-transaction.completed.json points to', $this->get('/api/shop/notes')->body);
+
+        // Save & import imports the payloads that point to it
+        $imported = $this->decode($this->json('POST', '/api/shop/import', ['name' => 'transaction-object.array', 'force' => '1', 'family' => '1']));
+        self::assertTrue($imported['ok']);
+        self::assertSame('webhook-transaction.completed.json', $imported['results'][0]['name']);
+        self::assertSame('event transaction.completed', $imported['results'][0]['operation']);
+
+        // Fix writes in the PHP array, and imports the payload again
+        self::assertStringContainsString('name="file" value="transaction-object.array"', $this->get('/api/shop/notes')->body);
+        $fixed = $this->post('/api/shop/fix', ['kind' => 'null', 'key' => 'trial_period', 'file' => 'transaction-object.array', 'choice' => 'string']);
+        self::assertStringContainsString('wrote &#039;text&#039; in transaction-object.array, and imported again webhook-transaction.completed.json', $fixed->body);
+        self::assertStringContainsString("'trial_period' => 'text',", (string) file_get_contents($fixtures.'transaction-object.array'));
+        self::assertStringContainsString('trial_period: ?string,', Yaml::parseFile($this->project.'/config/api/shop/transactions.yaml')['object']['shape']);
+
+        // An array cannot say "any object"
+        file_put_contents($fixtures.'transaction-object.array', str_replace("'trial_period' => 'text'", "'trial_period' => null", (string) file_get_contents($fixtures.'transaction-object.array')));
+        self::assertStringContainsString('is a PHP array: it cannot say', $this->post('/api/shop/fix', ['kind' => 'null', 'key' => 'trial_period', 'file' => 'transaction-object.array', 'choice' => 'object'])->body);
+    }
+
+    public function testAListResponseMergesWithTheObjectOfAPayload(): void
+    {
+        $this->createApi();
+        $this->post('/api/shop/webhook', ['event' => '', 'payload' => '{"event_type": "transaction.completed", "data": {"id": "txn_1", "billed_at": "2026-11-10"}}', 'force' => '1']);
+
+        $imported = $this->post('/api/shop/example', ['operation' => 'list', 'resource' => 'transactions', 'request_format' => 'curl', 'request' => "curl https://api.shop.test/transactions -H 'Authorization: Bearer X'", 'response_format' => 'json', 'response' => '{"data": [{"id": "txn_2", "billed_at": null, "origin": "web"}], "meta": {"next": null}}']);
+        self::assertSame(200, $imported->status);
+        self::assertStringNotContainsString('origin', Yaml::parseFile($this->project.'/config/api/shop/transactions.yaml')['object']['shape'], 'kept until the user chooses');
+
+        $notes = $this->get('/api/shop/notes')->body;
+        self::assertStringContainsString('objects differ from the object already described', html_entity_decode($notes));
+        self::assertStringContainsString('name="example" value="list-transactions.json"', $notes);
+        self::assertStringContainsString('Merge both', $notes);
+
+        $merged = $this->post('/api/shop/object-choice', ['example' => 'list-transactions.json', 'mode' => 'merge']);
+        self::assertStringContainsString('Object of &quot;transactions&quot; merged from 2 examples', $merged->body);
+        $object = Yaml::parseFile($this->project.'/config/api/shop/transactions.yaml')['object'];
+        self::assertStringContainsString('billed_at: ?string,', $object['shape']);
+        self::assertStringContainsString('origin?: string,', $object['shape']);
+        self::assertSame(['tests/Fixtures/shop/webhook-transaction.completed.json', 'tests/Fixtures/shop/list-transactions.json'], array_column($object['sources'], 'example'));
+        self::assertStringNotContainsString('name="example" value="list-transactions.json"', $merged->body, 'the difference is settled');
+        self::assertStringContainsString('merged from 2 examples: webhook-transaction.completed.json, list-transactions.json', $merged->body);
+
+        // The list returns the shared object
+        $this->post('/api/shop/generate');
+        self::assertStringContainsString('data: list<Transaction>,', (string) file_get_contents($this->project.'/src/Api/Shop/Generated/Resource/Transactions.php'));
     }
 }

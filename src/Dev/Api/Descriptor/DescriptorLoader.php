@@ -259,8 +259,12 @@ final class DescriptorLoader
                 $error('"body.attributes" requires the resource "type".');
             }
         }
-        if (isset($operation['response']['data']) && !$jsonApi) {
-            $error('"response.data" requires the "jsonapi" API format.');
+        if (isset($operation['response']['data'], $operation['response']['shape'])) {
+            if ($jsonApi) {
+                $error('"response": "shape" or "data", not both, for a JSON:API document.');
+            } elseif (!str_starts_with(trim($operation['response']['shape']), 'array{')) {
+                $error('"response.shape" must be an array shape, "array{...}": the members around "data".');
+            }
         }
 
         foreach (self::SHAPE_PATHS as $label => $path) {

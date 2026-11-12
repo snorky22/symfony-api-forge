@@ -78,8 +78,8 @@ final class ApiImportCommandTest extends KernelTestCase
         $tester->assertCommandIsSuccessful();
         $prices = Yaml::parseFile($this->dir.'/paddle/prices.yaml');
         self::assertSame('https://api.paddle.com/', Yaml::parseFile($this->dir.'/paddle/_api.yaml')['base_uri']);
-        self::assertStringContainsString('unit_price_overrides: list<array{', $prices['operations']['list']['response']['shape']);
-        self::assertStringContainsString('country_codes: list<string>', $prices['operations']['list']['response']['shape']);
+        self::assertStringContainsString('unit_price_overrides: list<array{', $prices['object']['shape']);
+        self::assertStringContainsString('country_codes: list<string>', $prices['object']['shape']);
 
         // A path is enough once the API has a base URI
         $second = $this->dir.'/get-price.php';
@@ -101,7 +101,7 @@ final class ApiImportCommandTest extends KernelTestCase
         $tester->execute(['api' => 'paddle', 'curl' => $this->dir.'/fixtures/list-prices.curl', '--response' => $this->dir.'/fixtures/list-prices.json', '--dir' => $this->dir]);
 
         $tester->assertCommandIsSuccessful();
-        $shape = Yaml::parseFile($this->dir.'/paddle/prices.yaml')['operations']['list']['response']['shape'];
+        $shape = Yaml::parseFile($this->dir.'/paddle/prices.yaml')['object']['shape'];
         self::assertStringContainsString('billing_cycle: array{', $shape);
         self::assertStringContainsString('frequency: int', $shape);
         self::assertStringContainsString('currency_code: string', $shape);
@@ -131,12 +131,14 @@ final class ApiImportCommandTest extends KernelTestCase
         $tester->execute(['api' => 'paddle', 'curl' => $this->dir.'/fixtures/list-prices.curl', '--response' => $this->dir.'/fixtures/list-prices.json', '--dir' => $this->dir]);
 
         $tester->assertCommandIsSuccessful();
-        $operation = Yaml::parseFile($this->dir.'/paddle/prices.yaml')['operations']['list'];
-        self::assertStringContainsString("type: 'custom'|'standard',", $operation['response']['shape']);
-        self::assertStringContainsString('name: ?string,', $operation['response']['shape']);
-        self::assertStringContainsString('custom_data: array<string, mixed>|null,', $operation['response']['shape']);
+        $prices = Yaml::parseFile($this->dir.'/paddle/prices.yaml');
+        $operation = $prices['operations']['list'];
+        self::assertSame('list', $operation['response']['data']);
+        self::assertStringContainsString("type: 'custom'|'standard',", $prices['object']['shape']);
+        self::assertStringContainsString('name: ?string,', $prices['object']['shape']);
+        self::assertStringContainsString('custom_data: array<string, mixed>|null,', $prices['object']['shape']);
         self::assertStringContainsString('estimated_total?: int,', $operation['response']['shape']);
-        self::assertStringContainsString('unit_price?: array{', $operation['response']['shape']);
+        self::assertStringContainsString('unit_price?: array{', $prices['object']['shape']);
         self::assertNotEmpty(array_filter($operation['review'], static fn (string $note) => str_starts_with($note, 'docs: "allowances" (line 89) is not in the example: add it to the example (in the docs it sits ')));
         self::assertNotContains('response: "mixed" marks values that are null in the example, their real type is unknown (data[].name, data[].custom_data)', $operation['review']);
 
@@ -155,7 +157,7 @@ final class ApiImportCommandTest extends KernelTestCase
 
         $tester->execute(['api' => 'paddle', 'curl' => $this->dir.'/fixtures/list-prices.curl', '--response' => $this->dir.'/fixtures/list-prices.json', '--dir' => $this->dir]);
 
-        $shape = Yaml::parseFile($this->dir.'/paddle/prices.yaml')['operations']['list']['response']['shape'];
+        $shape = Yaml::parseFile($this->dir.'/paddle/prices.yaml')['object']['shape'];
         self::assertStringContainsString('name: mixed,', $shape);
     }
 

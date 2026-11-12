@@ -60,7 +60,8 @@ final class ApiImportWebhookCommandTest extends KernelTestCase
 
         $tester->assertCommandIsSuccessful();
         $webhooks = Yaml::parseFile($this->dir.'/lemonsqueezy/_webhooks.yaml');
-        self::assertStringStartsWith('payload data differs from the "orders" object shape', $webhooks['events']['order_created']['review'][0]);
+        // The object comes from another example (import-object): it is kept, the difference is said
+        self::assertStringContainsString('differ from the "orders" object already described (from another example): the object is kept', $webhooks['events']['order_created']['review'][0]);
     }
 
     public function testMergedObjectCoversAllExamples(): void
@@ -99,7 +100,8 @@ final class ApiImportWebhookCommandTest extends KernelTestCase
         self::assertNotContains('events: resources were derived from the object names of the events doc', $webhooks['review']);
 
         $display = $this->runShop(['--payload' => [$payload]])->getDisplay();
-        self::assertStringContainsString('object of the "transactions" resource set from the payload', $display);
+        self::assertStringContainsString('object of "transactions" set from ', $display);
+        self::assertSame([['example' => realpath($payload), 'path' => 'data']], Yaml::parseFile($this->dir.'/shop/transactions.yaml')['object']['sources']);
         $webhooks = Yaml::parseFile($this->dir.'/shop/_webhooks.yaml');
         self::assertSame("array{\n    event_id: string,\n    event_type: string,\n}", $webhooks['envelope']['shape']);
         self::assertSame('data', $webhooks['envelope']['data']);
@@ -110,16 +112,31 @@ final class ApiImportWebhookCommandTest extends KernelTestCase
         self::assertContains('events: resource "transactions" set on transaction.paid from the payload of "transaction.completed", by their name: check that their payloads hold the same object', $webhooks['review']);
         self::assertStringContainsString('billed_at: string,', Yaml::parseFile($this->dir.'/shop/transactions.yaml')['object']['shape']);
 
-        // The docs page next to the payload: existing values win, --force replaces the object shape
+        // The docs page next to the payload: the payload is a source of the object, which is described again
         $filesystem->dumpFile($this->dir.'/fixtures/webhook-transaction.completed.docs.md', "event_idstringrequired\n\nevent_typestringrequired\n\ndataobjectrequired\n\nidstringrequired\n\nbilled_atstring | nullrequired\n");
         $display = $this->runShop(['--payload' => [$payload]])->getDisplay();
         self::assertStringContainsString('docs page read:', $display);
-        self::assertStringStartsWith('payload data differs from the "transactions" object shape', Yaml::parseFile($this->dir.'/shop/_webhooks.yaml')['events']['transaction.completed']['review'][1]);
-        self::assertStringContainsString('billed_at: string,', Yaml::parseFile($this->dir.'/shop/transactions.yaml')['object']['shape']);
-
-        self::assertStringContainsString('object of the "transactions" resource replaced from the payload', $this->runShop(['--payload' => [$payload], '--force' => true])->getDisplay());
+        self::assertStringContainsString('object of "transactions" described again from its example', $display);
         self::assertStringContainsString('billed_at: ?string,', Yaml::parseFile($this->dir.'/shop/transactions.yaml')['object']['shape']);
-        self::assertSame(['resource "transactions" derived from the event name: rename the file and this value if the API calls it otherwise'], Yaml::parseFile($this->dir.'/shop/_webhooks.yaml')['events']['transaction.completed']['review'], 'the notes of the replaced example are gone');
+
+        // Another example of the object: kept by default, merged or replaced on demand
+        $paid = $this->dir.'/fixtures/webhook-transaction.paid.json';
+        $filesystem->dumpFile($paid, '{"event_id": "evt_2", "event_type": "transaction.paid", "data": {"id": "txn_2", "billed_at": null, "origin": "web"}}');
+        $this->runShop(['--payload' => [$paid]])->assertCommandIsSuccessful();
+        self::assertStringNotContainsString('origin', Yaml::parseFile($this->dir.'/shop/transactions.yaml')['object']['shape']);
+        self::assertStringContainsString('differ from the "transactions" object already described', implode("\n", Yaml::parseFile($this->dir.'/shop/_webhooks.yaml')['events']['transaction.paid']['review']));
+
+        self::assertStringContainsString('object of "transactions" merged from 2 examples', $this->runShop(['--payload' => [$paid], '--object' => 'merge'])->getDisplay());
+        $object = Yaml::parseFile($this->dir.'/shop/transactions.yaml')['object'];
+        self::assertStringContainsString('billed_at: ?string,', $object['shape'], 'the docs page of the first example still applies');
+        self::assertStringContainsString('origin?: string,', $object['shape'], 'a key of one example only is optional');
+        self::assertCount(2, $object['sources']);
+
+        // Once a source, an example describes the object again with the others, and replace keeps one
+        self::assertStringContainsString('described again from its 2 examples', $this->runShop(['--payload' => [$payload]])->getDisplay());
+        self::assertStringContainsString('object of "transactions" replaced, from', $this->runShop(['--payload' => [$paid], '--object' => 'replace'])->getDisplay());
+        self::assertCount(1, Yaml::parseFile($this->dir.'/shop/transactions.yaml')['object']['sources']);
+        self::assertSame(Command::FAILURE, $this->runShop(['--payload' => [$paid], '--object' => 'mix'])->getStatusCode());
     }
 
     public function testAPlainJsonPayloadWithoutObjectIsTheShapeOfItsEvent(): void

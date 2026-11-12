@@ -118,7 +118,6 @@ final class DescriptorLoaderTest extends TestCase
             'orders.yaml: operation "update": parameters "uuid" do not appear in the path.',
             'orders.yaml: operation "update": "body.attributes" requires the "jsonapi" API format.',
             'orders.yaml: operation "search": several parameters would be named "$pageSize".',
-            'orders.yaml: operation "search": "response.data" requires the "jsonapi" API format.',
         ], $errors);
     }
 
@@ -202,6 +201,20 @@ final class DescriptorLoaderTest extends TestCase
             self::assertStringContainsString('need "parts"', $errors);
         }
         self::assertStringContainsString('Must contain {body}', implode("\n", $this->errors(self::API, [], $webhooks(['content' => '{timestamp}', 'parts' => ['timestamp' => 'ts', 'signature' => 'h1']]))));
+    }
+
+    public function testAPlainJsonResponseHoldingObjectsOfItsResource(): void
+    {
+        $api = ['base_uri' => 'https://api.shop.test/', 'format' => 'json'];
+        $operation = ['method' => 'GET', 'path' => 'transactions', 'response' => ['data' => 'list', 'shape' => 'array{meta: array{next: ?string}}']];
+        $resources = ['transactions' => ['resource' => 'transactions', 'object' => ['shape' => 'array{id: string}'], 'operations' => ['list' => $operation]]];
+
+        self::assertSame(['data' => 'list', 'shape' => 'array{meta: array{next: ?string}}'], $this->load($api, $resources)->resources['transactions']['operations']['list']['response']);
+
+        $resources['transactions']['operations']['list']['response']['shape'] = 'list<string>';
+        self::assertSame(['transactions.yaml: operation "list": "response.shape" must be an array shape, "array{...}": the members around "data".'], $this->errors($api, $resources));
+        $resources['transactions']['operations']['list']['response']['shape'] = 'array{meta: array<string, mixed>}';
+        self::assertSame(['transactions.yaml: operation "list": "response": "shape" or "data", not both, for a JSON:API document.'], $this->errors(['format' => 'jsonapi'] + $api, $resources));
     }
 
     public function testPlainJsonEventsHoldingAnObjectOfAResource(): void

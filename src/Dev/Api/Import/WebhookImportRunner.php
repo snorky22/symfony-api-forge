@@ -17,6 +17,8 @@ final class WebhookImportRunner
         private readonly DescriptorMerger $descriptorMerger,
         private readonly DescriptorStore $store,
         private readonly ExampleReader $examples,
+        private readonly ?ObjectSources $objects = null,
+        private readonly string $projectDir = '',
     ) {
     }
 
@@ -34,7 +36,7 @@ final class WebhookImportRunner
      *
      * @throws \InvalidArgumentException when an input can't be read or holds no event name
      */
-    public function import(string $api, ?string $events = null, array $payloads = [], ?string $event = null, ?string $docs = null, bool $force = false, ?string $dir = null): array
+    public function import(string $api, ?string $events = null, array $payloads = [], ?string $event = null, ?string $docs = null, bool $force = false, ?string $dir = null, ?string $objectMode = null): array
     {
         if (null === $events && [] === $payloads) {
             throw new \InvalidArgumentException('Give the events table and/or payloads.');
@@ -74,15 +76,22 @@ final class WebhookImportRunner
             }
             if (null !== $resource) {
                 $descriptor = $this->store->loadResource($api, $resource, $dir);
-                if (isset($descriptor['object']) && $descriptor['object']['shape'] === $description['data']) {
-                    // Already described so
-                } elseif (isset($descriptor['object']) && !$force) {
-                    $review[] = \sprintf('payload data differs from the "%s" object shape: import the payload again with --force to replace it, or merge both examples into the object shape with api-forge:import-object --force', $resource);
+                $source = ['example' => $this->relative($file), 'path' => null !== $description['type'] ? 'data' : ($webhooks['envelope']['data'] ?? 'data')];
+                $mode = $objectMode;
+                if (null === $this->objects) {
+                    $update = ['object' => isset($descriptor['object']) && !$force ? $descriptor['object'] : ['shape' => $description['data']], 'notes' => [], 'review' => []];
                 } else {
-                    $merged = $this->descriptorMerger->mergeObject($descriptor, $resource, $description['type'], ['shape' => $description['data']], $force);
+                    $discovered = 'merge' === $mode && [] === ($descriptor['object']['sources'] ?? []) && null !== $descriptor
+                        ? $this->objects->discover($this->projectDir, \dirname($file), $resource, $descriptor, $webhooks)
+                        : [];
+                    $update = $this->objects->update($this->projectDir, $resource, $descriptor['object'] ?? null, $source, ['shape' => (string) $description['data'], 'review' => $description['objectReview'] ?? []], $mode, $discovered, $force);
+                }
+                array_push($review, ...$update['review']);
+                array_push($notes, ...$update['notes']);
+                if ($update['object'] !== ($descriptor['object'] ?? null)) {
+                    $merged = $this->descriptorMerger->mergeObject($descriptor, $resource, $description['type'], $update['object'], true);
                     $files[] = $this->store->saveResource($api, $resource, $merged['resource'], $dir);
-                    $notes[] = \sprintf('object of the "%s" resource %s from the payload', $resource, isset($descriptor['object']) ? 'replaced' : 'set');
-                    if (null === $description['type']) {
+                    if (!isset($descriptor['object']) && null === $description['type']) {
                         $review[] = \sprintf('resource "%s" derived from the event name: rename the file and this value if the API calls it otherwise', $resource);
                     }
                 }
@@ -128,5 +137,16 @@ final class WebhookImportRunner
         }
 
         return $content;
+    }
+
+    /**
+     * A file as the descriptors record it: relative to the project when it is inside.
+     */
+    private function relative(string $file): string
+    {
+        $real = realpath($file) ?: $file;
+        $project = '' !== $this->projectDir ? (realpath($this->projectDir) ?: $this->projectDir) : '';
+
+        return '' !== $project && str_starts_with($real, $project.'/') ? substr($real, \strlen($project) + 1) : $real;
     }
 }

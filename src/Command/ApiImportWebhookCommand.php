@@ -49,9 +49,10 @@ final class ApiImportWebhookCommand
         #[Option('Text capture of the docs page of the payload (default: <payload>.docs.md next to it, if any)')] ?string $docs = null,
         #[Option('Replace the shape of the event of each payload, or the object shape of its resource and the envelope (other values are kept)')] bool $force = false,
         #[Option('Descriptor directory (default: api_forge.descriptor_dir, config/api)')] ?string $dir = null,
+        #[Option('When the object of the payload is already described from another example: keep it (default), merge the examples, or replace it')] ?string $object = null,
     ): int {
         try {
-            $result = $this->runner->import($api, $events, $payload, $event, $docs, $force, $dir);
+            $result = $this->runner->import($api, $events, $payload, $event, $docs, $force, $dir, $object);
         } catch (\InvalidArgumentException $e) {
             $io->error($e->getMessage());
 

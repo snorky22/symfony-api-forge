@@ -46,7 +46,12 @@ final class DescriptorMerger
         $resource ??= ['resource' => $endpoint->resource, 'operations' => []];
         $resource = $this->mergeType($resource, $endpoint->type, $notes);
         if (null !== $endpoint->object) {
-            $resource = $this->mergeResourceObject($resource, $endpoint->object, false, $notes);
+            if (!$force && isset($resource['object']) && $resource['object']['shape'] !== $endpoint->object['shape']) {
+                // Another example described the object first: it is kept, the difference is said
+                $operation['review'][] = \sprintf('response: the objects of the response differ from the "%s" object already described (from another example): the object is kept', $endpoint->resource);
+            }
+            // Replacing the operation replaces the object its response describes
+            $resource = $this->mergeResourceObject($resource, $endpoint->object, $force, $notes);
         }
 
         $name = $endpoint->operationName;

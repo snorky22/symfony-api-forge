@@ -2,9 +2,9 @@
 
 namespace Snorky22\ApiForge\Dev\Api\Import;
 
+use Snorky22\ApiForge\Dev\Api\Docs\DocsAlignment;
 use Snorky22\ApiForge\Dev\Api\Docs\DocsAnnotator;
 use Snorky22\ApiForge\Dev\Api\Docs\DocsCapture;
-use Snorky22\ApiForge\Dev\Api\Docs\DocsEntry;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 use Symfony\Component\String\Inflector\EnglishInflector;
@@ -70,7 +70,7 @@ final class WebhookImporter
      * @param string  $format API format, "json" or "jsonapi"
      * @param ?string $docs   text capture of the docs page of the payload (DocsCapture): optional fields, nulls, enums
      *
-     * @return array{event: ?string, event_path: ?string, type: ?string, meta: ?string, data: ?string, envelope: ?string, shape: ?string, review: list<string>}
+     * @return array{event: ?string, event_path: ?string, type: ?string, meta: ?string, data: ?string, envelope: ?string, shape: ?string, review: list<string>, objectReview: list<string>}
      *                event name and its location, JSON:API type, shapes of "meta" and "data" (JSON:API); in plain
      *                JSON, of the whole payload, and when "data" is an object, of it and of the other members
      *                ("envelope"); what the docs page could not settle
@@ -86,7 +86,7 @@ final class WebhookImporter
             throw new \InvalidArgumentException('The payload example is not a JSON object.');
         }
 
-        $result = ['event' => null, 'event_path' => null, 'type' => null, 'meta' => null, 'data' => null, 'envelope' => null, 'shape' => null, 'review' => []];
+        $result = ['event' => null, 'event_path' => null, 'type' => null, 'meta' => null, 'data' => null, 'envelope' => null, 'shape' => null, 'review' => [], 'objectReview' => []];
         $hints = [];
         if (null !== $docs) {
             $alignment = $this->docsAnnotator->annotate($this->docsCapture->parse($docs), [$payload]);
@@ -111,41 +111,26 @@ final class WebhookImporter
         $data = $payload->data ?? null;
         if ('jsonapi' === $format && $data instanceof \stdClass && \is_string($data->type ?? null)) {
             $result['type'] = $data->type;
-            $result['data'] = $this->shapeGenerator->generate($data, false, self::under('data', $hints));
-            $result['meta'] = isset($payload->meta) ? $this->shapeGenerator->generate($payload->meta, false, self::under('meta', $hints)) : null;
+            $result['data'] = $this->shapeGenerator->generate($data, false, DocsAlignment::under('data', $hints));
+            $result['meta'] = isset($payload->meta) ? $this->shapeGenerator->generate($payload->meta, false, DocsAlignment::under('meta', $hints)) : null;
+            ShapeReview::add($result['data'], 'object', $result['objectReview']);
         } else {
             $result['shape'] = $this->shapeGenerator->generate($payload, false, $hints);
+            if (!$data instanceof \stdClass) {
+                // The keys the example leaves unknown, named (a payload without an object is the shape of its event)
+                ShapeReview::add($result['shape'], 'payload', $result['review']);
+            }
             if ($data instanceof \stdClass) {
                 // An object of a resource, in an envelope (event id, name, date…)
                 $envelope = clone $payload;
                 unset($envelope->data);
-                $result['data'] = $this->shapeGenerator->generate($data, false, self::under('data', $hints));
-                $result['envelope'] = $this->shapeGenerator->generate($envelope, false, array_filter($hints, static fn (string $path) => 'data' !== $path && !str_starts_with($path, 'data.') && !str_starts_with($path, 'data['), \ARRAY_FILTER_USE_KEY));
+                $result['data'] = $this->shapeGenerator->generate($data, false, DocsAlignment::under('data', $hints));
+                $result['envelope'] = $this->shapeGenerator->generate($envelope, false, DocsAlignment::outside('data', $hints));
+                ShapeReview::add($result['data'], 'object', $result['objectReview']);
             }
         }
 
         return $result;
-    }
-
-    /**
-     * The hints of the fields under a member of the payload, by their path in that member.
-     *
-     * @param array<string, DocsEntry> $hints
-     *
-     * @return array<string, DocsEntry>
-     */
-    private static function under(string $member, array $hints): array
-    {
-        $under = [];
-        foreach ($hints as $path => $entry) {
-            if ($path === $member) {
-                $under[''] = $entry;
-            } elseif (str_starts_with($path, $member.'.')) {
-                $under[substr($path, \strlen($member) + 1)] = $entry;
-            }
-        }
-
-        return $under;
     }
 
     private function plainText(string $markdown): string

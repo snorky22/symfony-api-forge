@@ -180,7 +180,7 @@ final class ServiceGenerator
             $doc[] = rtrim('@param '.$type.' $'.$variable.' '.$description);
         }
         $doc[] = '';
-        $doc[] = '@return '.($iterate ? '\\Generator<int, '.($alias ?? 'array<string, mixed>').'>' : $this->returnType($operation, $alias));
+        $doc[] = '@return '.($iterate ? '\\Generator<int, '.($alias ?? 'array<string, mixed>').'>' : $this->returnType($operation, $alias, $jsonApi));
         if (!$iterate) {
             $doc[] = '';
             $doc[] = '@throws \\Snorky22\\ApiForge\\Core\\ApiException';
@@ -212,9 +212,9 @@ final class ServiceGenerator
             .'    }';
     }
 
-    private function returnType(array $operation, ?string $alias): string
+    private function returnType(array $operation, ?string $alias, bool $jsonApi = true): string
     {
-        if (isset($operation['response']['shape'])) {
+        if (isset($operation['response']['shape']) && !isset($operation['response']['data'])) {
             return trim($operation['response']['shape']);
         }
         if (!isset($operation['response']['data'])) {
@@ -222,6 +222,10 @@ final class ServiceGenerator
         }
 
         $object = $alias ?? 'array<string, mixed>';
+        if (!$jsonApi) {
+            // Plain JSON: the members around "data", then the object or the list
+            return self::withMember($operation['response']['shape'] ?? 'array{}', 'data', 'list' === $operation['response']['data'] ? 'list<'.$object.'>' : $object);
+        }
 
         return 'list' === $operation['response']['data']
             ? "array{\n    data: list<{$object}>,\n    links?: array<string, ?string>,\n    meta?: array<string, mixed>,\n    included?: list<array<string, mixed>>,\n}"
@@ -283,7 +287,7 @@ final class ServiceGenerator
             }
             $probeMethod = "\n    protected function probe(): array\n    {\n        return \$this->probeResource->{$operationName}(".implode(', ', $callArguments).");\n    }\n";
 
-            // The contract: the shape of the response, or of the resource objects of a JSON:API response
+            // The contract: the shape of the response, or of the resource objects it holds (in "data")
             if (isset($operation['response']['data'], $definition->resources[$resource]['object'])) {
                 $contract = [$definition->resources[$resource]['object']['shape'], 'data', 'list' === $operation['response']['data']];
             } elseif (isset($operation['response']['shape'])) {
@@ -556,21 +560,30 @@ final class ServiceGenerator
         $data = null !== $alias && isset($imports[$alias]) ? $alias : 'array<string, mixed>';
         if (null !== $envelope) {
             // The members of the envelope, then the object
-            // (a multi-line shape keeps its indentation, a one-line shape gives one line)
-            $members = rtrim(trim(substr(trim($envelope['shape']), \strlen('array{'), -1)), ',');
-            $lines = str_contains($members, "\n")
-                ? array_values(array_filter(array_map('rtrim', explode("\n", substr(trim($envelope['shape']), \strlen('array{'), -1))), static fn (string $line) => '' !== trim($line)))
-                : ['    '.$members];
-            if ('' === $members) {
-                $lines = [];
-            } elseif (!str_ends_with($lines[\count($lines) - 1], ',')) {
-                $lines[\count($lines) - 1] .= ',';
-            }
-
-            return "array{\n".implode('', array_map(static fn (string $line) => $line."\n", $lines))."    {$envelope['data']}: {$data},\n}";
+            return self::withMember($envelope['shape'], $envelope['data'], $data);
         }
 
         return "array{\n    meta: WebhookMeta,\n    data: {$data},\n}";
+    }
+
+    /**
+     * An array shape with one more member, last: the members of the shape keep their layout (a multi-line shape keeps
+     * its indentation, a one-line shape gives one line).
+     */
+    private static function withMember(string $shape, string $key, string $type): string
+    {
+        $inner = substr(trim($shape), \strlen('array{'), -1);
+        $members = rtrim(trim($inner), ',');
+        $lines = str_contains($members, "\n")
+            ? array_values(array_filter(array_map('rtrim', explode("\n", $inner)), static fn (string $line) => '' !== trim($line)))
+            : ['    '.$members];
+        if ('' === $members) {
+            $lines = [];
+        } elseif (!str_ends_with($lines[\count($lines) - 1], ',')) {
+            $lines[\count($lines) - 1] .= ',';
+        }
+
+        return "array{\n".implode('', array_map(static fn (string $line) => $line."\n", $lines))."    {$key}: {$type},\n}";
     }
 
     private function payloadAlias(string $event): string

@@ -148,4 +148,19 @@ final class DescriptorMergerTest extends TestCase
         self::assertSame('orders', $result['resource']['type']);
         self::assertContains('JSON:API type "order-items" differs from the resource type "orders"', $result['notes']);
     }
+
+    public function testAnObjectAlreadyDescribedIsKeptOrReplaced(): void
+    {
+        $existing = ['resource' => 'orders', 'object' => ['shape' => 'array{id: string}'], 'operations' => []];
+        $endpoint = new ImportedEndpoint(self::API, 'orders', null, 'list', ['method' => 'GET', 'path' => 'orders', 'response' => ['data' => 'list']], ['shape' => 'array{id: string, total: int}']);
+
+        $kept = (new DescriptorMerger())->merge(self::API, $existing, $endpoint);
+        self::assertSame('array{id: string}', $kept['resource']['object']['shape']);
+        self::assertSame(['response: the objects of the response differ from the "orders" object already described (from another example): the object is kept'], $kept['resource']['operations']['list']['review']);
+
+        $replaced = (new DescriptorMerger())->merge(self::API, $existing, $endpoint, true);
+        self::assertSame('array{id: string, total: int}', $replaced['resource']['object']['shape']);
+        self::assertContains('resource object replaced', $replaced['notes']);
+        self::assertArrayNotHasKey('review', $replaced['resource']['operations']['list']);
+    }
 }

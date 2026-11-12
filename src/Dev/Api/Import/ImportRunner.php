@@ -19,6 +19,8 @@ final class ImportRunner
         private readonly DescriptorMerger $merger,
         private readonly DescriptorStore $store,
         private readonly ExampleReader $examples,
+        private readonly ?ObjectSources $objects = null,
+        private readonly string $projectDir = '',
     ) {
     }
 
@@ -31,7 +33,7 @@ final class ImportRunner
      *
      * @throws \InvalidArgumentException when the example can't be read or conflicts with the descriptors
      */
-    public function import(string $api, string $example, ?string $response = null, ?string $docs = null, ?string $resource = null, ?string $operation = null, bool $force = false, ?string $dir = null): ImportResult
+    public function import(string $api, string $example, ?string $response = null, ?string $docs = null, ?string $resource = null, ?string $operation = null, bool $force = false, ?string $dir = null, ?string $objectMode = null): ImportResult
     {
         $existingApi = $this->store->loadApi($api, $dir);
         $read = $this->examples->operation($example, $existingApi['base_uri'] ?? null);
@@ -54,7 +56,28 @@ final class ImportRunner
             $this->docs($docs, $response ?? $example),
             $this->bodyDocs($example),
         );
-        $merged = $this->merger->merge($existingApi, $this->store->loadResource($api, $endpoint->resource, $dir), $endpoint, $force);
+        $existingResource = $this->store->loadResource($api, $endpoint->resource, $dir);
+        $update = null;
+        if (null !== $endpoint->object && null !== $this->objects) {
+            // The objects the response holds describe the resource: its object, from all its examples (sources)
+            $holder = $response ?? $example;
+            $path = ('list' === ($endpoint->operation['response']['data'] ?? null) ? 'data[]' : 'data');
+            $source = ['example' => $this->relative($holder), 'path' => null === $response && 1 !== preg_match('/\.json$/', $example) ? 'response.'.$path : $path];
+            $mode = $objectMode;
+            $discovered = 'merge' === $mode && [] === ($existingResource['object']['sources'] ?? []) && null !== $existingResource
+                ? $this->objects->discover($this->projectDir, \dirname($holder), $endpoint->resource, $existingResource, $this->store->loadWebhooks($api, $dir))
+                : [];
+            $update = $this->objects->update($this->projectDir, $endpoint->resource, $existingResource['object'] ?? null, $source, $endpoint->object, $mode, $discovered, $force);
+            $endpoint = new ImportedEndpoint($endpoint->api, $endpoint->resource, $endpoint->type, $endpoint->operationName, array_merge($endpoint->operation, [] !== $update['review'] ? ['review' => [...$endpoint->operation['review'] ?? [], ...array_map(static fn (string $note) => 'response: '.$note, $update['review'])]] : []));
+        }
+        $merged = $this->merger->merge($existingApi, $existingResource, $endpoint, $force);
+        $objectChanged = null !== $update && $update['object'] !== ($existingResource['object'] ?? null);
+        if (null !== $update) {
+            array_push($merged['notes'], ...$update['notes']);
+        }
+        if ($objectChanged) {
+            $merged['resource'] = $this->merger->mergeObject($merged['resource'], $endpoint->resource, null, $update['object'], true)['resource'];
+        }
 
         $files = [
             $this->store->saveApi($api, $merged['api'], $dir),
@@ -62,7 +85,12 @@ final class ImportRunner
         ];
         $saved = $merged['resource']['operations'][$endpoint->operationName];
 
-        return new ImportResult($endpoint->resource, $endpoint->operationName, $saved['method'].' '.$saved['path'], $files, $merged['notes'], $saved['review'] ?? []);
+        // The notes of the object the response described, with the operation's
+        $objectReview = ($objectChanged || (null !== $endpoint->object && [] !== array_intersect(['resource object added', 'resource object replaced'], $merged['notes'])))
+            ? array_map(static fn (string $note) => 'object: '.preg_replace('/^object: /', '', $note), $merged['resource']['object']['review'] ?? [])
+            : [];
+
+        return new ImportResult($endpoint->resource, $endpoint->operationName, $saved['method'].' '.$saved['path'], $files, $merged['notes'], [...$saved['review'] ?? [], ...$objectReview]);
     }
 
     /**
@@ -110,5 +138,16 @@ final class ImportRunner
         }
 
         return $content;
+    }
+
+    /**
+     * A file as the descriptors record it: relative to the project when it is inside.
+     */
+    private function relative(string $file): string
+    {
+        $real = realpath($file) ?: $file;
+        $project = '' !== $this->projectDir ? (realpath($this->projectDir) ?: $this->projectDir) : '';
+
+        return '' !== $project && str_starts_with($real, $project.'/') ? substr($real, \strlen($project) + 1) : $real;
     }
 }

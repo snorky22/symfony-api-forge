@@ -277,6 +277,30 @@ final class ServiceGeneratorTest extends TestCase
         self::assertStringNotContainsString('WebhookMeta', $code);
     }
 
+    public function testAPlainJsonResponseHoldingObjectsReturnsTheObjectType(): void
+    {
+        $filesystem = new Filesystem();
+        $dir = sys_get_temp_dir().'/service-generator-objects-'.bin2hex(random_bytes(4));
+        $filesystem->dumpFile($dir.'/config/api/plain/_api.yaml', Yaml::dump(['base_uri' => 'https://api.plain.test/', 'format' => 'json', 'namespace' => 'Plain', 'doctor' => ['probe' => 'transactions.list']]));
+        $filesystem->dumpFile($dir.'/config/api/plain/transactions.yaml', Yaml::dump(['resource' => 'transactions', 'object' => ['shape' => "array{\n    id: string,\n}"], 'operations' => [
+            'list' => ['method' => 'GET', 'path' => 'transactions', 'response' => ['data' => 'list', 'shape' => "array{\n    meta: array{\n        next: ?string,\n    },\n}"]],
+            'get' => ['method' => 'GET', 'path' => 'transactions/{id}', 'parameters' => ['id' => []], 'response' => ['data' => 'object']],
+        ]], 10));
+
+        try {
+            $definition = (new DescriptorLoader(new DescriptorStore($dir.'/config/api'), new ShapeValidator()))->load('plain');
+            $files = (new ServiceGenerator())->generate($definition, 'config/api/plain');
+        } finally {
+            $filesystem->remove($dir);
+        }
+        $resource = $files['src/Api/Plain/Generated/Resource/Transactions.php'];
+
+        self::assertStringContainsString("     * @return array{\n     *     meta: array{\n     *         next: ?string,\n     *     },\n     *     data: list<Transaction>,\n     * }\n", $resource);
+        self::assertStringContainsString("     * @return array{\n     *     data: Transaction,\n     * }\n", $resource);
+        // The doctor checks the objects of the probe's response against the object shape
+        self::assertStringContainsString("protected const PROBE_PATH = 'data';", $files['src/Api/Plain/Generated/PlainDoctor.php']);
+    }
+
     public function testWebhookParserAndConsumer(): void
     {
         self::generate();

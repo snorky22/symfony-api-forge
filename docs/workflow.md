@@ -303,8 +303,9 @@ parameters.
    bin/console api-forge:import paddle tests/Fixtures/paddle/list-prices-include.php
    ```
 5. **Import again** to apply the completed example to the response. The operation exists, so what it holds is kept:
-   replace it with `--force` (the response shape and the query are rebuilt from the examples; do the query examples
-   of step 4 afterwards):
+   replace it with `--force` (the price object, the rest of the response and the query are rebuilt from the examples;
+   the prices of `data` describe the `object` of `prices.yaml`, shared by every operation of prices; do the query
+   examples of step 4 afterwards):
    ```bash
    bin/console api-forge:import paddle tests/Fixtures/paddle/list-prices.curl \
        --response=tests/Fixtures/paddle/list-prices.json --force
@@ -322,6 +323,29 @@ next command.
 An import never overwrites what is in the descriptor: values already there win, so hand-made fixes survive. To
 apply an improved example to an operation that exists, pass `--force`: it replaces that operation (not the others of
 the resource). Re-importing rewrites the YAML file, so YAML comments are lost: keep notes in `review` entries.
+
+### A response that holds objects of the resource
+
+When the response holds objects in `data` (Paddle: `{"data": [{…}, {…}], "meta": {…}}`; JSON:API documents too), they
+describe the resource, not only this operation: the import sets the `object` shape of the resource (with the docs page
+of the response, from its `data[]` fields), and the operation keeps the other members (`meta`). Every operation and
+webhook event of the resource then shares one type (`Transaction`), and its notes are reviewed once, under the object.
+The object records the examples that describe it, its `sources` (a file, and where the objects are in it: `data`,
+`data[]`), each with the docs page next to it. Importing one of them again describes the object again from all of them.
+Another example that holds the object is not used by default: the object is kept, and a note says that this one
+differs. Choose with `--object`:
+
+```bash
+bin/console api-forge:import paddle tests/Fixtures/paddle/list-transactions.curl --object=merge     # both examples
+bin/console api-forge:import paddle tests/Fixtures/paddle/list-transactions.curl --object=replace   # this one only
+bin/console api-forge:import-webhook paddle --payload=tests/Fixtures/paddle/webhook-transaction.paid.json --object=merge
+```
+
+Merged, a key missing from some examples is optional, a value null in one and set in another is nullable, and the docs
+page of the first example that documents a field applies. An object described before its sources were recorded is
+merged with the examples found by the conventions (the payloads of its events, the responses of its operations).
+`--force` alone replaces the object with a new example, but describes a source again with the others. The web
+interface asks with two buttons on the note, **Merge both** and **Replace with this one** (*Accept* keeps it).
 
 ## Adding webhooks
 

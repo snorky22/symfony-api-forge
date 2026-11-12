@@ -32,6 +32,7 @@ use Snorky22\ApiForge\Dev\Api\Import\EndpointImporter;
 use Snorky22\ApiForge\Dev\Api\Import\ImportRunner;
 use Snorky22\ApiForge\Dev\Api\Import\WebhookImporter;
 use Snorky22\ApiForge\Dev\Api\Import\WebhookImportRunner;
+use Snorky22\ApiForge\Dev\Api\Import\ObjectSources;
 use Snorky22\ApiForge\Dev\Api\Import\WebhookMerger;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 use Snorky22\ApiForge\Dev\Doctor\AbstractApiDoctor;
@@ -123,6 +124,7 @@ final class ApiForgeBundle extends AbstractBundle
             DescriptorMerger::class,
             WebhookImporter::class,
             WebhookImportRunner::class,
+            ObjectSources::class,
             WebhookMerger::class,
             ShapeValidator::class,
             DescriptorLoader::class,
@@ -143,6 +145,8 @@ final class ApiForgeBundle extends AbstractBundle
         $services->set(PhpArrayExample::class);
         $services->set(ExampleReader::class)->arg('$formats', tagged_iterator('api_forge.example_format'));
         $services->set(DescriptorStore::class)->arg('$directory', $config['descriptor_dir']);
+        $services->set(ImportRunner::class)->arg('$projectDir', '%kernel.project_dir%');
+        $services->set(WebhookImportRunner::class)->arg('$projectDir', '%kernel.project_dir%');
         $services->set(ServiceGenerator::class)->args([$config['namespace'], $config['source_dir'], $config['config_dir']]);
         $services->set(Guide::class)
             ->arg('$projectDir', '%kernel.project_dir%')

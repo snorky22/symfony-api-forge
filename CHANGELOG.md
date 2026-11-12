@@ -5,6 +5,25 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- Webhook payloads name the keys they leave unknown (`"mixed"`, `"list<mixed>"`), as endpoint responses do: on the object
+  of the resource when the payload holds one, on the event otherwise; the web interface offers their Fix.
+- The object of a resource records its sources, the examples it is described from (`object.sources`: a file, and where
+  the objects are in it), and is described from all of them, merged (`ObjectSources`), each with its docs page.
+  Importing a source again describes the object again; another example is kept out by default (a note says it differs)
+  and `--object=merge|replace` (on `api-forge:import` and `api-forge:import-webhook`) merges or replaces; objects without
+  recorded sources merge with the examples found by the conventions. `--force` replaces with a new example, never drops
+  the other sources of a source. Web interface: **Merge both** / **Replace with this one** on the note, the sources in
+  the object box. `ShapeReview` names the unknown keys for every importer.
+- Plain JSON responses holding objects of their resource: when `data` holds an object, or a list of objects, for an
+  operation of the resource, the import sets the resource `object` shape from them (with the docs page), and the
+  operation gets `response: {data: list|object, shape: <other members>}`; the generated return type is the other
+  members plus `data: list<Object>` (or `Object`), and the doctor checks the objects. The object's notes come with the
+  import result. An object already described from another example is kept, with a note; `--force` replaces it.
+- Web interface: the object of a resource can have a file of its own, `<object>-object.array`. A note about it shows where
+  the object is described, and **Create … and edit it** makes the file from the object of a payload (which then points to
+  it), then opens it. **Save & import** in the editor imports again the payloads and examples that point to a file (also
+  through other files), webhook payloads included; Fix writes in PHP arrays with their syntax, and in the files a payload
+  points to. The notes about objects shared by events say that there is one description, and where.
 - Web interface, review notes: grouped by where they apply (descriptor, operation or event), with a summary of their
   kinds; each note is an accordion item (native `<details>`, no script) titled by the issue in a line and a badge of its
   kind; opened, it says what api-forge found, what it means for the generated code, and what you can do, as lists, with

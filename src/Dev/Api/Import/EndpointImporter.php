@@ -3,6 +3,7 @@
 namespace Snorky22\ApiForge\Dev\Api\Import;
 
 use Snorky22\ApiForge\Dev\Api\Curl\CurlRequest;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsAlignment;
 use Snorky22\ApiForge\Dev\Api\Docs\DocsAnnotator;
 use Snorky22\ApiForge\Dev\Api\Docs\DocsCapture;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
@@ -134,6 +135,32 @@ final class EndpointImporter
                 $type = $itemType;
                 $operation['response'] = ['data' => $isList ? 'list' : 'object'];
                 $object = ['shape' => $this->shapeGenerator->generateMerged($items)];
+                $objectReview = [];
+                $this->reviewShape($object['shape'], 'object', $objectReview);
+                if ([] !== $objectReview) {
+                    $object['review'] = $objectReview;
+                }
+            } elseif (!$jsonApi && $isCrud && null !== $held = self::heldObjects($response)) {
+                // Plain JSON: "data" holds the resource object, or a list of them; they describe the resource, once
+                // for all its operations (and its webhook events), the other members stay with the operation
+                [$items, $isList] = $held;
+                $hints = [];
+                if (null !== $docs) {
+                    $alignment = $this->docsAnnotator->annotate($this->docsCapture->parse($docs), [$response]);
+                    $hints = $alignment->hints;
+                    array_push($review, ...$alignment->notes);
+                    if ([] === $hints) {
+                        $review[] = 'docs: no field of the documentation capture matches the example, nothing applied';
+                    }
+                }
+                $operation['response'] = ['data' => $isList ? 'list' : 'object'];
+                $others = clone $response;
+                unset($others->data);
+                if ([] !== (array) $others) {
+                    $operation['response']['shape'] = $this->shapeGenerator->generate($others, false, DocsAlignment::outside('data', $hints));
+                    $this->reviewShape($operation['response']['shape'], 'response', $review);
+                }
+                $object = ['shape' => $this->shapeGenerator->generateMerged($items, false, DocsAlignment::under($isList ? 'data[]' : 'data', $hints))];
                 $objectReview = [];
                 $this->reviewShape($object['shape'], 'object', $objectReview);
                 if ([] !== $objectReview) {
@@ -420,63 +447,29 @@ final class EndpointImporter
     }
 
     /**
-     * @param list<string> $review
+     * The objects a plain JSON response holds in "data": one object, or a list of objects (an empty list tells
+     * nothing).
+     *
+     * @return ?array{list<\stdClass>, bool} the objects, and whether "data" is a list
      */
+    private static function heldObjects(mixed $response): ?array
+    {
+        $data = $response instanceof \stdClass ? ($response->data ?? null) : null;
+        if ($data instanceof \stdClass) {
+            return [[$data], false];
+        }
+        if (\is_array($data) && [] !== $data && array_is_list($data) && [] === array_filter($data, static fn ($item) => !$item instanceof \stdClass)) {
+            return [$data, true];
+        }
+
+        return null;
+    }
+
     private function reviewShape(string $shape, string $what, array &$review): void
     {
-        $paths = $this->unknownTypes($shape);
-        if (preg_match('/:\s*mixed,/', $shape)) {
-            $review[] = \sprintf('%s: "mixed" marks values that are null in the example, their real type is unknown%s', $what, self::keys($paths['mixed']));
-        }
-        if (str_contains($shape, 'list<mixed>')) {
-            $review[] = \sprintf('%s: "list<mixed>" marks empty arrays in the example, they may be empty objects%s', $what, self::keys($paths['lists']));
-        }
+        ShapeReview::add($shape, $what, $review);
     }
 
-    /**
-     * The keys typed "mixed" and "list<mixed>" in a generated (multi-line) shape, as paths: data[].custom_data.
-     *
-     * @return array{mixed: list<string>, lists: list<string>}
-     */
-    private function unknownTypes(string $shape): array
-    {
-        $found = ['mixed' => [], 'lists' => []];
-        $stack = [];
-        foreach (preg_split('/\R/', $shape) ?: [] as $line) {
-            $line = trim($line);
-            if (str_starts_with($line, '}')) {
-                array_pop($stack);
-                continue;
-            }
-            $key = preg_match('/^(\'[^\']*\'|[^\s:?]+)\??:\s*(.*)$/', $line, $matches) ? trim($matches[1], "'") : null;
-            $type = $matches[2] ?? $line;
-            if (str_ends_with($type, '{')) {
-                $stack[] = (null !== $key ? $key : '').(str_starts_with($type, 'list<') ? '[]' : '');
-                continue;
-            }
-            if (null === $key) {
-                continue;
-            }
-            $path = implode('.', array_filter([...$stack, $key], static fn (string $part) => '' !== $part));
-            if (1 === preg_match('/^mixed,?$/', $type)) {
-                $found['mixed'][] = $path;
-            } elseif (str_contains($type, 'list<mixed>')) {
-                $found['lists'][] = $path;
-            }
-        }
-
-        return $found;
-    }
-
-    /**
-     * @param list<string> $paths
-     */
-    private static function keys(array $paths): string
-    {
-        $paths = array_values(array_unique($paths));
-
-        return [] === $paths ? '' : \sprintf(' (%s%s)', implode(', ', \array_slice($paths, 0, 10)), \count($paths) > 10 ? ', …' : '');
-    }
 
     private function scalarType(string $value): string
     {

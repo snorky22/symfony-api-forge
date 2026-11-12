@@ -57,6 +57,17 @@ information as `api-forge:guide`), then a **Webhooks** card.
 | **Webhook payload** (*Add a payload*, or *Edit the payload* next to an event) | choose the event (or let it be read from the payload), paste the payload example as JSON and the docs page of the event as text; *Replace what is described* is ticked | checks the JSON and that the payload is an event of that name, writes `webhook-<event>.json` and `.docs.md`, imports them (`api-forge:import-webhook --force`), and shows what changed: the object of the resource set, the envelope, the other events of the entity typed with it, and the notes left on the event |
 | **Review the notes** | as for the endpoints | the notes of an event come with its payload and its docs page; **Fix** writes the value in the payload and imports it again |
 
+A note that an example's objects differ from the object already described has two buttons: **Merge both** (the object
+is described from its examples and this one) and **Replace with this one**; *Accept* keeps the object as it is. A note
+about the object of a resource (the notes of an event whose payload holds it, or the notes naming the resource) shows
+where the object is described (merged from several examples, they are listed): once, in the resource descriptor, from the payload or from a file of its own. Its
+button **Create `<object>-object.array` and edit it** gives the object a file of its own, a PHP array made from the object
+of the payload, which then points to it (`"data": "transaction-object.array"`: only that value of the payload changes),
+and opens its editor; once the file exists, the button is **Edit the … object**. In the editor, **Save & import** imports
+again every payload and example that points to the file (also through another file: a type inside the object), and so
+do the Fix forms, which write in that file with the PHP syntax (`'key' => 'text'`; an array cannot say "any object": use
+a type file, or write the fields). A webhook payload opened in the editor has **Save & import** too.
+
 A payload holding an object (`data`) types its resource, so one payload and its docs page per entity type all its events:
 the Paddle `transaction.completed` payload types the ten `transaction.*` events. Then **Generate** and the doctor, as for
 the endpoints. The events table of the docs is imported from the command line for now

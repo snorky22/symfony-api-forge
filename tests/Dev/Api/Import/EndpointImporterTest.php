@@ -44,10 +44,12 @@ final class EndpointImporterTest extends TestCase
     {
         $endpoint = $this->import('curl https://api.test/prices', '{"data": [{"id": "p1", "trial_period": null, "custom_data": null, "unit_price_overrides": [], "nested": {"meta": null, "tags": []}}], "meta": {"cursor": null}}');
 
+        // The objects of "data" describe the resource: their notes are the object's, the others the response's
+        self::assertSame(['response: "mixed" marks values that are null in the example, their real type is unknown (meta.cursor)'], array_values(array_filter($endpoint->operation['review'], static fn (string $note) => str_starts_with($note, 'response:'))));
         self::assertSame([
-            'response: "mixed" marks values that are null in the example, their real type is unknown (data[].trial_period, data[].custom_data, data[].nested.meta, meta.cursor)',
-            'response: "list<mixed>" marks empty arrays in the example, they may be empty objects (data[].unit_price_overrides, data[].nested.tags)',
-        ], array_values(array_filter($endpoint->operation['review'], static fn (string $note) => str_starts_with($note, 'response:'))));
+            'object: "mixed" marks values that are null in the example, their real type is unknown (trial_period, custom_data, nested.meta)',
+            'object: "list<mixed>" marks empty arrays in the example, they may be empty objects (unit_price_overrides, nested.tags)',
+        ], $endpoint->object['review']);
     }
 
     public function testJsonApiListResponseDescribesTheResourceObject(): void
@@ -197,5 +199,28 @@ final class EndpointImporterTest extends TestCase
         self::assertSame(['type' => 'header', 'header' => 'X-Api-Key', 'env' => 'LEMONSQUEEZY_API_KEY'], $endpoint->api['auth']);
         self::assertSame(['Accept' => 'application/json'], $endpoint->api['headers']);
         self::assertSame('json', $endpoint->api['format']);
+    }
+
+    public function testAPlainJsonListHoldingObjectsDescribesTheResource(): void
+    {
+        $docs = "dataarrayrequired\n\nidstringrequired\n\nstatusstringrequired\n\nValues\n\n*   `paid`\n*   `completed`\n\nbilled_atstring | nullrequired\n\nmetaobjectrequired\n\nnextstring | nullrequired\n";
+        $endpoint = (new EndpointImporter(new LenientJsonDecoder(), new ArrayShapeGenerator()))->import((new CurlParser())->parse('curl https://api.test/transactions'), 'paddle', '{"data": [{"id": "txn_1", "status": "paid", "billed_at": "2026-11-10"}, {"id": "txn_2", "status": "completed", "billed_at": null}], "meta": {"next": null}}', docs: $docs);
+
+        self::assertSame('transactions', $endpoint->resource);
+        self::assertSame('list', $endpoint->operation['response']['data']);
+        self::assertSame("array{\n    meta: array{\n        next: ?string,\n    },\n}", $endpoint->operation['response']['shape']);
+        self::assertSame("array{\n    id: string,\n    status: 'paid'|'completed',\n    billed_at: ?string,\n}", $endpoint->object['shape']);
+    }
+
+    public function testAPlainJsonResponseHoldingOneObjectDescribesTheResource(): void
+    {
+        $endpoint = $this->import('curl https://api.test/transactions/42', '{"data": {"id": "txn_1"}}');
+
+        self::assertSame(['data' => 'object'], $endpoint->operation['response']);
+        self::assertSame("array{\n    id: string,\n}", $endpoint->object['shape']);
+        // An empty list, a list of scalars, a response without "data": the response is its own shape
+        self::assertNull($this->import('curl https://api.test/transactions', '{"data": []}')->object);
+        self::assertNull($this->import('curl https://api.test/tags', '{"data": ["a", "b"]}')->object);
+        self::assertArrayHasKey('shape', $this->import('curl https://api.test/account', '{"id": "acc_1"}')->operation['response']);
     }
 }

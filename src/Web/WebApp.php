@@ -5,9 +5,11 @@ namespace Snorky22\ApiForge\Web;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorSchema;
 use Snorky22\ApiForge\Dev\Api\Example\PhpArrayExample;
 use Snorky22\ApiForge\Dev\Api\Generator\GenerateResult;
+use Snorky22\ApiForge\Dev\PhpArrayDumper;
 use Snorky22\ApiForge\Dev\PhpLiteral;
 use Symfony\Component\Config\Definition\Exception\Exception as ConfigException;
 use Symfony\Component\Config\Definition\Processor;
+use Symfony\Component\String\Inflector\EnglishInflector;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
@@ -69,7 +71,7 @@ final class WebApp
         if ('/new' === $path) {
             return 'POST' === $request->method ? $this->createApi($request) : $this->page('api_form', ['values' => $this->apiDefaults(), 'errors' => [], 'edit' => false], 'New API');
         }
-        if (1 !== preg_match('#^/api/('.self::NAME.')(?:/(describe|endpoint|example|type|file|import|import-all|notes|fix|generate|doctor|webhooks|webhook))?$#', $path, $matches)) {
+        if (1 !== preg_match('#^/api/('.self::NAME.')(?:/(describe|endpoint|example|type|file|import|import-all|notes|fix|generate|doctor|webhooks|webhook|object|object-choice))?$#', $path, $matches)) {
             return $this->error(404, 'Not found.');
         }
         $api = $matches[1];
@@ -91,6 +93,8 @@ final class WebApp
             'generate' => 'POST' === $request->method ? $this->generate($api) : $this->generateForm($api),
             'doctor' => 'POST' === $request->method ? $this->doctor($api) : $this->doctorPage($api, null),
             'webhooks' => $this->webhooks($api),
+            'object' => 'POST' === $request->method ? $this->editObject($api, $request) : Response::redirect('/api/'.$api.'/notes'),
+            'object-choice' => 'POST' === $request->method ? $this->chooseObject($api, $request) : Response::redirect('/api/'.$api.'/notes'),
             'webhook' => 'POST' === $request->method ? $this->importPayload($api, $request) : $this->payloadForm($api, (string) ($request->query['event'] ?? ''), [], null),
         };
     }
@@ -572,7 +576,7 @@ final class WebApp
         }
 
         $isExample = 'examples' === $area && 1 === preg_match('/\.(curl|php)$/', $name) && !str_contains($name, '-type.') && !str_contains($name, '-object.') && !str_starts_with($name, 'webhook-');
-        $vars = ['api' => $api, 'area' => $area, 'name' => $name, 'content' => $content, 'mode' => $mode, 'line' => max(0, (int) ($request->query['line'] ?? 0)), 'errors' => $errors, 'saved' => $saved, 'isExample' => $isExample, 'importTarget' => 'examples' === $area ? $this->importTarget($files, $name) : null, 'token' => $this->token()];
+        $vars = ['api' => $api, 'area' => $area, 'name' => $name, 'content' => $content, 'mode' => $mode, 'line' => max(0, (int) ($request->query['line'] ?? 0)), 'errors' => $errors, 'saved' => $saved, 'isExample' => $isExample, 'importTarget' => 'examples' === $area ? ($this->importTarget($files, $name) ?? ([] !== $this->dependents($files, $name) ? $name : null)) : null, 'token' => $this->token()];
         if (isset($request->query['partial'])) {
             return new Response(200, $this->view->fragment('editor_panel', $vars + ['fragment' => true]));
         }
@@ -613,6 +617,9 @@ final class WebApp
         }
         $name = trim($request->text('name'));
         $fixtures = new FixtureDirectory($this->config->fixturesDir($api));
+        if ($fixtures->has($name) && null === $this->importTarget($fixtures, $name) && [] !== $dependents = $this->dependents($fixtures, $name)) {
+            return $this->importDependents($api, $fixtures, $dependents, $request);
+        }
         if (!$fixtures->has($name) || 1 !== preg_match('/\.(curl|php)$/', $name)) {
             return $request->wantsJson() ? Response::json(['ok' => false, 'errors' => ['Unknown example.']], 404) : $this->error(404, 'Unknown example.');
         }
@@ -636,6 +643,33 @@ final class WebApp
     }
 
     /**
+     * Imports again the payloads and the examples that depend on a file (Save & import of a payload, an object or a
+     * type file), replacing what they describe.
+     *
+     * @param list<string> $dependents
+     */
+    private function importDependents(string $api, FixtureDirectory $fixtures, array $dependents, Request $request): Response
+    {
+        $results = [];
+        try {
+            foreach ($dependents as $file) {
+                if (1 === preg_match('/^webhook-(.+)\.json$/', $file, $event)) {
+                    $result = $this->services->webhooks->import($api, null, [$fixtures->path($file)], $event[1], null, true);
+                    $results[] = ['name' => $file, 'operation' => 'event '.$event[1], 'endpoint' => '/webhook/'.$api, 'notes' => $result['notes'], 'review' => \count(array_filter($result['review'], static fn (string $note) => str_starts_with($note, 'event "'.$event[1].'": ')))];
+                } else {
+                    foreach ($this->importFamily($api, $fixtures, $file, true, true) as [$name, $imported]) {
+                        $results[] = ['name' => $name, 'operation' => $imported->resource.'.'.$imported->operation, 'endpoint' => $imported->endpoint, 'notes' => $imported->notes, 'review' => \count($imported->review)];
+                    }
+                }
+            }
+        } catch (\InvalidArgumentException $e) {
+            return $request->wantsJson() ? Response::json(['ok' => false, 'errors' => [$e->getMessage()]], 422) : $this->notes($api, null, ['Not imported: '.$e->getMessage()]);
+        }
+
+        return $request->wantsJson() ? Response::json(['ok' => true, 'results' => $results]) : $this->notes($api, \sprintf('Imported again: %s.', implode(', ', array_column($results, 'name'))));
+    }
+
+    /**
      * Imports an example (replacing its operation when asked) and, with $family, the variants of the same operation
      * after it (list-prices-include.php after list-prices.curl): they add their query parameters to it, which a
      * replacement would have dropped.
@@ -644,9 +678,9 @@ final class WebApp
      *
      * @throws \InvalidArgumentException
      */
-    private function importFamily(string $api, FixtureDirectory $fixtures, string $name, bool $force, bool $family): array
+    private function importFamily(string $api, FixtureDirectory $fixtures, string $name, bool $force, bool $family, ?string $objectMode = null): array
     {
-        $import = fn (string $file, bool $replace) => $this->services->import->import(
+        $import = fn (string $file, bool $replace, ?string $mode = null) => $this->services->import->import(
             $api,
             $fixtures->path($file),
             str_ends_with($file, '.curl') ? $this->pairedResponse($fixtures, (string) preg_replace('/\.[^.]+$/', '', $file)) : null,
@@ -654,9 +688,11 @@ final class WebApp
             null,
             null,
             $replace,
+            null,
+            $mode,
         );
 
-        $primary = $import($name, $force);
+        $primary = $import($name, $force, $objectMode);
         $results = [[$name, $primary]];
         if ($family) {
             $prefix = $primary->operation.'-'.$primary->resource.'-';
@@ -835,6 +871,175 @@ final class WebApp
             'otherNotes' => \count($result['review']) - \count($eventNotes),
             'state' => $this->webhookState($api),
         ], 'Imported');
+    }
+
+    // The object of a resource, described by a file of its own (<object>-object.array) that the payloads and the
+    // examples point to: one description, edited by the user, shared by every event and operation of the resource
+
+    /**
+     * The resource a note is about: the one it names, or the one of its event's payload.
+     *
+     * @param array{file: string, part: ?string, text: string} $location
+     */
+    private function resourceOfNote(string $api, array $location): ?string
+    {
+        if (1 === preg_match('/(?:resource|the) "([a-z0-9][a-z0-9-]*)"(?: has no object| object|,| derived| set on)/', $location['text'], $m)) {
+            return $m[1];
+        }
+        if ('_webhooks.yaml' === $location['file'] && null !== $location['part'] && str_starts_with($location['part'], 'event ')) {
+            $resource = $this->services->store->loadWebhooks($api)['events'][substr($location['part'], 6)]['resource'] ?? null;
+
+            return \is_string($resource) ? $resource : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Where the object of a resource is described, and which payloads describe it.
+     *
+     * @return array{resource: string, label: string, described: bool, sources: list<string>, file: string, exists: bool, payloads: list<string>, pointing: list<string>}
+     */
+    private function objectState(string $api, string $resource): array
+    {
+        $fixtures = new FixtureDirectory($this->config->fixturesDir($api));
+        $words = explode('-', $resource);
+        $words[] = (new EnglishInflector())->singularize(array_pop($words))[0];
+        $label = implode('-', $words);
+        $file = $label.'-object.array';
+        foreach (['array', 'php', 'json'] as $extension) {
+            if ($fixtures->has($label.'-object.'.$extension)) {
+                $file = $label.'-object.'.$extension;
+                break;
+            }
+        }
+        $payloads = [];
+        foreach ($this->services->store->loadWebhooks($api)['events'] ?? [] as $event => $definition) {
+            if ($resource === ($definition['resource'] ?? null) && $fixtures->has('webhook-'.$event.'.json')) {
+                $payloads[] = 'webhook-'.$event.'.json';
+            }
+        }
+        $pointing = array_values(array_filter($payloads, static fn (string $name) => str_contains($fixtures->read($name), '"'.$file.'"')));
+        $descriptor = $this->services->store->loadResource($api, $resource);
+
+        return [
+            'resource' => $resource,
+            'label' => str_replace('-', ' ', $label),
+            'described' => isset($descriptor['object']),
+            'sources' => array_map(static fn (array $source) => basename($source['example']), $descriptor['object']['sources'] ?? []),
+            'file' => $file,
+            'exists' => $fixtures->has($file),
+            'payloads' => $payloads,
+            'pointing' => $pointing,
+        ];
+    }
+
+    /**
+     * Opens the editor of the object of a resource; first creates its file from the object of a payload, which then
+     * points to it.
+     */
+    private function editObject(string $api, Request $request): Response
+    {
+        $resource = trim($request->text('resource'));
+        if (1 !== preg_match('/^[a-z0-9][a-z0-9-]*$/', $resource)) {
+            return $this->notes($api, null, ['Unknown resource.']);
+        }
+        $state = $this->objectState($api, $resource);
+        $editor = Response::redirect('/api/'.$api.'/file?'.http_build_query(['name' => $state['file'], 'area' => 'examples']));
+        if ($state['exists']) {
+            return $editor;
+        }
+        if ([] === $state['payloads']) {
+            return $this->notes($api, null, [\sprintf('No payload example holds a "%s" object yet: add one (Webhooks page), then create its file from it.', $resource)]);
+        }
+
+        $fixtures = new FixtureDirectory($this->config->fixturesDir($api));
+        $key = $this->services->store->loadWebhooks($api)['envelope']['data'] ?? 'data';
+        $payload = $state['payloads'][0];
+        $content = $fixtures->read($payload);
+        try {
+            $data = $this->services->decoder->decode($content)[$key] ?? null;
+        } catch (\JsonException) {
+            $data = null;
+        }
+        if (!\is_array($data)) {
+            return $this->notes($api, null, [\sprintf('%s holds no object in "%s": edit it by hand.', $payload, $key)]);
+        }
+
+        // The payload keeps its layout: only the value of its object changes, to the name of the file
+        $pointed = JsonText::replaceValue($content, $key, '"'.$state['file'].'"', '{');
+        if (null === $pointed || $state['file'] !== ($this->services->decoder->decode($pointed)[$key] ?? null)) {
+            return $this->notes($api, null, [\sprintf('The object of %s could not be replaced by a reference: edit it by hand ("%s": "%s").', $payload, $key, $state['file'])]);
+        }
+        $fixtures->write($state['file'], "// The {$state['label']} object, as the API sends it. ".implode(', ', $state['payloads'])." point(s) to this file.\n// Edit it, then Save & import: the payloads that point to it are imported again.\n".(new PhpArrayDumper())->dump($data)."\n");
+        $fixtures->write($payload, $pointed);
+
+        return $editor;
+    }
+
+    /**
+     * Imports again an example whose objects differ from the object of its resource, merging it with the examples of
+     * the object, or replacing them by it.
+     */
+    private function chooseObject(string $api, Request $request): Response
+    {
+        $example = trim($request->text('example'));
+        $mode = $request->text('mode');
+        $fixtures = new FixtureDirectory($this->config->fixturesDir($api));
+        if (!\in_array($mode, ['merge', 'replace'], true) || !$fixtures->has($example)) {
+            return $this->notes($api, null, ['Choose Merge or Replace, for an example of the examples folder.']);
+        }
+
+        try {
+            if (1 === preg_match('/^webhook-(.+)\.json$/', $example, $event)) {
+                $result = $this->services->webhooks->import($api, null, [$fixtures->path($example)], $event[1], null, false, null, $mode);
+                $done = $result['notes'];
+            } else {
+                $target = $this->importTarget($fixtures, $example) ?? throw new \InvalidArgumentException(\sprintf('No request next to %s to import it with.', $example));
+                $done = $this->importFamily($api, $fixtures, $target, false, false, $mode)[0][1]->notes;
+            }
+        } catch (\InvalidArgumentException $e) {
+            return $this->notes($api, null, ['Not done: '.$e->getMessage()]);
+        }
+
+        // The note of the difference is settled: the example is used now
+        $this->services->store->removeReviewNotes($api, array_values(array_filter($this->progress($api)['review'], static fn (string $note) => str_contains($note, 'the objects of ') && str_contains($note, basename($example)) && str_contains($note, ' differ from the '))));
+        $object = array_values(array_filter($done, static fn (string $note) => str_starts_with($note, 'object of ')));
+
+        return $this->notes($api, [] !== $object ? ucfirst($object[0]).'.' : 'Imported again.');
+    }
+
+    /**
+     * The webhook payloads and the endpoint examples to import again after a file changed: the file itself when it is
+     * a payload, or the ones that point to it.
+     *
+     * @return list<string> example file names
+     */
+    private function dependents(FixtureDirectory $fixtures, string $name, array $seen = []): array
+    {
+        if (1 === preg_match('/^webhook-.+\.json$/', $name)) {
+            return [$name];
+        }
+        if (!str_contains($name, '-object.') && !str_contains($name, '-type.') && 1 !== preg_match('/\.array$/', $name)) {
+            return [];
+        }
+        $seen[] = $name;
+        $dependents = [];
+        foreach ($fixtures->names() as $candidate) {
+            if (\in_array($candidate, $seen, true) || 1 !== preg_match('/\.(json|php|array)$/', $candidate) || 1 !== preg_match('/["\']'.preg_quote($name, '/').'["\']/', $fixtures->read($candidate))) {
+                continue;
+            }
+            if (str_starts_with($candidate, 'webhook-')) {
+                $dependents[] = $candidate;
+            } elseif (null !== $target = $this->importTarget($fixtures, $candidate)) {
+                $dependents[] = $target;
+            } else {
+                // A data file pointed to by another one (a type inside an object): what depends on that one
+                array_push($dependents, ...$this->dependents($fixtures, $candidate, $seen));
+            }
+        }
+
+        return array_values(array_unique($dependents));
     }
 
     // Step 2: the endpoints. One screen per part of the request and the response; each one writes its files, which are
@@ -1136,6 +1341,9 @@ final class WebApp
                 'kind' => NoteFormatter::kind($note),
                 'subject' => NoteFormatter::subject($location['text']),
                 'guide' => NoteGuide::describe($location['text'], $files),
+                'object' => null !== ($resource = $this->resourceOfNote($api, $location)) ? $this->objectState($api, $resource) : null,
+                // An example whose objects differ from the object: merge it, or replace the object with it
+                'choice' => 1 === preg_match('/the objects of (\S+) differ from the "([a-z0-9-]+)" object already described/', $location['text'], $differ) && $fixtures->has(basename($differ[1])) ? ['example' => basename($differ[1]), 'resource' => $differ[2]] : null,
                 'examples' => $related['examples'],
                 'descriptor' => $related['descriptor'],
                 'fix' => $this->fixFor($api, $fixtures, $note),
@@ -1178,15 +1386,17 @@ final class WebApp
     {
         $scope = self::scopeOf($note);
         $candidates = array_values(array_filter($fixtures->names(), static fn (string $name) => 1 === preg_match('/\.(json|array)$/', $name) && !str_contains($name, '-type.') && ('body' === $scope) === str_contains($name, '.body.')));
-        // A note of an event is about its payload only
+        // A note of an event is about its payload only, and the files it points to (its object, its types)
         if (1 === preg_match('#_webhooks\.yaml: event "([^"]+)": #', $note, $event)) {
-            $candidates = $fixtures->has('webhook-'.$event[1].'.json') ? ['webhook-'.$event[1].'.json'] : [];
+            $candidates = $fixtures->has('webhook-'.$event[1].'.json') ? self::pointedFiles($fixtures, 'webhook-'.$event[1].'.json') : [];
         }
-        $find = static function (string $key, array $patterns) use ($candidates, $fixtures): ?array {
+        $find = static function (string $key, array $kinds) use ($candidates, $fixtures): ?array {
             foreach ($candidates as $name) {
-                foreach ($patterns as $kind => $pattern) {
-                    if (1 === preg_match($pattern, $fixtures->read($name))) {
-                        return [$name, $kind];
+                foreach ($kinds as $kind) {
+                    if (null !== $pattern = self::fixPattern($key, $kind, $name)) {
+                        if (1 === preg_match($pattern, $fixtures->read($name))) {
+                            return [$name, $kind];
+                        }
                     }
                 }
             }
@@ -1203,7 +1413,7 @@ final class WebApp
                     continue;
                 }
                 $key = (string) preg_replace('/^.*[.\]]/', '', $path);
-                $found = $find($key, [$kind => self::fixPattern($key, $kind)]);
+                $found = $find($key, [$kind]);
                 $keys[] = ['path' => $path, 'key' => $key, 'file' => $found[0] ?? null];
             }
 
@@ -1211,13 +1421,13 @@ final class WebApp
         }
 
         if (1 === preg_match('/"([A-Za-z0-9_-]+)" \(([^)]*)\) shows no fields in the example/', $note, $m)) {
-            $found = $find($m[1], ['null' => self::fixPattern($m[1], 'null'), 'list' => self::fixPattern($m[1], 'list')]);
+            $found = $find($m[1], ['null', 'list']);
 
             return ['kind' => $found[1] ?? 'null', 'keys' => [['path' => $m[2], 'key' => $m[1], 'file' => $found[0] ?? null]]];
         }
 
         if (1 === preg_match('/"([A-Za-z0-9_-]+)" \(([^)]*)\) is a free-form object in the docs/', $note, $m)) {
-            $found = $find($m[1], ['free' => '/"'.preg_quote($m[1], '/').'"\s*:\s*\{/']);
+            $found = $find($m[1], ['free']);
 
             return ['kind' => 'free', 'keys' => [['path' => $m[2], 'key' => $m[1], 'file' => $found[0] ?? null]]];
         }
@@ -1225,9 +1435,38 @@ final class WebApp
         return null;
     }
 
-    private static function fixPattern(string $key, string $kind): string
+    /**
+     * The value of a key that a fix replaces, in a JSON example or a PHP array (null for a free-form object in a PHP
+     * array: an array cannot say "any object").
+     */
+    private static function fixPattern(string $key, string $kind, string $file = 'x.json'): ?string
     {
-        return '/("'.preg_quote($key, '/').'"\s*:\s*)'.('null' === $kind ? 'null\b' : '\[\s*\]').'/';
+        $key = preg_quote($key, '/');
+        if (1 === preg_match('/\.(array|php)$/', $file)) {
+            return 'free' === $kind ? null : '/([\'"]'.$key.'[\'"]\s*=>\s*)'.('null' === $kind ? 'null\b' : '\[\s*\]').'/i';
+        }
+
+        return 'free' === $kind ? '/"'.$key.'"\s*:\s*\{/' : '/("'.$key.'"\s*:\s*)'.('null' === $kind ? 'null\b' : '\[\s*\]').'/';
+    }
+
+    /**
+     * An example and the data files it points to, at any depth ("trial_period.array" in a payload…).
+     *
+     * @return list<string>
+     */
+    private static function pointedFiles(FixtureDirectory $fixtures, string $name): array
+    {
+        $files = [$name];
+        for ($i = 0; $i < \count($files); ++$i) {
+            preg_match_all('/["\']([A-Za-z0-9_][A-Za-z0-9_.-]*\.(?:json|array|php))["\']/', $fixtures->read($files[$i]), $m);
+            foreach ($m[1] as $pointed) {
+                if ($fixtures->has($pointed) && !\in_array($pointed, $files, true)) {
+                    $files[] = $pointed;
+                }
+            }
+        }
+
+        return $files;
     }
 
     /**
@@ -1252,12 +1491,19 @@ final class WebApp
             str_starts_with($choice, 'type:') && $fixtures->has(substr($choice, 5)) && 1 === preg_match('/^[A-Za-z0-9._-]+$/', substr($choice, 5)) => ('list' === $kind ? '["'.substr($choice, 5).'"]' : '"'.substr($choice, 5).'"'),
             default => null,
         };
+        // In a PHP array: its own syntax, and no way to say "any object"
+        $array = 1 === preg_match('/\.(array|php)$/', $file);
+        if ($array && null !== $literal) {
+            $literal = '{}' === $literal ? null : str_replace('"', "'", $literal);
+        }
         $errors = [];
-        if (null === $literal) {
+        if (null === $literal && $array && \in_array($choice, ['object', 'freeform'], true)) {
+            $errors[] = \sprintf('%s is a PHP array: it cannot say "any object". Write the fields of "%s" in it by hand (open it below), or choose a type file.', $file, $key);
+        } elseif (null === $literal) {
             $errors[] = 'Choose what the field is.';
         } elseif (!\in_array($kind, ['null', 'list', 'free'], true) || 1 !== preg_match('/^[A-Za-z0-9_-]+$/', $key)) {
             $errors[] = 'This field cannot be fixed from here.';
-        } elseif (!$fixtures->has($file) || 1 !== preg_match('/\.(json|array)$/', $file)) {
+        } elseif (!$fixtures->has($file) || 1 !== preg_match('/\.(json|array|php)$/', $file)) {
             $errors[] = 'The example holding this field was not found: edit the examples by hand.';
         }
         if ([] !== $errors) {
@@ -1269,7 +1515,7 @@ final class WebApp
             $fixed = JsonText::replaceValue($content, $key, '{}', '{');
             $count = null === $fixed ? 0 : 1;
         } else {
-            $fixed = preg_replace(self::fixPattern($key, $kind), '${1}'.$literal, $content, 1, $count);
+            $fixed = preg_replace((string) self::fixPattern($key, $kind, $file), '${1}'.$literal, $content, 1, $count);
         }
         if (0 === $count || null === $fixed) {
             return $this->notes($api, null, [\sprintf('"%s" is not unknown in %s anymore: import it again, or reload the notes.', $key, $file)]);
@@ -1278,11 +1524,17 @@ final class WebApp
         try {
             $this->checkFile('examples', $file, $fixed);
             $fixtures->write($file, $fixed);
-            // A webhook payload: imported again, replacing what it described
-            if (1 === preg_match('/^webhook-(.+)\.json$/', $file, $event)) {
-                $this->services->webhooks->import($api, null, [$fixtures->path($file)], $event[1], null, true);
+            // A webhook payload, or a file payloads point to: they are imported again, replacing what they described
+            $payloads = array_values(array_filter($this->dependents($fixtures, $file), static fn (string $name) => str_starts_with($name, 'webhook-')));
+            if ([] !== $payloads) {
+                foreach ($payloads as $payload) {
+                    preg_match('/^webhook-(.+)\.json$/', $payload, $event);
+                    $this->services->webhooks->import($api, null, [$fixtures->path($payload)], $event[1], null, true);
+                }
 
-                return $this->notes($api, \sprintf('Fixed "%s": wrote %s in %s, and imported it again.', $key, $literal, $file));
+                return $this->notes($api, $payloads === [$file]
+                    ? \sprintf('Fixed "%s": wrote %s in %s, and imported it again.', $key, $literal, $file)
+                    : \sprintf('Fixed "%s": wrote %s in %s, and imported again %s.', $key, $literal, $file, implode(', ', $payloads)));
             }
             $target = $this->importTarget($fixtures, $file);
             if (null === $target) {

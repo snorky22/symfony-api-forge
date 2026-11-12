@@ -122,6 +122,19 @@ final class WebhookImporterTest extends TestCase
         self::assertNull($this->importer()->importPayload('{"type": "ping", "data": [1]}', 'json')['envelope'], 'a list is not an object');
     }
 
+    public function testThePayloadNamesTheKeysItLeavesUnknown(): void
+    {
+        $object = $this->importer()->importPayload('{"event_type": "transaction.completed", "data": {"id": "txn_1", "custom_data": null, "items": []}}', 'json');
+        $plain = $this->importer()->importPayload('{"type": "ping", "sent_at": null}', 'json');
+
+        self::assertSame([
+            'object: "mixed" marks values that are null in the example, their real type is unknown (custom_data)',
+            'object: "list<mixed>" marks empty arrays in the example, they may be empty objects (items)',
+        ], $object['objectReview']);
+        self::assertSame([], $object['review'], 'the notes of the object are the object\'s');
+        self::assertSame(['payload: "mixed" marks values that are null in the example, their real type is unknown (sent_at)'], $plain['review']);
+    }
+
     public function testTheResourceOfAnEventComesFromItsEntity(): void
     {
         self::assertSame('transactions', $this->importer()->resourceOfEvent('transaction.completed'));

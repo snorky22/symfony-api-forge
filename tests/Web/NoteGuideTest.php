@@ -62,7 +62,7 @@ final class NoteGuideTest extends TestCase
     {
         self::assertSame('3 fields are null in the example: type unknown', NoteGuide::describe('response: "mixed" marks values that are null in the example, their real type is unknown (data[].a, data[].b, data[].c)')['title']);
         self::assertSame('More than 10 fields are null in the example: type unknown', NoteGuide::describe('response: "mixed" marks values that are null in the example, their real type is unknown (a, b, c, d, e, f, g, h, i, j, …)')['title']);
-        self::assertSame('2 other events typed with "transactions", by their name', NoteGuide::describe('events: resource "transactions" set on transaction.paid, transaction.billed from the payload of "transaction.completed", by their name: check that their payloads hold the same object')['title']);
+        self::assertSame('2 other events assumed to carry the same object as "transaction.completed"', NoteGuide::describe('events: resource "transactions" set on transaction.paid, transaction.billed from the payload of "transaction.completed", by their name: check that their payloads hold the same object')['title']);
     }
 
     public function testEveryNoteHasATitleAndSomethingToDo(): void
@@ -76,6 +76,7 @@ final class NoteGuideTest extends TestCase
             'response is not JSON (line 2: a single-quoted string), ignored',
             'signature: default scheme (HMAC-SHA256 of the raw body, hex-encoded, in the X-Signature header), check it against the API docs',
             'resource "transactions" derived from the event name: rename the file and this value if the API calls it otherwise',
+            'response: the objects of the response differ from the "transactions" object already described (from another example): the object is kept',
             'something new the guide does not know',
         ] as $note) {
             $guide = NoteGuide::describe($note);
