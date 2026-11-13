@@ -194,12 +194,23 @@ final class ArrayShapeGenerator
         }
 
         $indent = str_repeat(self::INDENT, $level + 1);
+        // Keys the docs require that some items go without: two or more of them are alternative forms of the item (a
+        // price id, or a price: each "required" in its own form), and optional
+        $missingRequired = [];
+        foreach ($shape['keys'] as $key => $entry) {
+            $documented = $docs[('' === $path ? '' : $path.'.').$key] ?? null;
+            if (null !== $documented && true === $documented->required && $entry['count'] < $shape['count']) {
+                $missingRequired[] = $key;
+            }
+        }
+        $alternatives = \count($missingRequired) > 1 ? array_flip($missingRequired) : [];
         $lines = [];
         foreach ($shape['keys'] as $key => $entry) {
             $childPath = ('' === $path ? '' : $path.'.').$key;
             $documented = $docs[$childPath] ?? null;
-            // The documentation says what is required; the example only says what it shows
-            $optional = (null !== $documented ? !$documented->required : $entry['count'] < $shape['count']) ? '?' : '';
+            // The documentation says what is required; the example only says what it shows (a trimmed example does not
+            // make a required key optional), except for alternative forms
+            $optional = (isset($alternatives[$key]) || (null !== $documented ? !$documented->required : $entry['count'] < $shape['count'])) ? '?' : '';
             $lines[] = $indent.$this->renderKey((string) $key).$optional.': '.$this->render($entry['type'], $level + 1, $childPath, $docs).',';
         }
 

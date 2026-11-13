@@ -192,6 +192,14 @@ notes list the keys). Complete the **example**, not the descriptor.
 | a field some items have and others do not | a list is merged: the keys missing from some items become optional |
 
 
+### Alternative forms of an item
+
+Docs often describe several forms of the same item, each with its own required field: Paddle's transaction items are
+`{"price_id": …, "quantity": …}` or `{"price": {…}, "quantity": …}`. Put each form in the example, as separate items
+of the list: when two keys the docs mark required are each missing from some items, they are alternatives, and both
+are typed optional (`price_id?: string`, `price?: array{…}`). A single required key missing from an item stays
+required: examples of the docs are often trimmed.
+
 ### Pointing to other data files
 
 API documentation often describes a type once and points to it ("see the Duration object"). Do the same in an

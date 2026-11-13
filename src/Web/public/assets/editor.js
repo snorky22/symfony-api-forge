@@ -299,6 +299,22 @@
                 }
             });
         });
+
+        // Ctrl/Cmd-S submits the form of the box, as it saves the file in the editor of a file
+        if (textarea.form) {
+            editor.commands.addCommand({
+                name: 'submitForm',
+                bindKey: {win: 'Ctrl-S', mac: 'Command-S'},
+                exec: function () {
+                    textarea.value = editor.getValue();
+                    if (typeof textarea.form.requestSubmit === 'function') {
+                        textarea.form.requestSubmit();
+                    } else {
+                        textarea.form.submit();
+                    }
+                }
+            });
+        }
     }
 
     // The editor of a file: [data-af-panel]. `close` dismisses it: the page's script removes it from the page; the

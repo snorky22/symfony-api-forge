@@ -976,12 +976,12 @@ final class WebAppTest extends TestCase
         $html = html_entity_decode($this->get('/api/shop/notes')->body);
         $page = strip_tags($html);
 
-        self::assertStringContainsString('type is in the docs, but missing from the example', $page);
+        self::assertStringContainsString('type is in the docs, but missing from the current structure', $page);
         self::assertStringContainsString('The docs describe type (line 5)', $page);
         self::assertStringContainsString('Add type to create-products.body.json, for example "type": "custom", then import again.', $page);
-        self::assertStringContainsString('image_url is in the example, but not in the docs page', $page);
+        self::assertStringContainsString('image_url is in the current structure, but not in the docs page', $page);
         self::assertStringContainsString('open create-products.body.docs.md and paste the missing part', $page);
-        self::assertStringContainsString('custom_data is free-form in the docs, but the example gives it fields', $page);
+        self::assertStringContainsString('custom_data is free-form in the docs, but the current structure gives it fields', $page);
         self::assertStringContainsString('The docs describe fields inside import_meta (data.import_meta): external_id', $page);
         self::assertStringContainsString('Or write a real value for import_meta in create-products.json', $page);
         // Each file with its role; the notes of the body open the body files only
@@ -1385,5 +1385,86 @@ final class WebAppTest extends TestCase
         self::assertContains('object: "list<mixed>" marks empty arrays in the example, they may be empty objects (tags)', $object['review'], 'written again by the import');
         self::assertContains('object: "list<mixed>" marks empty arrays in the example, they may be empty objects (tags)', $object['accepted']);
         self::assertStringNotContainsString('(tags)', html_entity_decode($this->get('/api/shop/notes')->body));
+    }
+
+    public function testAFieldTheExampleLacksIsDescribedAndAddedAsAnotherFormOfTheItem(): void
+    {
+        $this->createApi();
+        $this->example([
+            'operation' => 'create', 'resource' => 'transactions', 'request' => 'curl -X POST https://api.shop.test/transactions',
+            'body' => "{\n  \"items\": [\n    {\n      \"quantity\": 1,\n      \"price_id\": \"pri_1\"\n    }\n  ]\n}",
+            'body_docs' => "itemsarrayrequired\n\nquantityintegerrequired\n\nprice_idstringrequired\n\npriceobjectrequired\n\ndescriptionstringrequired\n\ntax_modestring\n\nValues\n\n*   `internal`\n*   `external`\n",
+            'response' => '{"data": {"id": "txn_1"}}',
+        ]);
+        $fixtures = $this->project.'/tests/Fixtures/shop/';
+
+        $notes = $this->get('/api/shop/notes')->body;
+        self::assertStringContainsString('Describe <code>price</code> and add it to the current structure</strong> (the request body', $notes);
+        self::assertStringContainsString('name="placement" id="pl-item-', $notes, 'price_id sits in an item of a list');
+        // The fields the docs list after it, as a checklist under the editor; the code box holds code only
+        self::assertStringContainsString('<li>description <span class="text-secondary">— string, required</span></li>', $notes);
+        self::assertStringContainsString('<li>tax_mode <span class="text-secondary">— string (internal, external)</span></li>', $notes);
+        preg_match_all('/<textarea[^>]*name="new_content"[^>]*>([^<]*)<\/textarea>/', $notes, $boxes);
+        foreach ($boxes[1] as $box) {
+            self::assertStringNotContainsString('//', html_entity_decode($box));
+            self::assertSame(substr_count($box, '['), substr_count($box, ']'));
+        }
+
+        $added = $this->post('/api/shop/fix', ['choice' => 'add', 'key' => 'price', 'after' => 'price_id', 'file' => 'create-transactions.body.json', 'placement' => 'item', 'new_name' => 'price', 'new_format' => ['0_add' => 'array'], 'new_content' => "['description' => 'Pro', 'tax_mode' => 'internal']"]);
+        self::assertStringContainsString('Added &quot;price&quot; to the request body (as a new item of the list, instead of &quot;price_id&quot;), described in price.array, and imported again.', $added->body);
+        self::assertSame("['description' => 'Pro', 'tax_mode' => 'internal']\n", file_get_contents($fixtures.'price.array'));
+        $body = json_decode((string) file_get_contents($fixtures.'create-transactions.body.json'), true);
+        self::assertSame([['quantity' => 1, 'price_id' => 'pri_1'], ['quantity' => 1, 'price' => 'price.array']], $body['items']);
+
+        // Each form of the item makes its field optional
+        $shape = Yaml::parseFile($this->project.'/config/api/shop/transactions.yaml')['operations']['create']['body']['shape'];
+        self::assertStringContainsString('price_id?: string,', $shape);
+        self::assertStringContainsString('price?: array{', $shape);
+        self::assertStringNotContainsString('Describe <code>price</code> and add it', $this->get('/api/shop/notes')->body);
+    }
+
+    public function testACodeBoxShowsAgainWhatWasSubmittedOrTheTypeFile(): void
+    {
+        $this->exampleWithUnknowns();
+
+        // An error: the note opens again, its box holds what was submitted, with the name and the format
+        $failed = $this->post('/api/shop/fix', ['kind' => 'null', 'key' => 'meta', 'file' => 'list-prices.json', 'choice' => 'new', 'new_name' => 'meta_info', 'new_format' => ['0_0' => 'array'], 'new_content' => "['origin': 'web']"]);
+        $page = html_entity_decode($failed->body);
+        self::assertStringContainsString('a PHP array uses "=>" between a key and its value', $page);
+        self::assertStringContainsString("['origin': 'web']</textarea>", $page);
+        self::assertStringContainsString('name="new_name" value="meta_info"', $page);
+        self::assertMatchesRegularExpression('/<details class="mb-2" open>\s*<summary class="small">Or describe <code>meta<\/code>/', $failed->body);
+
+        // Saved: the box of the note shows the type file, which can be updated from it
+        $this->post('/api/shop/fix', ['kind' => 'null', 'key' => 'meta', 'file' => 'list-prices.json', 'choice' => 'new', 'new_name' => 'meta', 'new_format' => ['0_0' => 'array'], 'new_content' => "['origin' => 'web']"]);
+        $this->post('/api/shop/fix', ['kind' => 'null', 'key' => 'note', 'file' => 'list-prices.json', 'choice' => 'new', 'new_name' => 'meta', 'new_format' => ['0_0' => 'array'], 'new_content' => "['origin' => 'web', 'ref' => 'x1']"]);
+        self::assertSame("['origin' => 'web', 'ref' => 'x1']\n", file_get_contents($this->project.'/tests/Fixtures/shop/meta.array'));
+        self::assertStringContainsString('ref: string,', Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['object']['shape']);
+    }
+
+    public function testAFieldTheExampleLacksIsAddedBeforeItsAnchorInAPhpArrayOrInAPayload(): void
+    {
+        $this->createApi();
+        $fixtures = $this->project.'/tests/Fixtures/shop/';
+
+        // A PHP array example (request and response), the docs put "code" before "name": inserted before it, in PHP
+        (new Filesystem())->mkdir($fixtures);
+        file_put_contents($fixtures.'get-coupons.php', "<?php\n\nreturn [\n    'request' => 'GET /coupons/1',\n    'response' => [\n        'data' => [\n            'name' => 'Spring',\n        ],\n    ],\n];\n");
+        file_put_contents($fixtures.'get-coupons.docs.md', "dataobjectrequired\n\ncodestringrequired\n\nnamestringrequired\n");
+        $this->post('/api/shop/import-all');
+        $notes = $this->get('/api/shop/notes')->body;
+        self::assertStringContainsString('Describe <code>code</code> and add it to the current structure</strong> (the request and response structure, <code>get-coupons.php</code>)', $notes);
+        self::assertStringContainsString('added before <code>name</code>, as in the docs', $notes);
+
+        $added = $this->post('/api/shop/fix', ['choice' => 'add', 'key' => 'code', 'after' => 'name', 'file' => 'get-coupons.php', 'placement' => 'before', 'new_name' => 'code', 'new_format' => ['0_add' => 'json'], 'new_content' => '"SPRING"']);
+        self::assertStringContainsString('Added &quot;code&quot;', $added->body);
+        self::assertStringContainsString("            'code' => 'code-type.json',\n            'name' => 'Spring',", (string) file_get_contents($fixtures.'get-coupons.php'));
+
+        // A webhook payload: the field is added, and the payload imported again
+        $this->post('/api/shop/webhook', ['event' => '', 'payload' => "{\n  \"type\": \"coupon.used\",\n  \"used_at\": \"2026-01-01\"\n}", 'docs' => "typestringrequired\n\nused_atstringrequired\n\ncouponobjectrequired\n", 'force' => '1']);
+        self::assertStringContainsString('Describe <code>coupon</code> and add it to the current structure</strong> (the webhook payload', $this->get('/api/shop/notes')->body);
+        $this->post('/api/shop/fix', ['choice' => 'add', 'key' => 'coupon', 'after' => 'used_at', 'file' => 'webhook-coupon.used.json', 'placement' => 'same', 'new_name' => 'coupon', 'new_format' => ['0_add' => 'array'], 'new_content' => "['id' => 'cpn_1']"]);
+        self::assertStringContainsString('"coupon": "coupon.array"', (string) file_get_contents($fixtures.'webhook-coupon.used.json'));
+        self::assertStringContainsString('id: string,', Yaml::parseFile($this->project.'/config/api/shop/_webhooks.yaml')['events']['coupon.used']['shape']);
     }
 }

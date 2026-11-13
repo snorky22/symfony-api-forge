@@ -18,7 +18,7 @@ final class NoteFormatterTest extends TestCase
 
     public function testKindAndSubject(): void
     {
-        self::assertSame('Example value missing', NoteFormatter::kind('docs: "trial_period" (x) shows no fields in the example (null or empty)')['label']);
+        self::assertSame('Value missing', NoteFormatter::kind('docs: "trial_period" (x) shows no fields in the example (null or empty)')['label']);
         self::assertSame('Counted differently', NoteFormatter::kind('docs: "status" is described 3 time(s) … nothing is applied to "status"')['label']);
         self::assertSame('Guess to check', NoteFormatter::kind('resource "transactions" derived from the event name')['label']);
         self::assertSame('trial_period', NoteFormatter::subject('docs: "trial_period" (data.items[].price.trial_period) shows no fields'));
@@ -41,5 +41,17 @@ final class NoteFormatterTest extends TestCase
         self::assertSame('the object file', NoteFormatter::roleOfFile('transaction-object.array'));
         self::assertSame('the type file', NoteFormatter::roleOfFile('proration.array'));
         self::assertSame('the type file', NoteFormatter::roleOfFile('duration-type.json'));
+    }
+
+    public function testThePartOfTheApiANoteIsAbout(): void
+    {
+        $part = static fn (string $note) => NoteFormatter::partOf(NoteFormatter::locate('/app/config/api/shop/'.$note, '/app'));
+
+        self::assertSame('request body', $part('transactions.yaml: operation "create": body docs: "items" (line 3) is not in the example'));
+        self::assertSame('request body', $part('transactions.yaml: operation "create": request body: every key is typed as required'));
+        self::assertSame('response', $part('transactions.yaml: operation "create": docs: "fee" is string everywhere in the docs (line 3), int in the example (data.details.totals.fee): fix the example'));
+        self::assertSame('object', $part('transactions.yaml: object: object: "mixed" marks values that are null in the example'));
+        self::assertSame('webhook payload', $part('_webhooks.yaml: event "transaction.completed": docs: "x" (line 1) is not in the example'));
+        self::assertNull($part('_api.yaml: base URI: "https://sandbox.x.test/" looks like a sandbox'));
     }
 }

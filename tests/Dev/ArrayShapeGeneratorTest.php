@@ -125,6 +125,21 @@ final class ArrayShapeGeneratorTest extends TestCase
         self::assertStringContainsString("b?: int,\n", $shape);
     }
 
+    public function testTwoRequiredKeysEachMissingFromSomeItemsAreAlternatives(): void
+    {
+        // The Paddle items: a catalog price id, or a non-catalog price, each "required" in its own form
+        $docs = [
+            'items[].price_id' => new DocsEntry('price_id', 'string', false, true, null, null, 0, [], 1),
+            'items[].price' => new DocsEntry('price', 'object', false, true, null, null, 0, [], 2),
+            'items[].quantity' => new DocsEntry('quantity', 'integer', false, true, null, null, 0, [], 3),
+        ];
+        $shape = (new ArrayShapeGenerator())->generate((new LenientJsonDecoder())->decode('{"items": [{"quantity": 1, "price_id": "pri_1"}, {"quantity": 1, "price": {"name": "Pro"}}]}', false), false, $docs);
+
+        self::assertStringContainsString("price_id?: string,\n", $shape);
+        self::assertStringContainsString("price?: array{\n", $shape);
+        self::assertStringContainsString("quantity: int,\n", $shape);
+    }
+
     public function testTheItemTypeOfAnArrayTypesAnEmptyList(): void
     {
         $docs = [

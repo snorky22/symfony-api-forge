@@ -5,6 +5,26 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- Web interface, review notes: "the current structure" (the JSON or the array of an example) instead of the vaguer
+  "the example" in the sentences and the kinds (*Not in the current structure*, *Value missing*, *Structure differs*);
+  the importer's own text stays in the raw note.
+- Web interface, a field of the docs missing from the example: added before the field the docs put after it too (first
+  field of an object), in PHP array examples as in JSON ones (`PhpText`, the layout kept), and in webhook payloads
+  (imported again); between an object and one of its fields, it goes first in that object.
+- Web interface, code boxes of the notes: after an error, the box holds what was submitted (with its name, format and
+  placement) and its note opens again; once the type file exists, the box shows its content, and saving updates it
+  (the examples that point to it are imported again).
+- PHP arrays written by hand: the habits of JSON are said with their line and the fix: ":" instead of "=>", a missing
+  "=>" between a key and its value, a missing "," after a value (a raw PHP parse error has its line too).
+- Web interface: the code boxes of the notes hold code only (the fields the docs list are shown beside the box, not as
+  comments in it), with their button right under the box; Ctrl/Cmd-S in the code box of a form submits it.
+- Alternative forms of an item: two keys the docs mark required, each missing from some items of the example, are
+  typed optional (a price id, or a price); a single required key missing from an item stays required.
+- Web interface: a field of the docs missing from the example is described in a type file (started from a checklist
+  of the fields the docs list after it) and added to the example, next to the field it follows or as a new item of the
+  list instead of it (another form of the item), then imported again.
+- Web interface, review notes: each note says the part of the API it is about (request body, response, object of the
+  resource, webhook payload), as a badge next to its kind.
 - New review notes, found by rules (`ValueReview`, `DocsAnnotator`): a field with two kinds of values in the example (an
   object here, a list there: one is probably wrong), a list of lists of objects (often a type file holding a list, used
   as one item), and a field of another type than the one the docs give its name everywhere (`integer` in the docs, a

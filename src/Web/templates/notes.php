@@ -1,6 +1,6 @@
 <h1 class="h3 mb-1">Review the notes <small class="text-secondary"><?= $e($api) ?></small></h1>
 <p class="text-secondary">What the importer had to guess, or could not align. Most notes have a <strong>Fix</strong> form: the page writes the fix in your
-example and imports it again. Tick the notes you accept and delete them (they are removed from the descriptors).</p>
+current structure (the JSON or the array of the example) and imports it again. Tick the notes you accept and delete them (they are removed from the descriptors).</p>
 
 <?php if ([] !== ($unreadable ?? [])): ?>
     <div class="alert alert-danger" id="unreadable">
@@ -61,9 +61,11 @@ example and imports it again. Tick the notes you accept and delete them (they ar
     </h2>
     <div class="accordion af-accordion mb-3">
     <?php foreach ($members as $i => $note): ?>
-        <details class="accordion-item" id="note-<?= $i ?>" data-af-kind="<?= $e($kinds[$note['kind']['label']]['slug']) ?>">
+        <?php $isDraft = null !== $draft && null !== $note['fix'] && [] !== array_filter($note['fix']['keys'], static fn (array $k) => $k['key'] === $draft['key'] && $k['file'] === $draft['file']); ?>
+        <details class="accordion-item" id="note-<?= $i ?>" data-af-kind="<?= $e($kinds[$note['kind']['label']]['slug']) ?>"<?= $isDraft ? ' open' : '' ?>>
             <summary class="accordion-button py-2">
                 <span class="badge text-bg-<?= $e($note['kind']['colour']) ?> me-2 flex-shrink-0"><?= $e($note['kind']['label']) ?></span>
+                <?php if (null !== $note['part']): ?><span class="badge text-bg-light border me-2 flex-shrink-0" title="The part of the API this note is about<?= 'object' === $note['part'] ? ': the object of the resource, shared by its responses and webhook payloads' : '' ?>"><?= $e(ucfirst($note['part'])) ?></span><?php endif ?>
                 <span><?= $highlight($note['guide']['title']) ?></span>
             </summary>
             <div class="accordion-body">
@@ -114,7 +116,56 @@ example and imports it again. Tick the notes you accept and delete them (they ar
                     </div>
                 <?php endif ?>
 
-            <?php if (null !== $note['fix']): ?>
+            <?php if (null !== $note['fix'] && 'add' === $note['fix']['kind']):
+                $add = $note['fix']['keys'][0];
+                $uid = $i.'_add';
+                $mine = $isDraft && 'add' === $draft['choice'] ? $draft : null;
+                $addName = $mine['name'] ?? strtolower((string) preg_replace('/[^a-z0-9_-]+/i', '_', $add['key']));
+                $addFormat = $mine['format'] ?? 'array';
+                $addContent = $mine['content'] ?? $typeContent($addName, $addFormat) ?? "[\n    'name' => 'value',\n]";
+            ?>
+                <div class="card card-body mt-3">
+                    <div class="small mb-2"><strong>Describe <code><?= $e($add['key']) ?></code> and add it to the current structure</strong> (<?= $e($role($add['file'])) ?>, <code><?= $e($add['file']) ?></code>)</div>
+                    <form method="post" action="/api/<?= $e($api) ?>/fix">
+                        <input type="hidden" name="_token" value="<?= $e($token) ?>">
+                        <input type="hidden" name="choice" value="add">
+                        <input type="hidden" name="key" value="<?= $e($add['key']) ?>">
+                        <input type="hidden" name="after" value="<?= $e($add['after']) ?>">
+                        <input type="hidden" name="file" value="<?= $e($add['file']) ?>">
+                        <?php if ($add['inList']): ?>
+                        <div class="mb-2 small">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="placement" id="pl-item-<?= $uid ?>" value="item"<?= 'same' !== ($mine['placement'] ?? '') ? ' checked' : '' ?>><label class="form-check-label" for="pl-item-<?= $uid ?>">in a <strong>new item</strong> of the list, <strong>instead of</strong> <code><?= $e($add['after']) ?></code>: another way to give an item (the docs list alternatives, e.g. a price id <em>or</em> a price)</label></div>
+                            <div class="form-check"><input class="form-check-input" type="radio" name="placement" id="pl-same-<?= $uid ?>" value="same"<?= 'same' === ($mine['placement'] ?? '') ? ' checked' : '' ?>><label class="form-check-label" for="pl-same-<?= $uid ?>">next to <code><?= $e($add['after']) ?></code>, in the same item: one more field of the item</label></div>
+                        </div>
+                        <?php else: ?>
+                        <input type="hidden" name="placement" value="<?= ($add['before'] ?? false) ? 'before' : 'same' ?>">
+                        <div class="small text-secondary mb-2">added <?= ($add['before'] ?? false) ? 'before' : 'next to' ?> <code><?= $e($add['after']) ?></code>, as in the docs</div>
+                        <?php endif ?>
+                        <div class="row g-2 align-items-center mb-2">
+                            <div class="col-auto"><label class="form-label mb-0 small" for="add-name-<?= $uid ?>">Type file</label></div>
+                            <div class="col-auto"><input class="form-control form-control-sm" id="add-name-<?= $uid ?>" name="new_name" value="<?= $e($addName) ?>"></div>
+                            <div class="col-auto">
+                                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="new_format[<?= $uid ?>]" id="af-array-<?= $uid ?>" value="array"<?= 'json' !== $addFormat ? ' checked' : '' ?>><label class="form-check-label small" for="af-array-<?= $uid ?>">PHP array</label></div>
+                                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="new_format[<?= $uid ?>]" id="af-json-<?= $uid ?>" value="json"<?= 'json' === $addFormat ? ' checked' : '' ?>><label class="form-check-label small" for="af-json-<?= $uid ?>">JSON</label></div>
+                            </div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="<?= [] !== $add['skeleton'] ? 'col-lg-7' : 'col-12' ?>">
+                                <textarea class="form-control font-monospace mb-1" name="new_content" rows="6" data-af-code="<?= 'json' === $addFormat ? 'json' : 'array' ?>" data-af-mode-from="new_format[<?= $uid ?>]" data-af-modes="json:json,array:array"><?= $e($addContent) ?></textarea>
+                                <div class="form-text mb-2">An example value for each field, as the API sends it: a text in quotes, a number, <code>true</code>, a nested array for an object.</div>
+                                <button class="btn btn-sm btn-primary">Save the type, add <?= $e($add['key']) ?> and import</button>
+                                <span class="small text-secondary ms-2">or Ctrl/Cmd-S in the box: writes the type file, adds <code><?= $e($add['key']) ?></code> to <?= $e($role($add['file'])) ?> (pointing to the type file), then imports again</span>
+                            </div>
+                            <?php if ([] !== $add['skeleton']): ?>
+                            <div class="col-lg-5 small">
+                                <div class="text-secondary mb-1">The fields the docs list after <code><?= $e($add['key']) ?></code>, in the page's order (the fields of an <em>object</em> come right after it: put them inside)</div>
+                                <ul class="list-unstyled font-monospace mb-0 ms-1 overflow-auto border rounded p-2 bg-body" style="max-height: 22rem"><?php foreach ($add['skeleton'] as $field): ?><li><?= $e($field['name']) ?> <span class="text-secondary">— <?= $e($field['type']) ?></span></li><?php endforeach ?></ul>
+                            </div>
+                            <?php endif ?>
+                        </div>
+                    </form>
+                </div>
+            <?php elseif (null !== $note['fix']): ?>
                 <div class="mt-3">
                 <?php foreach ($note['fix']['keys'] as $j => $key): ?>
                     <form method="post" action="/api/<?= $e($api) ?>/fix" class="row g-2 align-items-center mb-2">
@@ -162,8 +213,15 @@ example and imports it again. Tick the notes you accept and delete them (they ar
                         <?php endif ?>
                         <?php endif ?>
                     </form>
-                    <?php if ('free' !== $note['fix']['kind'] && null !== $key['file']): $uid = $i.'_'.$j; $fields = $key['fields'] ?? []; ?>
-                    <details class="mb-2">
+                    <?php if ('free' !== $note['fix']['kind'] && null !== $key['file']):
+                        $uid = $i.'_'.$j;
+                        $fields = $key['fields'] ?? [];
+                        $mine = null !== $draft && 'new' === $draft['choice'] && $draft['key'] === $key['key'] && $draft['file'] === $key['file'] ? $draft : null;
+                        $newName = $mine['name'] ?? strtolower((string) preg_replace('/[^a-z0-9_-]+/i', '_', $key['key']));
+                        $newFormat = $mine['format'] ?? 'array';
+                        $newContent = $mine['content'] ?? $typeContent($newName, $newFormat) ?? "[\n    'name' => 'value',\n]";
+                    ?>
+                    <details class="mb-2"<?= null !== $mine ? ' open' : '' ?>>
                         <summary class="small">Or describe <code><?= $e($key['key']) ?></code> in a new type file (JSON or PHP array)</summary>
                         <form method="post" action="/api/<?= $e($api) ?>/fix" class="card card-body mt-2">
                             <input type="hidden" name="_token" value="<?= $e($token) ?>">
@@ -173,23 +231,19 @@ example and imports it again. Tick the notes you accept and delete them (they ar
                             <input type="hidden" name="choice" value="new">
                             <div class="row g-2 align-items-center mb-2">
                                 <div class="col-auto"><label class="form-label mb-0 small" for="new-name-<?= $uid ?>">Name</label></div>
-                                <div class="col-auto"><input class="form-control form-control-sm" id="new-name-<?= $uid ?>" name="new_name" value="<?= $e(strtolower((string) preg_replace('/[^a-z0-9_-]+/i', '_', $key['key']))) ?>"></div>
+                                <div class="col-auto"><input class="form-control form-control-sm" id="new-name-<?= $uid ?>" name="new_name" value="<?= $e($newName) ?>"></div>
                                 <div class="col-auto">
-                                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="new_format[<?= $uid ?>]" id="nf-array-<?= $uid ?>" value="array" checked><label class="form-check-label small" for="nf-array-<?= $uid ?>">PHP array</label></div>
-                                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="new_format[<?= $uid ?>]" id="nf-json-<?= $uid ?>" value="json"><label class="form-check-label small" for="nf-json-<?= $uid ?>">JSON</label></div>
+                                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="new_format[<?= $uid ?>]" id="nf-array-<?= $uid ?>" value="array"<?= 'json' !== $newFormat ? ' checked' : '' ?>><label class="form-check-label small" for="nf-array-<?= $uid ?>">PHP array</label></div>
+                                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="new_format[<?= $uid ?>]" id="nf-json-<?= $uid ?>" value="json"<?= 'json' === $newFormat ? ' checked' : '' ?>><label class="form-check-label small" for="nf-json-<?= $uid ?>">JSON</label></div>
                                 </div>
                                 <div class="col-auto small text-secondary">saved as <code>&lt;name&gt;.array</code> or <code>&lt;name&gt;-type.json</code></div>
                             </div>
-                            <textarea class="form-control font-monospace mb-2" name="new_content" rows="6" data-af-code="array" data-af-mode-from="new_format[<?= $uid ?>]" data-af-modes="json:json,array:array"><?php
-                                if ('list' === $note['fix']['kind']) {
-                                    echo $e("// One item of the list, with an example value for each field\n[\n    'id' => 'abc_01',\n]");
-                                } elseif ([] !== $fields) {
-                                    echo $e("// The fields of ".$key['key']." in the docs, with an example value each (a text, a number, true, a nested array…)\n[\n".implode('', array_map(static fn (string $field) => "    '".$field."' => '',\n", $fields))."]");
-                                } else {
-                                    echo $e("// The fields of ".$key['key'].", with an example value each (from the docs page)\n[\n    'name' => 'value',\n]");
-                                }
-                            ?></textarea>
-                            <div><button class="btn btn-sm btn-primary">Save the type, use it here and import</button>
+                            <textarea class="form-control font-monospace mb-1" name="new_content" rows="6" data-af-code="<?= 'json' === $newFormat ? 'json' : 'array' ?>" data-af-mode-from="new_format[<?= $uid ?>]" data-af-modes="json:json,array:array"><?= $e($newContent) ?></textarea>
+                            <div class="form-text mb-2"><?= 'list' === $note['fix']['kind'] ? 'One item of the list (not the list itself)' : 'The object' ?>: an example value for each field, as the API sends it (a text in quotes, a number, <code>true</code>, a nested array for an object).</div>
+                            <?php if ([] !== $fields): ?>
+                            <div class="small text-secondary mb-2">The docs describe these fields inside <code><?= $e($key['key']) ?></code>: <span class="font-monospace"><?= $e(implode(', ', $fields)) ?></span></div>
+                            <?php endif ?>
+                            <div><button class="btn btn-sm btn-primary">Save the type, use it here and import</button> <span class="small text-secondary">(or Ctrl/Cmd-S in the box)</span>
                                 <span class="small text-secondary ms-2">writes the type file, puts its name in <?= $e($role($key['file'])) ?> (<code><?= $e($key['file']) ?></code>) in place of the empty value, then imports again</span></div>
                         </form>
                     </details>

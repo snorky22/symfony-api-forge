@@ -79,4 +79,22 @@ final class PhpLiteralTest extends TestCase
 
         PhpLiteral::evaluate('[UNKNOWN_CONSTANT]');
     }
+
+    public function testTheHabitsOfJsonAreSaidWithTheirLine(): void
+    {
+        foreach ([
+            "[\n  'a' => 1,\n  'b': true,\n]" => 'line 3: a PHP array uses "=>" between a key and its value',
+            "[\n  'unit_price' [\n    'amount' => '100',\n  ],\n]" => 'line 2: a "=>" is missing between \'unit_price\' and "["',
+            "[\n  'month' => 12\n  'year' => 2029,\n]" => 'line 3: a "," is missing after the value on line 2',
+            "[\n  'a' => ['x'] ['y'],\n]" => 'line 2: a "," is missing after the value on line 2',
+        ] as $code => $message) {
+            try {
+                PhpLiteral::evaluate($code);
+                self::fail('Accepted: '.$code);
+            } catch (\InvalidArgumentException $e) {
+                self::assertStringStartsWith($message, $e->getMessage());
+            }
+        }
+        self::assertSame(['a', 'b', [1, 2], -1, 'x' => true, 's' => 'ab'], PhpLiteral::evaluate("['a', 'b', [1, 2], -1, 'x' => true, 's' => 'a'.'b']"));
+    }
 }

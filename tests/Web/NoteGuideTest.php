@@ -18,7 +18,7 @@ final class NoteGuideTest extends TestCase
     {
         $guide = NoteGuide::describe('body docs: "type" (line 17) is not in the example: add it to the example (in the docs it sits between "description" and "tax_category"; values in the docs: custom, standard)', self::FILES);
 
-        self::assertSame('"type" is in the docs, but missing from the example', $guide['title']);
+        self::assertSame('"type" is in the docs, but missing from the current structure', $guide['title']);
         self::assertSame(['The docs describe "type" (line 17); it sits between "description" and "tax_category".', 'Its values: custom, standard.'], $guide['found']);
         self::assertStringContainsString('cannot read or send it with type help', (string) $guide['impact']);
         self::assertSame('Add "type" to create-products.body.json, for example "type": "custom", then import again.', $guide['options'][0]);
@@ -40,9 +40,9 @@ final class NoteGuideTest extends TestCase
         $free = NoteGuide::describe('example: "custom_data" (data.custom_data) is a free-form object in the docs (no field is described), but the example gives it fields (features, tags): replace its value with {} in the example', self::FILES);
         $empty = NoteGuide::describe('docs: "import_meta" (data.import_meta) shows no fields in the example (null or empty), but the docs describe external_id, imported_from: give it an example value', self::FILES);
 
-        self::assertSame('"custom_data" is free-form in the docs, but the example gives it fields', $free['title']);
+        self::assertSame('"custom_data" is free-form in the docs, but the current structure gives it fields', $free['title']);
         self::assertStringContainsString('"Make it free-form" writes {}', $free['options'][0]);
-        self::assertSame('"import_meta" is empty in the example, so its fields have no type', $empty['title']);
+        self::assertSame('"import_meta" is empty in the current structure, so its fields have no type', $empty['title']);
         self::assertSame('The docs describe fields inside "import_meta" (data.import_meta): external_id, imported_from.', $empty['found'][0]);
         self::assertSame('Or write a real value for "import_meta" in create-products.json, then import again.', $empty['options'][1]);
     }
@@ -52,7 +52,7 @@ final class NoteGuideTest extends TestCase
         $emptied = NoteGuide::describe('docs: "interval" is described 2 time(s) (line 524, 545) and found 1 time(s) in the example: line 545 under an object the example shows empty (see its note): give that object an example value, nothing is applied to "interval"');
         $plain = NoteGuide::describe('docs: "unit_price" is described 2 time(s) (line 49, 73) and found 1 time(s) in the example: add the missing ones to the example, nothing is applied to "unit_price"', self::FILES);
 
-        self::assertSame('"interval" appears 2 times in the docs, 1 in the example, because of an empty object', $emptied['title']);
+        self::assertSame('"interval" appears 2 times in the docs, 1 in the current structure, because of an empty object', $emptied['title']);
         self::assertStringContainsString('no indentation', (string) $emptied['impact']);
         self::assertStringStartsWith('Give the empty object an example value', $emptied['options'][0]);
         self::assertSame('Add the missing "unit_price" to create-products.json (the docs lines say where), then import again.', $plain['options'][0]);
@@ -60,8 +60,8 @@ final class NoteGuideTest extends TestCase
 
     public function testCountsInTitles(): void
     {
-        self::assertSame('3 fields are null in the example: type unknown', NoteGuide::describe('response: "mixed" marks values that are null in the example, their real type is unknown (data[].a, data[].b, data[].c)')['title']);
-        self::assertSame('More than 10 fields are null in the example: type unknown', NoteGuide::describe('response: "mixed" marks values that are null in the example, their real type is unknown (a, b, c, d, e, f, g, h, i, j, …)')['title']);
+        self::assertSame('3 fields are null in the current structure: type unknown', NoteGuide::describe('response: "mixed" marks values that are null in the example, their real type is unknown (data[].a, data[].b, data[].c)')['title']);
+        self::assertSame('More than 10 fields are null in the current structure: type unknown', NoteGuide::describe('response: "mixed" marks values that are null in the example, their real type is unknown (a, b, c, d, e, f, g, h, i, j, …)')['title']);
         self::assertSame('2 other events assumed to carry the same object as "transaction.completed"', NoteGuide::describe('events: resource "transactions" set on transaction.paid, transaction.billed from the payload of "transaction.completed", by their name: check that their payloads hold the same object')['title']);
     }
 

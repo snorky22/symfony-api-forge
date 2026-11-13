@@ -10,20 +10,20 @@ final class NoteFormatter
 {
     /** Kind of note: a needle of its text => [label, Bootstrap colour, what it asks]. The first match wins. */
     private const KINDS = [
-        'shows no fields in the example' => ['Example value missing', 'warning', 'give the object an example value, or accept'],
+        'shows no fields in the example' => ['Value missing', 'warning', 'give the object a value in the current structure, or accept'],
         'marks values that are null' => ['Type unknown', 'warning', 'say what the field is (Fix)'],
         'marks empty arrays' => ['Type unknown', 'warning', 'say what the list holds (Fix)'],
-        'nothing is applied to' => ['Counted differently', 'secondary', 'complete the example, or accept'],
-        'has the right count in the example but no place' => ['Other parent', 'secondary', 'check where the example holds it'],
+        'nothing is applied to' => ['Counted differently', 'secondary', 'complete the current structure, or accept'],
+        'has the right count in the example but no place' => ['Other parent', 'secondary', 'check where the current structure holds it'],
         'is a free-form object in the docs' => ['Free-form object', 'info', 'make it free-form (Fix)'],
         'is not in the docs' => ['Not in the docs', 'info', 'complete the docs page, or accept'],
-        'is not in the example' => ['Not in the example', 'info', 'add it to the example, or accept'],
-        'in the docs (line' => ['Type differs', 'danger', 'fix the example'],
+        'is not in the example' => ['Not in the current structure', 'info', 'add it to the current structure, or accept'],
+        'in the docs (line' => ['Type differs', 'danger', 'fix the current structure'],
         'has two kinds of values' => ['Two kinds of values', 'danger', 'fix the value that is wrong'],
         'is a list of lists' => ['List of lists', 'danger', 'make the type file hold one item'],
         'is not JSON' => ['Not JSON', 'danger', 'fix the file'],
-        'differs from the' => ['Example differs', 'danger', 'import again with Replace, or merge'],
-        'differ from the' => ['Example differs', 'danger', 'import again with Replace, or accept'],
+        'differs from the' => ['Structure differs', 'danger', 'import again with Replace, or merge'],
+        'differ from the' => ['Structure differs', 'danger', 'import again with Replace, or accept'],
     ];
     private const GUESS = ['Guess to check', 'primary', 'check it, then accept'];
 
@@ -79,6 +79,26 @@ final class NoteFormatter
     }
 
     /**
+     * The part of the API a note is about, said for a human: the request body, the response, the object of a resource
+     * (shared by its responses and payloads), a webhook payload; null for the notes of the API itself.
+     *
+     * @param array{file: string, part: ?string, text: string} $location
+     */
+    public static function partOf(array $location): ?string
+    {
+        $text = $location['text'];
+        $part = $location['part'] ?? '';
+
+        return match (true) {
+            1 === preg_match('/^(body docs|body example|request body)\b/', $text) => 'request body',
+            'object' === $part || str_starts_with($text, 'object:') => 'object',
+            str_starts_with($part, 'event ') => 'webhook payload',
+            str_starts_with($part, 'operation ') => 'response',
+            default => null,
+        };
+    }
+
+    /**
      * What an example file is, said for a human: the part of the docs it comes from.
      */
     public static function roleOfFile(string $file): string
@@ -88,7 +108,7 @@ final class NoteFormatter
             str_starts_with($file, 'webhook-') => 'the webhook payload',
             str_contains($file, '-object.') => 'the object file',
             str_contains($file, '-type.') || str_ends_with($file, '.array') => 'the type file',
-            str_ends_with($file, '.php') => 'the example (request and response)',
+            str_ends_with($file, '.php') => 'the request and response structure',
             default => 'the response',
         };
     }

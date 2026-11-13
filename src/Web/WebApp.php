@@ -1324,7 +1324,11 @@ final class WebApp
 
     // Step 3: the review notes
 
-    private function notes(string $api, ?string $message = null, array $errors = []): Response
+    /**
+     * @param ?array{choice: string, key: string, file: string, name: string, format: string, content: string, placement: string} $draft
+     *        what the user submitted in a code box of a note, shown again after an error
+     */
+    private function notes(string $api, ?string $message = null, array $errors = [], ?array $draft = null): Response
     {
         $fixtures = new FixtureDirectory($this->config->fixturesDir($api));
         $notes = [];
@@ -1340,6 +1344,7 @@ final class WebApp
                 'shown' => str_replace($this->config->projectDir.'/', '', $note),
                 'location' => $location,
                 'kind' => NoteFormatter::kind($note),
+                'part' => NoteFormatter::partOf($location),
                 'subject' => NoteFormatter::subject($location['text']),
                 'guide' => NoteGuide::describe($location['text'], $files),
                 'object' => null !== ($resource = $this->resourceOfNote($api, $location)) ? $this->objectState($api, $resource) : null,
@@ -1351,7 +1356,7 @@ final class WebApp
             ];
         }
 
-        return $this->page('notes', ['api' => $api, 'notes' => $notes, 'message' => $message, 'fixErrors' => $errors, 'unreadable' => $this->unreadableExamples($fixtures), 'errors' => $this->progress($api)['errors'], 'typeFiles' => $this->typeFiles($fixtures)], 'Review notes');
+        return $this->page('notes', ['draft' => $draft, 'typeContent' => static fn (string $name, string $format): ?string => $fixtures->has($typeFile = 'json' === $format ? $name.'-type.json' : $name.'.array') ? rtrim($fixtures->read($typeFile)) : null, 'api' => $api, 'notes' => $notes, 'message' => $message, 'fixErrors' => $errors, 'unreadable' => $this->unreadableExamples($fixtures), 'errors' => $this->progress($api)['errors'], 'typeFiles' => $this->typeFiles($fixtures)], 'Review notes');
     }
 
     /**
@@ -1386,10 +1391,32 @@ final class WebApp
     private function fixFor(string $api, FixtureDirectory $fixtures, string $note): ?array
     {
         $scope = self::scopeOf($note);
-        $candidates = array_values(array_filter($fixtures->names(), static fn (string $name) => 1 === preg_match('/\.(json|array)$/', $name) && !str_contains($name, '-type.') && ('body' === $scope) === str_contains($name, '.body.')));
+        $candidates = array_values(array_filter($fixtures->names(), static fn (string $name) => 1 === preg_match('/\.(json|array|php)$/', $name) && !str_contains($name, '-type.') && ('body' === $scope) === str_contains($name, '.body.')));
         // A note of an event is about its payload only, and the files it points to (its object, its types)
         if (1 === preg_match('#_webhooks\.yaml: event "([^"]+)": #', $note, $event)) {
             $candidates = $fixtures->has('webhook-'.$event[1].'.json') ? self::pointedFiles($fixtures, 'webhook-'.$event[1].'.json') : [];
+        }
+        // A field the docs describe and the example lacks: added next to the field the docs put it after
+        if (1 === preg_match('/docs: "([A-Za-z0-9_-]+)" \(line (\d+)[^)]*\) is not in the example: add it to the example \(in the docs it sits (after|between|before) "([A-Za-z0-9_-]+)"(?: and "([A-Za-z0-9_-]+)")?/', $note, $m)) {
+            $before = 'before' === $m[3];
+            foreach ($candidates as $name) {
+                $text = $fixtures->read($name);
+                $json = str_ends_with($name, '.json');
+                // Between an object and one of its fields: the field goes first in that object, before the second one
+                if ('between' === $m[3] && '' !== ($m[5] ?? '') && ($json ? JsonText::holds($text, $m[4], $m[5]) : PhpText::holds($text, $m[4], $m[5]))) {
+                    $m[4] = $m[5];
+                    $before = true;
+                }
+                if (($json && str_contains($text, '"'.$m[4].'"')) || (!$json && 1 === preg_match('/[\'"]'.preg_quote($m[4], '/').'[\'"]\s*=>/', $text))) {
+                    return ['kind' => 'add', 'keys' => [[
+                        'path' => $m[1], 'key' => $m[1], 'after' => $m[4], 'before' => $before, 'file' => $name,
+                        'inList' => !$before && ($json ? JsonText::isInListItem($text, $m[4]) : PhpText::isInListItem($text, $m[4])),
+                        'skeleton' => $json ? $this->skeletonFromDocs($fixtures, $name, (int) $m[2], $m[1], $m[4]) : [],
+                    ]]];
+                }
+            }
+
+            return null;
         }
         $find = static function (string $key, array $kinds) use ($candidates, $fixtures): ?array {
             foreach ($candidates as $name) {
@@ -1453,6 +1480,109 @@ final class WebApp
     }
 
     /**
+     * The fields the docs list after a field (its own fields, nested ones included: the page has no indentation), up to
+     * the next field of the object that holds it in the example: a checklist to describe it with.
+     *
+     * @return list<array{name: string, type: string}>
+     */
+    private function skeletonFromDocs(FixtureDirectory $fixtures, string $example, int $line, string $key, string $after): array
+    {
+        $docs = (string) preg_replace('/\.json$/', '', $example).'.docs.md';
+        $siblings = [$after];
+        $data = json_decode($fixtures->read($example), true);
+        $found = self::objectWith(\is_array($data) ? $data : [], $after);
+        if (null !== $found) {
+            $siblings = array_keys($found);
+        }
+        $listed = [];
+        if ($fixtures->has($docs)) {
+            $entries = (new \Snorky22\ApiForge\Dev\Api\Docs\DocsCapture())->parse($fixtures->read($docs));
+            $started = false;
+            $count = 0;
+            foreach ($entries as $entry) {
+                if (!$started) {
+                    $started = $entry->line === $line;
+                    continue;
+                }
+                if (\in_array($entry->name, $siblings, true) || ++$count > 40) {
+                    break;
+                }
+                $listed[] = ['name' => $entry->name, 'type' => $entry->type.($entry->nullable ? ' | null' : '').(true === $entry->required ? ', required' : '').(null !== $entry->values ? ' ('.implode(', ', \array_slice($entry->values, 0, 4)).(\count($entry->values) > 4 ? '…' : '').')' : '')];
+            }
+        }
+
+        return $listed;
+    }
+
+    /**
+     * The first object of the data that has the key.
+     *
+     * @param array<mixed> $data
+     *
+     * @return ?array<mixed>
+     */
+    private static function objectWith(array $data, string $key): ?array
+    {
+        if (\array_key_exists($key, $data) && !array_is_list($data)) {
+            return $data;
+        }
+        foreach ($data as $value) {
+            if (\is_array($value) && null !== $found = self::objectWith($value, $key)) {
+                return $found;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Writes the type file of a field the example lacks, adds the field to the example (next to another field, or as a
+     * new item of the list instead of it), and imports again.
+     */
+    private function addMissingField(string $api, Request $request, FixtureDirectory $fixtures): Response
+    {
+        $key = $request->text('key');
+        $after = $request->text('after');
+        $file = $request->text('file');
+        $name = trim($request->text('new_name'));
+        $formats = $request->post['new_format'] ?? 'array';
+        $format = \is_array($formats) ? (string) reset($formats) : (string) $formats;
+        $content = trim($request->text('new_content'));
+        $asNewItem = 'item' === $request->text('placement');
+        $before = 'before' === $request->text('placement');
+        $typeFile = 'json' === $format ? $name.'-type.json' : $name.'.array';
+        try {
+            if (1 !== preg_match('/^[A-Za-z0-9_-]+$/', $key) || 1 !== preg_match('/^[A-Za-z0-9_-]+$/', $after) || !$fixtures->has($file) || 1 !== preg_match('/\.(json|array|php)$/', $file)) {
+                throw new \InvalidArgumentException('This field cannot be added from here: edit the example by hand.');
+            }
+            if (1 !== preg_match('/^[a-z][a-z0-9_-]*$/', $name)) {
+                throw new \InvalidArgumentException('The name of the type is lowercase letters, digits, "-" and "_" (e.g. price).');
+            }
+            'json' === $format ? $this->checkJson($content) : $this->arrayFile($content, false);
+            $added = str_ends_with($file, '.json')
+                ? JsonText::addMember($fixtures->read($file), $after, $key, '"'.$typeFile.'"', $asNewItem, $before)
+                : PhpText::addMember($fixtures->read($file), $after, $key, "'".$typeFile."'", $asNewItem, $before);
+            if (null === $added) {
+                throw new \InvalidArgumentException(\sprintf('"%s" was not found in %s%s.', $after, $file, $asNewItem ? ' inside an item of a list' : ''));
+            }
+            $this->checkFile('examples', $file, $added, $fixtures);
+            $fixtures->write($typeFile, $content."\n");
+            $fixtures->write($file, $added);
+            // The example imported again: itself (an endpoint), or what depends on it (a payload, a file pointed to)
+            $target = $this->importTarget($fixtures, $file);
+            $imported = null !== $target ? $this->importFamily($api, $fixtures, $target, true, true) : [];
+            foreach (array_diff([...$this->dependents($fixtures, $file), ...$this->dependents($fixtures, $typeFile)], [$target]) as $other) {
+                str_starts_with($other, 'webhook-') ? $this->services->webhooks->import($api, null, [$fixtures->path($other)], substr($other, 8, -5), null, true) : $this->importFamily($api, $fixtures, $other, true, true);
+                $imported[] = $other;
+            }
+        } catch (\InvalidArgumentException $e) {
+            return $this->notes($api, null, [\sprintf('"%s" was not added: %s', $key, $e->getMessage())], ['choice' => 'add', 'key' => $key, 'file' => $file, 'name' => $name, 'format' => $format, 'content' => $content, 'placement' => $asNewItem ? 'item' : 'same']);
+        }
+
+        return $this->notes($api, \sprintf('Added "%s" to %s (%s), described in %s%s.', $key, NoteFormatter::roleOfFile($file), $asNewItem ? 'as a new item of the list, instead of "'.$after.'"' : ($before ? 'before "'.$after.'"' : 'next to "'.$after.'"'), $typeFile, [] !== $imported ? ', and imported again' : ''));
+    }
+
+    /**
      * An example and the data files it points to, at any depth ("trial_period.array" in a payload…).
      *
      * @return list<string>
@@ -1483,6 +1613,11 @@ final class WebApp
         $choice = $request->text('choice');
         $fixtures = new FixtureDirectory($this->config->fixturesDir($api));
 
+        // A field the example lacks, described in a type file and added next to another one (or as a new item)
+        if ('add' === $choice) {
+            return $this->addMissingField($api, $request, $fixtures);
+        }
+
         // A new type file, described here: written, then used like the type files of the list
         if ('new' === $choice) {
             $name = trim($request->text('new_name'));
@@ -1494,16 +1629,20 @@ final class WebApp
                 if (1 !== preg_match('/^[a-z][a-z0-9_-]*$/', $name)) {
                     throw new \InvalidArgumentException('The name of the type is lowercase letters, digits, "-" and "_" (e.g. proration).');
                 }
-                if ($fixtures->has($typeFile) && $fixtures->read($typeFile) !== $content."\n") {
-                    throw new \InvalidArgumentException(\sprintf('%s exists already: choose it in the list, or give another name.', $typeFile));
-                }
                 'json' === $format ? $this->checkJson($content) : $this->arrayFile($content, false);
                 if ('list' === $kind && null !== $problem = $this->listItemProblem($fixtures, $typeFile, $content, true)) {
                     throw new \InvalidArgumentException($problem);
                 }
+                $existed = $fixtures->has($typeFile);
                 $fixtures->write($typeFile, $content."\n");
+                // A type file updated: the examples that point to it already are imported again
+                if ($existed) {
+                    foreach ($this->dependents($fixtures, $typeFile) as $other) {
+                        str_starts_with($other, 'webhook-') ? $this->services->webhooks->import($api, null, [$fixtures->path($other)], substr($other, 8, -5), null, true) : $this->importFamily($api, $fixtures, $other, true, true);
+                    }
+                }
             } catch (\InvalidArgumentException $e) {
-                return $this->notes($api, null, [\sprintf('The type "%s" was not saved: %s', $name, $e->getMessage())]);
+                return $this->notes($api, null, [\sprintf('The type "%s" was not saved: %s', $name, $e->getMessage())], ['choice' => 'new', 'key' => $key, 'file' => $file, 'name' => $name, 'format' => $format, 'content' => $content, 'placement' => '']);
             }
             $choice = 'type:'.$typeFile;
         }
