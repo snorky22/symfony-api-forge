@@ -121,7 +121,7 @@ final class DescriptorStore
 
     /**
      * @param array<mixed> $data
-     * @param list<string> $path to the "review" list
+     * @param list<string> $path to the "review" list; the note goes to the "accepted" list next to it
      */
     private static function removeNote(array &$data, array $path, string $note): int
     {
@@ -138,13 +138,17 @@ final class DescriptorStore
         }
         unset($node[$index]);
         $node = array_values($node);
+        $parent = &$data;
+        foreach (\array_slice($path, 0, -1) as $key) {
+            $parent = &$parent[$key];
+        }
         if ([] === $node) {
             // The empty list goes too
-            $parent = &$data;
-            foreach (\array_slice($path, 0, -1) as $key) {
-                $parent = &$parent[$key];
-            }
             unset($parent[end($path)]);
+        }
+        // Remembered: an import that writes the note again does not show it again
+        if (!\in_array($note, $parent['accepted'] ?? [], true)) {
+            $parent['accepted'][] = $note;
         }
 
         return 1;

@@ -119,6 +119,7 @@ final class WebhookImporter
             if (!$data instanceof \stdClass) {
                 // The keys the example leaves unknown, named (a payload without an object is the shape of its event)
                 ShapeReview::add($result['shape'], 'payload', $result['review']);
+                ValueReview::add([$payload], 'payload', $result['review']);
             }
             if ($data instanceof \stdClass) {
                 // An object of a resource, in an envelope (event id, name, date…)
@@ -127,6 +128,7 @@ final class WebhookImporter
                 $result['data'] = $this->shapeGenerator->generate($data, false, DocsAlignment::under('data', $hints));
                 $result['envelope'] = $this->shapeGenerator->generate($envelope, false, DocsAlignment::outside('data', $hints));
                 ShapeReview::add($result['data'], 'object', $result['objectReview']);
+                ValueReview::add([$data], 'object', $result['objectReview']);
             }
         }
 

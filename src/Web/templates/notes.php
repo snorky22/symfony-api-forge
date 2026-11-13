@@ -2,6 +2,16 @@
 <p class="text-secondary">What the importer had to guess, or could not align. Most notes have a <strong>Fix</strong> form: the page writes the fix in your
 example and imports it again. Tick the notes you accept and delete them (they are removed from the descriptors).</p>
 
+<?php if ([] !== ($unreadable ?? [])): ?>
+    <div class="alert alert-danger" id="unreadable">
+        <strong>An example file can't be read</strong> (edited outside the interface?): it is left out of the imports until it is fixed.
+        <ul class="mb-0 mt-1">
+        <?php foreach ($unreadable as $file => $error): ?>
+            <li><a href="/api/<?= $e($api) ?>/file?name=<?= $e(rawurlencode($file)) ?>&amp;area=examples" data-af-open><code><?= $e($file) ?></code></a>: <?= $e($error) ?></li>
+        <?php endforeach ?>
+        </ul>
+    </div>
+<?php endif ?>
 <?php if (null !== $message): ?><div class="alert alert-success"><?= $e($message) ?></div><?php endif ?>
 <?php if ([] !== $fixErrors): ?>
     <div class="alert alert-danger"><ul class="mb-0"><?php foreach ($fixErrors as $error): ?><li><?= $e($error) ?></li><?php endforeach ?></ul></div>
@@ -114,15 +124,15 @@ example and imports it again. Tick the notes you accept and delete them (they ar
                         <input type="hidden" name="file" value="<?= $e((string) $key['file']) ?>">
                         <?php if ('free' === $note['fix']['kind']): ?>
                             <input type="hidden" name="choice" value="freeform">
-                            <div class="col-auto"><code><?= $e($key['path']) ?></code></div>
+                            <div class="col-auto"><?php if (null !== $key['file']): ?><span class="badge text-bg-light border me-1">in <?= $e($role($key['file'])) ?></span><?php endif ?><code><?= $e($key['path']) ?></code></div>
                             <?php if (null === $key['file']): ?>
                                 <div class="col-auto small text-secondary">not found in an example: edit the examples below.</div>
                             <?php else: ?>
                                 <div class="col-auto"><button class="btn btn-sm btn-primary">Make it free-form</button></div>
-                                <div class="col-auto small text-secondary">replaces its value with <code>{}</code> in <code><?= $e($key['file']) ?></code>, then imports it again</div>
+                                <div class="col-auto small text-secondary">replaces its value with <code>{}</code> in <?= $e($role($key['file'])) ?>, <code><?= $e($key['file']) ?></code>, then imports it again</div>
                             <?php endif ?>
                         <?php else: ?>
-                        <div class="col-auto"><code><?= $e($key['path']) ?></code> is</div>
+                        <div class="col-auto"><?php if (null !== $key['file']): ?><span class="badge text-bg-light border me-1">in <?= $e($role($key['file'])) ?></span><?php endif ?><code><?= $e($key['path']) ?></code> is</div>
                         <?php if (null === $key['file']): ?>
                             <div class="col-auto small text-secondary">not found in an example (it comes from a type file or an array): edit the examples below.</div>
                         <?php else: ?>
@@ -136,7 +146,10 @@ example and imports it again. Tick the notes you accept and delete them (they ar
                                 <?php endif ?>
                                 <optgroup label="Something simple">
                                     <option value="string">text</option>
-                                    <option value="int">a number</option>
+                                    <option value="datetime">a date-time (text, e.g. 2026-01-01T00:00:00Z)</option>
+                                    <option value="date">a date (text, e.g. 2026-01-01)</option>
+                                    <option value="int">a whole number</option>
+                                    <option value="float">a decimal number</option>
                                     <option value="bool">yes / no</option>
                                     <option value="object">a free-form object</option>
                                     <option value="list-string">a list of text</option>
@@ -145,10 +158,42 @@ example and imports it again. Tick the notes you accept and delete them (they ar
                             </select>
                         </div>
                         <div class="col-auto"><button class="btn btn-sm btn-primary">Fix</button></div>
-                        <div class="col-auto small text-secondary">in <code><?= $e($key['file']) ?></code>, then imports it again</div>
+                        <div class="col-auto small text-secondary">writes it in <?= $e($role($key['file'])) ?>, <code><?= $e($key['file']) ?></code>, then imports it again</div>
                         <?php endif ?>
                         <?php endif ?>
                     </form>
+                    <?php if ('free' !== $note['fix']['kind'] && null !== $key['file']): $uid = $i.'_'.$j; $fields = $key['fields'] ?? []; ?>
+                    <details class="mb-2">
+                        <summary class="small">Or describe <code><?= $e($key['key']) ?></code> in a new type file (JSON or PHP array)</summary>
+                        <form method="post" action="/api/<?= $e($api) ?>/fix" class="card card-body mt-2">
+                            <input type="hidden" name="_token" value="<?= $e($token) ?>">
+                            <input type="hidden" name="kind" value="<?= $e($note['fix']['kind']) ?>">
+                            <input type="hidden" name="key" value="<?= $e($key['key']) ?>">
+                            <input type="hidden" name="file" value="<?= $e((string) $key['file']) ?>">
+                            <input type="hidden" name="choice" value="new">
+                            <div class="row g-2 align-items-center mb-2">
+                                <div class="col-auto"><label class="form-label mb-0 small" for="new-name-<?= $uid ?>">Name</label></div>
+                                <div class="col-auto"><input class="form-control form-control-sm" id="new-name-<?= $uid ?>" name="new_name" value="<?= $e(strtolower((string) preg_replace('/[^a-z0-9_-]+/i', '_', $key['key']))) ?>"></div>
+                                <div class="col-auto">
+                                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="new_format[<?= $uid ?>]" id="nf-array-<?= $uid ?>" value="array" checked><label class="form-check-label small" for="nf-array-<?= $uid ?>">PHP array</label></div>
+                                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="new_format[<?= $uid ?>]" id="nf-json-<?= $uid ?>" value="json"><label class="form-check-label small" for="nf-json-<?= $uid ?>">JSON</label></div>
+                                </div>
+                                <div class="col-auto small text-secondary">saved as <code>&lt;name&gt;.array</code> or <code>&lt;name&gt;-type.json</code></div>
+                            </div>
+                            <textarea class="form-control font-monospace mb-2" name="new_content" rows="6" data-af-code="array" data-af-mode-from="new_format[<?= $uid ?>]" data-af-modes="json:json,array:array"><?php
+                                if ('list' === $note['fix']['kind']) {
+                                    echo $e("// One item of the list, with an example value for each field\n[\n    'id' => 'abc_01',\n]");
+                                } elseif ([] !== $fields) {
+                                    echo $e("// The fields of ".$key['key']." in the docs, with an example value each (a text, a number, true, a nested array…)\n[\n".implode('', array_map(static fn (string $field) => "    '".$field."' => '',\n", $fields))."]");
+                                } else {
+                                    echo $e("// The fields of ".$key['key'].", with an example value each (from the docs page)\n[\n    'name' => 'value',\n]");
+                                }
+                            ?></textarea>
+                            <div><button class="btn btn-sm btn-primary">Save the type, use it here and import</button>
+                                <span class="small text-secondary ms-2">writes the type file, puts its name in <?= $e($role($key['file'])) ?> (<code><?= $e($key['file']) ?></code>) in place of the empty value, then imports again</span></div>
+                        </form>
+                    </details>
+                    <?php endif ?>
                 <?php endforeach ?>
                 </div>
             <?php endif ?>

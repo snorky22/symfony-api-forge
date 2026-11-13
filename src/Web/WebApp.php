@@ -127,6 +127,7 @@ final class WebApp
             'notImported' => array_map('basename', array_keys($progress['pending'])),
             'endpoints' => $this->endpoints($fixtures, [] === $progress['errors'] ? array_map('basename', array_keys($progress['pending'])) : null),
             'webhooks' => $this->webhookState($api),
+            'unreadable' => $this->unreadableExamples($fixtures),
         ], $api);
     }
 
@@ -595,7 +596,7 @@ final class WebApp
         }
 
         try {
-            $this->checkFile($area, $name, $content);
+            $this->checkFile($area, $name, $content, 'examples' === $area ? $files : null);
             $files->write($name, $content);
         } catch (\InvalidArgumentException $e) {
             return $request->wantsJson() ? Response::json(['ok' => false, 'errors' => [$e->getMessage()]], 422) : $this->fileForm($api, $request, $content, [$e->getMessage()]);
@@ -1350,7 +1351,7 @@ final class WebApp
             ];
         }
 
-        return $this->page('notes', ['api' => $api, 'notes' => $notes, 'message' => $message, 'fixErrors' => $errors, 'errors' => $this->progress($api)['errors'], 'typeFiles' => $this->typeFiles($fixtures)], 'Review notes');
+        return $this->page('notes', ['api' => $api, 'notes' => $notes, 'message' => $message, 'fixErrors' => $errors, 'unreadable' => $this->unreadableExamples($fixtures), 'errors' => $this->progress($api)['errors'], 'typeFiles' => $this->typeFiles($fixtures)], 'Review notes');
     }
 
     /**
@@ -1423,7 +1424,9 @@ final class WebApp
         if (1 === preg_match('/"([A-Za-z0-9_-]+)" \(([^)]*)\) shows no fields in the example/', $note, $m)) {
             $found = $find($m[1], ['null', 'list']);
 
-            return ['kind' => $found[1] ?? 'null', 'keys' => [['path' => $m[2], 'key' => $m[1], 'file' => $found[0] ?? null]]];
+            $fields = 1 === preg_match('/but the docs describe ([^:]*): give it/', $note, $described) ? array_values(array_filter(array_map('trim', explode(',', $described[1])))) : [];
+
+            return ['kind' => $found[1] ?? 'null', 'keys' => [['path' => $m[2], 'key' => $m[1], 'file' => $found[0] ?? null, 'fields' => $fields]]];
         }
 
         if (1 === preg_match('/"([A-Za-z0-9_-]+)" \(([^)]*)\) is a free-form object in the docs/', $note, $m)) {
@@ -1480,10 +1483,38 @@ final class WebApp
         $choice = $request->text('choice');
         $fixtures = new FixtureDirectory($this->config->fixturesDir($api));
 
+        // A new type file, described here: written, then used like the type files of the list
+        if ('new' === $choice) {
+            $name = trim($request->text('new_name'));
+            $formats = $request->post['new_format'] ?? 'array';
+            $format = \is_array($formats) ? (string) reset($formats) : (string) $formats;
+            $content = trim($request->text('new_content'));
+            $typeFile = 'json' === $format ? $name.'-type.json' : $name.'.array';
+            try {
+                if (1 !== preg_match('/^[a-z][a-z0-9_-]*$/', $name)) {
+                    throw new \InvalidArgumentException('The name of the type is lowercase letters, digits, "-" and "_" (e.g. proration).');
+                }
+                if ($fixtures->has($typeFile) && $fixtures->read($typeFile) !== $content."\n") {
+                    throw new \InvalidArgumentException(\sprintf('%s exists already: choose it in the list, or give another name.', $typeFile));
+                }
+                'json' === $format ? $this->checkJson($content) : $this->arrayFile($content, false);
+                if ('list' === $kind && null !== $problem = $this->listItemProblem($fixtures, $typeFile, $content, true)) {
+                    throw new \InvalidArgumentException($problem);
+                }
+                $fixtures->write($typeFile, $content."\n");
+            } catch (\InvalidArgumentException $e) {
+                return $this->notes($api, null, [\sprintf('The type "%s" was not saved: %s', $name, $e->getMessage())]);
+            }
+            $choice = 'type:'.$typeFile;
+        }
+
         $literal = match (true) {
             'freeform' === $choice && 'free' === $kind => '{}',
             'string' === $choice => '"text"',
             'int' === $choice => '1',
+            'float' === $choice => '1.5',
+            'datetime' === $choice => '"2026-01-01T00:00:00Z"',
+            'date' === $choice => '"2026-01-01"',
             'bool' === $choice => 'true',
             'object' === $choice => '{}',
             'list-string' === $choice => '["text"]',
@@ -1522,7 +1553,7 @@ final class WebApp
         }
 
         try {
-            $this->checkFile('examples', $file, $fixed);
+            $this->checkFile('examples', $file, $fixed, $fixtures);
             $fixtures->write($file, $fixed);
             // A webhook payload, or a file payloads point to: they are imported again, replacing what they described
             $payloads = array_values(array_filter($this->dependents($fixtures, $file), static fn (string $name) => str_starts_with($name, 'webhook-')));
@@ -1630,7 +1661,7 @@ final class WebApp
     /**
      * @throws \InvalidArgumentException
      */
-    private function checkFile(string $area, string $name, string $content): void
+    private function checkFile(string $area, string $name, string $content, ?FixtureDirectory $examples = null): void
     {
         match (strtolower(pathinfo($name, \PATHINFO_EXTENSION))) {
             'json' => $this->checkJson($content),
@@ -1639,6 +1670,63 @@ final class WebApp
             'yaml' => $this->checkYaml($content),
             default => null,
         };
+        if ('examples' === $area && null !== $examples && null !== $problem = $this->listItemProblem($examples, $name, $content)) {
+            throw new \InvalidArgumentException($problem);
+        }
+    }
+
+    /**
+     * A data file used as one item of a list (["payments.array"]) must hold one item: a list there makes a list of
+     * lists. Said before the file is saved.
+     */
+    private function listItemProblem(FixtureDirectory $fixtures, string $name, string $content, bool $usedAsItem = false): ?string
+    {
+        if (1 !== preg_match('/\.(json|array)$/', $name)) {
+            return null;
+        }
+        if (!$usedAsItem) {
+            foreach ($fixtures->names() as $other) {
+                if ($other !== $name && 1 === preg_match('/\.(json|array|php)$/', $other) && 1 === preg_match('/\[\s*["\']'.preg_quote($name, '/').'["\']\s*\]/', $fixtures->read($other))) {
+                    $usedAsItem = true;
+                    break;
+                }
+            }
+        }
+        if (!$usedAsItem) {
+            return null;
+        }
+        try {
+            $data = str_ends_with($name, '.json') ? $this->services->decoder->decode($content) : PhpLiteral::evaluate($content);
+        } catch (\Throwable) {
+            return null;
+        }
+        if (\is_array($data) && [] !== $data && array_is_list($data) && [] === array_filter($data, static fn ($item) => !\is_array($item))) {
+            return \sprintf('%s is used as one item of a list (["%s"]), but it holds a list: that makes a list of lists. Remove the outer brackets, so that the file holds one item.', $name, $name);
+        }
+
+        return null;
+    }
+
+    /**
+     * The example files that can't be read (edited by hand, outside the interface): JSON, arrays.
+     *
+     * @return array<string, string> file => error
+     */
+    private function unreadableExamples(FixtureDirectory $fixtures): array
+    {
+        $unreadable = [];
+        foreach ($fixtures->names() as $name) {
+            if (1 !== preg_match('/\.(json|array|php)$/', $name)) {
+                continue;
+            }
+            try {
+                str_ends_with($name, '.json') ? $this->checkJson($fixtures->read($name)) : $this->arrayFile($fixtures->read($name));
+            } catch (\InvalidArgumentException $e) {
+                $unreadable[$name] = $e->getMessage();
+            }
+        }
+
+        return $unreadable;
     }
 
     /**

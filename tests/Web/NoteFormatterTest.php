@@ -32,4 +32,14 @@ final class NoteFormatterTest extends TestCase
             NoteFormatter::highlight('Add "id" to webhook-x.json, for example "type": "custom" (data.items[].price, lines 49, 73) <b>'),
         );
     }
+
+    public function testTheRoleOfAnExampleFile(): void
+    {
+        self::assertSame('the request body', NoteFormatter::roleOfFile('create-transactions.body.json'));
+        self::assertSame('the response', NoteFormatter::roleOfFile('create-transactions.json'));
+        self::assertSame('the webhook payload', NoteFormatter::roleOfFile('webhook-transaction.completed.json'));
+        self::assertSame('the object file', NoteFormatter::roleOfFile('transaction-object.array'));
+        self::assertSame('the type file', NoteFormatter::roleOfFile('proration.array'));
+        self::assertSame('the type file', NoteFormatter::roleOfFile('duration-type.json'));
+    }
 }

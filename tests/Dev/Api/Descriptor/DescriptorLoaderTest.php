@@ -158,7 +158,7 @@ final class DescriptorLoaderTest extends TestCase
         ]];
 
         $definition = $this->load(self::API + ['doctor' => ['probe' => 'orders.get', 'parameters' => ['id' => '%env(ORDER_ID)%'], 'review' => ['check it']]], ['orders' => $orders]);
-        self::assertSame(['probe' => 'orders.get', 'parameters' => ['id' => '%env(ORDER_ID)%'], 'review' => ['check it']], $definition->api['doctor']);
+        self::assertSame(['probe' => 'orders.get', 'parameters' => ['id' => '%env(ORDER_ID)%'], 'review' => ['check it'], 'accepted' => []], $definition->api['doctor']);
         self::assertContains('_api.yaml: doctor: check it', array_map(fn (string $note) => str_replace($this->dir.'/shop/', '', $note), $definition->review));
 
         self::assertSame(['_api.yaml: doctor.probe "orders.create" is a POST operation: the doctor only makes harmless GET calls.'], $this->errors(self::API + ['doctor' => ['probe' => 'orders.create']], ['orders' => $orders]));
@@ -248,7 +248,7 @@ final class DescriptorLoaderTest extends TestCase
 
         self::assertSame(['header' => 'X-Signature', 'env' => 'SHOP_WEBHOOK_SECRET', 'algorithm' => 'sha256', 'encoding' => 'hex', 'prefix' => '', 'content' => '{body}', 'tolerance' => null], $definition->webhooks['signature']);
         self::assertSame(['path' => 'meta.event_name', 'header' => null], $definition->webhooks['event_name']);
-        self::assertSame(['resource' => 'orders', 'description' => 'New order', 'shape' => null, 'review' => []], $definition->webhooks['events']['order_created']);
+        self::assertSame(['resource' => 'orders', 'description' => 'New order', 'shape' => null, 'review' => [], 'accepted' => []], $definition->webhooks['events']['order_created']);
         self::assertSame([
             '_webhooks.yaml: check signature',
             '_webhooks.yaml: the resource "subscriptions" has no object shape: the payload data of 2 events is untyped (import the resource object with api-forge:import-object)',

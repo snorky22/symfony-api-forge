@@ -77,6 +77,9 @@ final class NoteGuideTest extends TestCase
             'signature: default scheme (HMAC-SHA256 of the raw body, hex-encoded, in the X-Signature header), check it against the API docs',
             'resource "transactions" derived from the event name: rename the file and this value if the API calls it otherwise',
             'response: the objects of the response differ from the "transactions" object already described (from another example): the object is kept',
+            'object: "import_meta" (items[].import_meta) has two kinds of values in the example: a list (1 time), an object (3 times): one of them is probably wrong',
+            'object: "payments" (payments) is a list of lists in the example: when its item is described in a type file (["…array"]), that file must hold one item, not a list',
+            'docs: "expiry_month" is integer everywhere in the docs (line 3, 5), string in the example (card.expiry_month): fix the example',
             'something new the guide does not know',
         ] as $note) {
             $guide = NoteGuide::describe($note);

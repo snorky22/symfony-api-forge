@@ -59,6 +59,10 @@ final class DescriptorMerger
 
         if (null === $existing || $force) {
             $notes[] = \sprintf('operation "%s" %s', $name, null === $existing ? 'added' : 'replaced');
+            // The notes the user accepted stay accepted
+            if (isset($existing['accepted'])) {
+                $operation['accepted'] = $existing['accepted'];
+            }
         } elseif ($existing['method'] === $operation['method'] && $existing['path'] === $operation['path']) {
             $operation = $this->mergeOperation($existing, $operation);
             $notes[] = \sprintf('operation "%s" merged with the existing one', $name);
@@ -125,6 +129,9 @@ final class DescriptorMerger
             return $resource;
         }
         $notes[] = \sprintf('resource object %s', isset($resource['object']) ? 'replaced' : 'added');
+        if (isset($resource['object']['accepted']) && !isset($object['accepted'])) {
+            $object['accepted'] = $resource['object']['accepted'];
+        }
 
         return $this->sortKeys(['object' => $object] + $resource, self::RESOURCE_KEYS);
     }

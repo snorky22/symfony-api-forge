@@ -115,6 +115,7 @@ final class EndpointImporter
                     $review[] = 'request body: every key is typed as required: mark the optional ones with "?", or add the docs page of the body (<example>.body.docs.md) to do it';
                 }
                 $this->reviewShape($operation['body']['shape'], 'request body', $review);
+                ValueReview::add([$body], 'request body', $review);
             } else {
                 $operation['body'] = ['raw' => $request->body];
                 $review[] = 'request body is not JSON ('.($this->decodeError ?? 'null').'), kept as raw text';
@@ -163,6 +164,7 @@ final class EndpointImporter
                 $object = ['shape' => $this->shapeGenerator->generateMerged($items, false, DocsAlignment::under($isList ? 'data[]' : 'data', $hints))];
                 $objectReview = [];
                 $this->reviewShape($object['shape'], 'object', $objectReview);
+                ValueReview::add($items, 'object', $objectReview);
                 if ([] !== $objectReview) {
                     $object['review'] = $objectReview;
                 }
@@ -178,6 +180,7 @@ final class EndpointImporter
                 }
                 $operation['response'] = ['shape' => $this->shapeGenerator->generate($response, false, $hints)];
                 $this->reviewShape($operation['response']['shape'], 'response', $review);
+                ValueReview::add([$response], 'response', $review);
             } else {
                 $review[] = 'response is not JSON ('.($this->decodeError ?? 'empty or null').'), ignored';
             }

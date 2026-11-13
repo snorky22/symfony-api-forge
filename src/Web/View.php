@@ -51,6 +51,7 @@ final class View
             extract($__vars, \EXTR_SKIP);
             $e = View::e(...);
             $highlight = NoteFormatter::highlight(...);
+            $role = NoteFormatter::roleOfFile(...);
             $partial = fn (string $template, array $values = []): string => $this->include($template, $values + $__vars);
             ob_start();
             try {

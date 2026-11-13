@@ -542,7 +542,9 @@ final class WebAppTest extends TestCase
         self::assertStringContainsString('value="type:meta-type.json"', $notes);
         self::assertStringContainsString('a list of meta-type.json', $notes);
         self::assertStringContainsString('<option value="object">', $notes);
-        self::assertStringContainsString('in <code>list-prices.json</code>', $notes);
+        // Which part of the docs the file comes from: the response here, not the request body
+        self::assertStringContainsString('writes it in the response, <code>list-prices.json</code>', $notes);
+        self::assertStringContainsString('<span class="badge text-bg-light border me-1">in the response</span><code>meta</code> is', $notes);
         // The descriptor is an advanced edit, under a fold; the examples come first
         self::assertStringContainsString('<summary class="text-secondary">Advanced: the descriptor</summary>', $notes);
         self::assertLessThan(strpos($notes, 'Advanced: the descriptor'), strpos($notes, 'Edit the examples:'));
@@ -1050,14 +1052,16 @@ final class WebAppTest extends TestCase
         // The doctor ran a while ago (the files have a time to the second)
         file_put_contents($this->project.'/var/api-forge/web/doctor-shop.json', json_encode(['time' => time() - 120, 'code' => 0]));
 
-        // Step 2 edited (the endpoint imported again): the notes come back, and the steps after them are to do again
+        // Step 2 edited (the example changed, imported again): its new note comes back, the steps after it are to do
+        // again (the notes accepted before stay accepted: only a note the import writes differently is shown)
+        file_put_contents($this->project.'/tests/Fixtures/shop/list-prices.json', '{"data": [{"id": "p1", "name": null, "extra": null}]}');
         $this->post('/api/shop/import', ['name' => 'list-prices.curl', 'force' => '1']);
         $badges = $this->stepBadges($this->get('/api/shop')->body);
         self::assertSame('done', $badges['Add endpoints']);
         self::assertSame('next', $badges['Review the notes']);
         self::assertSame('to do', $badges['Generate the code']);
         self::assertSame('to do', $badges['Check with the doctor']);
-        self::assertStringContainsString('(to do again after step 3)', $this->get('/api/shop')->body);
+        self::assertStringContainsString('file(s) to generate', $this->get('/api/shop')->body, 'the example changed: the code is out of date');
 
         // The notes accepted and the code generated again: the doctor is the last one to do
         $this->readyForTheDoctor();
@@ -1297,5 +1301,89 @@ final class WebAppTest extends TestCase
         // The list returns the shared object
         $this->post('/api/shop/generate');
         self::assertStringContainsString('data: list<Transaction>,', (string) file_get_contents($this->project.'/src/Api/Shop/Generated/Resource/Transactions.php'));
+    }
+
+    public function testAnUnknownKeyIsDescribedInANewTypeFileFromItsNote(): void
+    {
+        $this->exampleWithUnknowns();
+        $fixtures = $this->project.'/tests/Fixtures/shop/';
+
+        $notes = $this->get('/api/shop/notes')->body;
+        self::assertStringContainsString('Or describe <code>meta</code> in a new type file (JSON or PHP array)', $notes);
+        self::assertStringContainsString('name="new_format[', $notes);
+
+        // An array that is not one is refused, with its error; nothing is written
+        $refused = $this->post('/api/shop/fix', ['kind' => 'null', 'key' => 'meta', 'file' => 'list-prices.json', 'choice' => 'new', 'new_name' => 'meta', 'new_format' => ['0_0' => 'array'], 'new_content' => "['origin' => "]);
+        self::assertStringContainsString('The type &quot;meta&quot; was not saved', $refused->body);
+        self::assertFileDoesNotExist($fixtures.'meta.array');
+
+        $fixed = $this->post('/api/shop/fix', ['kind' => 'null', 'key' => 'meta', 'file' => 'list-prices.json', 'choice' => 'new', 'new_name' => 'meta', 'new_format' => ['0_0' => 'array'], 'new_content' => "// From the docs\n['origin' => 'web', 'period' => ['starts_at' => '2026-01-01']]"]);
+        self::assertStringContainsString('Fixed &quot;meta&quot;', $fixed->body);
+        self::assertSame("// From the docs\n['origin' => 'web', 'period' => ['starts_at' => '2026-01-01']]\n", file_get_contents($fixtures.'meta.array'));
+        self::assertStringContainsString('"meta": "meta.array"', (string) file_get_contents($fixtures.'list-prices.json'));
+        $shape = Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['object']['shape'];
+        self::assertStringContainsString('origin: string,', $shape);
+        self::assertStringContainsString('starts_at: string,', $shape);
+        // The new file is offered to the other notes
+        self::assertStringContainsString('value="type:meta.array"', $this->get('/api/shop/notes')->body);
+
+        // JSON too, saved as <name>-type.json
+        $this->post('/api/shop/fix', ['kind' => 'null', 'key' => 'note', 'file' => 'list-prices.json', 'choice' => 'new', 'new_name' => 'note', 'new_format' => ['1_0' => 'json'], 'new_content' => '{"text": "hello"}']);
+        self::assertFileExists($fixtures.'note-type.json');
+        self::assertStringContainsString('"note": "note-type.json"', (string) file_get_contents($fixtures.'list-prices.json'));
+    }
+
+    public function testAnUnknownKeyCanBeADateTimeOrADecimalNumber(): void
+    {
+        $this->exampleWithUnknowns();
+        self::assertStringContainsString('<option value="datetime">a date-time', $this->get('/api/shop/notes')->body);
+
+        $this->post('/api/shop/fix', ['kind' => 'null', 'key' => 'note', 'file' => 'list-prices.json', 'choice' => 'datetime']);
+        self::assertStringContainsString('"note": "2026-01-01T00:00:00Z"', (string) file_get_contents($this->project.'/tests/Fixtures/shop/list-prices.json'));
+        self::assertStringContainsString('note: string,', Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['object']['shape']);
+
+        $this->post('/api/shop/fix', ['kind' => 'null', 'key' => 'meta', 'file' => 'list-prices.json', 'choice' => 'float']);
+        self::assertStringContainsString('meta: float,', Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['object']['shape']);
+    }
+
+    public function testAListItemFileThatHoldsAListIsRefusedAndAnUnreadableFileIsShown(): void
+    {
+        $this->exampleWithUnknowns();
+        $fixtures = $this->project.'/tests/Fixtures/shop/';
+
+        // From a note: an item of the list "tags", described as a list
+        $refused = $this->post('/api/shop/fix', ['kind' => 'list', 'key' => 'tags', 'file' => 'list-prices.json', 'choice' => 'new', 'new_name' => 'tag', 'new_format' => ['0_0' => 'array'], 'new_content' => "[['label' => 'new']]"]);
+        self::assertStringContainsString('tag.array is used as one item of a list', html_entity_decode($refused->body));
+        self::assertFileDoesNotExist($fixtures.'tag.array');
+        $this->post('/api/shop/fix', ['kind' => 'list', 'key' => 'tags', 'file' => 'list-prices.json', 'choice' => 'new', 'new_name' => 'tag', 'new_format' => ['0_0' => 'array'], 'new_content' => "['label' => 'new']"]);
+        self::assertStringContainsString('"tags": ["tag.array"]', (string) file_get_contents($fixtures.'list-prices.json'));
+
+        // In the editor: the same file, saved as a list
+        $saved = $this->decode($this->json('POST', '/api/shop/file', ['name' => 'tag.array', 'area' => 'examples', 'content' => "[['label' => 'new']]"]));
+        self::assertFalse($saved['ok']);
+        self::assertStringContainsString('holds a list: that makes a list of lists', implode(' ', $saved['errors']));
+
+        // Edited outside the interface, unreadable: said on the dashboard and the notes
+        file_put_contents($fixtures.'tag.array', "['label' => 'new'");
+        self::assertStringContainsString("<strong>An example file can't be read</strong>", $this->get('/api/shop')->body);
+        self::assertStringContainsString('<code>tag.array</code></a>: not valid PHP data', $this->get('/api/shop/notes')->body);
+    }
+
+    public function testAnAcceptedNoteStaysAcceptedAfterAnotherFix(): void
+    {
+        $this->exampleWithUnknowns();
+        preg_match_all('/<input type="hidden" name="notes\[\]" value="([^"]+)">/', $this->get('/api/shop/notes')->body, $m);
+        $tags = array_values(array_filter(array_map('html_entity_decode', $m[1]), static fn (string $note) => str_contains($note, 'list<mixed>') && str_contains($note, '(tags)')));
+        self::assertCount(1, $tags);
+
+        $this->post('/api/shop/notes', ['notes' => $tags]);
+        self::assertStringNotContainsString('(tags)', html_entity_decode($this->get('/api/shop/notes')->body));
+
+        // A fix of another key imports the example again (with Replace): the note about tags is written again, hidden
+        $this->post('/api/shop/fix', ['kind' => 'null', 'key' => 'note', 'file' => 'list-prices.json', 'choice' => 'string']);
+        $object = Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['object'];
+        self::assertContains('object: "list<mixed>" marks empty arrays in the example, they may be empty objects (tags)', $object['review'], 'written again by the import');
+        self::assertContains('object: "list<mixed>" marks empty arrays in the example, they may be empty objects (tags)', $object['accepted']);
+        self::assertStringNotContainsString('(tags)', html_entity_decode($this->get('/api/shop/notes')->body));
     }
 }

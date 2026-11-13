@@ -91,9 +91,11 @@ final class DescriptorSchema
                             ->scalarPrototype()->end()
                         ->end()
                         ->append(self::review())
+                        ->append(self::accepted())
                     ->end()
                 ->end()
                 ->append(self::review())
+                ->append(self::accepted())
             ->end();
 
         return $tree->buildTree();
@@ -121,9 +123,11 @@ final class DescriptorSchema
                             ->end()
                         ->end()
                         ->append(self::review())
+                        ->append(self::accepted())
                     ->end()
                 ->end()
                 ->append(self::review())
+                ->append(self::accepted())
                 ->arrayNode('operations')
                     ->normalizeKeys(false)
                     ->useAttributeAsKey('name')
@@ -197,6 +201,7 @@ final class DescriptorSchema
                                 ->end()
                             ->end()
                             ->append(self::review())
+                            ->append(self::accepted())
                         ->end()
                     ->end()
                 ->end()
@@ -323,6 +328,7 @@ final class DescriptorSchema
                             ->scalarNode('shape')->defaultNull()->end()
                             ->scalarNode('description')->defaultNull()->end()
                             ->append(self::review())
+                            ->append(self::accepted())
                         ->end()
                         ->validate()
                             ->ifTrue(static fn ($event) => null !== $event['resource'] && null !== $event['shape'])
@@ -331,6 +337,7 @@ final class DescriptorSchema
                     ->end()
                 ->end()
                 ->append(self::review())
+                ->append(self::accepted())
             ->end();
 
         return $tree->buildTree();
@@ -340,6 +347,13 @@ final class DescriptorSchema
     {
         return (new NodeBuilder())->arrayNode('review')
             ->info('Notes left by the importer, to check and delete')
+            ->scalarPrototype()->end();
+    }
+
+    private static function accepted(): ArrayNodeDefinition
+    {
+        return (new NodeBuilder())->arrayNode('accepted')
+            ->info('Notes the user accepted: hidden when an import writes them again')
             ->scalarPrototype()->end();
     }
 }

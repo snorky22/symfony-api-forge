@@ -141,6 +141,23 @@ final class DocsAnnotator
             }
         }
 
+        // A name the docs give one scalar type everywhere: its fields the alignment could not pair are compared too
+        $byName = [];
+        foreach ($entries as $entry) {
+            $byName[$entry->name][] = $entry;
+        }
+        foreach ($byName as $name => $docs) {
+            $types = array_values(array_unique(array_map(static fn (DocsEntry $entry) => $entry->type, $docs)));
+            if (1 !== \count($types) || !\in_array($types[0], ['string', 'integer', 'number', 'boolean'], true)) {
+                continue;
+            }
+            foreach ($inExample[$name] ?? [] as $field) {
+                if (!isset($hints[$field->path()]) && null !== $difference = $field->differsFrom($docs[0])) {
+                    $notes[] = \sprintf('docs: "%s" is %s everywhere in the docs (line %s), %s in the example (%s): fix the example', $name, $types[0], implode(', ', array_map(static fn (DocsEntry $entry) => (string) $entry->line, $docs)), $difference, $field->path());
+                }
+            }
+        }
+
         return new DocsAlignment($hints, $notes);
     }
 

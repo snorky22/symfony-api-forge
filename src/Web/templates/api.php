@@ -1,5 +1,15 @@
 <h1 class="h3 mb-3"><?= $e($api) ?></h1>
 
+<?php if ([] !== ($unreadable ?? [])): ?>
+    <div class="alert alert-danger" id="unreadable">
+        <strong>An example file can't be read</strong> (edited outside the interface?): it is left out of the imports until it is fixed.
+        <ul class="mb-0 mt-1">
+        <?php foreach ($unreadable as $file => $error): ?>
+            <li><a href="/api/<?= $e($api) ?>/file?name=<?= $e(rawurlencode($file)) ?>&amp;area=examples" data-af-open><code><?= $e($file) ?></code></a>: <?= $e($error) ?></li>
+        <?php endforeach ?>
+        </ul>
+    </div>
+<?php endif ?>
 <?php if ([] !== $problems): ?>
     <div class="alert alert-danger" id="problems">
         <strong>A descriptor is invalid:</strong>

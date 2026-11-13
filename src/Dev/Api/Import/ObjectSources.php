@@ -58,6 +58,7 @@ final class ObjectSources
 
         $review = [];
         ShapeReview::add($shape, 'object', $review);
+        ValueReview::add($items, 'object', $review);
 
         return ['shape' => $shape, 'review' => $review];
     }

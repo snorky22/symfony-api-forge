@@ -19,6 +19,8 @@ final class NoteFormatter
         'is not in the docs' => ['Not in the docs', 'info', 'complete the docs page, or accept'],
         'is not in the example' => ['Not in the example', 'info', 'add it to the example, or accept'],
         'in the docs (line' => ['Type differs', 'danger', 'fix the example'],
+        'has two kinds of values' => ['Two kinds of values', 'danger', 'fix the value that is wrong'],
+        'is a list of lists' => ['List of lists', 'danger', 'make the type file hold one item'],
         'is not JSON' => ['Not JSON', 'danger', 'fix the file'],
         'differs from the' => ['Example differs', 'danger', 'import again with Replace, or merge'],
         'differ from the' => ['Example differs', 'danger', 'import again with Replace, or accept'],
@@ -74,6 +76,21 @@ final class NoteFormatter
         }
 
         return 1 === preg_match('/\b([a-z_]+(?:\[\])?(?:\.[a-z_]+(?:\[\])?)+)\b/', $text, $m) ? $m[1] : null;
+    }
+
+    /**
+     * What an example file is, said for a human: the part of the docs it comes from.
+     */
+    public static function roleOfFile(string $file): string
+    {
+        return match (true) {
+            1 === preg_match('/\.body\.(json|array|php)$/', $file) => 'the request body',
+            str_starts_with($file, 'webhook-') => 'the webhook payload',
+            str_contains($file, '-object.') => 'the object file',
+            str_contains($file, '-type.') || str_ends_with($file, '.array') => 'the type file',
+            str_ends_with($file, '.php') => 'the example (request and response)',
+            default => 'the response',
+        };
     }
 
     /**

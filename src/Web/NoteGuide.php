@@ -80,6 +80,24 @@ final class NoteGuide
                 \sprintf('The generated type does not know "%s": your code cannot read or send it with type help.', $m[1]),
                 [\sprintf('Add "%s" to %s%s, then import again.', $m[1], $example, '' !== ($m[4] ?? '') ? \sprintf(', for example "%s": "%s"', $m[1], trim(explode(',', $m[4])[0])) : ''), 'Or accept: fine if you do not need it (optional, early access, rarely sent).'],
             ),
+            $match('/"([^"]+)" \(([^)]*)\) has two kinds of values in the example: (.+): one of them is probably wrong/') => self::note(
+                \sprintf('"%s" has two kinds of values in the example', $m[1]),
+                [\sprintf('"%s" (%s) is %s.', $m[1], $m[2], $m[3]), 'The API sends one kind for a field: one of these values is probably a mistake (a choice in a Fix form, a value typed by hand).'],
+                \sprintf('The generated type allows both kinds ("…|…"): your code would have to handle a value that never comes, and PHPStan cannot tell which one is right.'),
+                [\sprintf('Find the odd value in the example (the kind that appears less often) and give it the kind of the others, or point it to the same type file.'), 'Or accept, if the docs say the field can really be both.'],
+            ),
+            $match('/"([^"]+)" \(([^)]*)\) is a list of lists in the example/') => self::note(
+                \sprintf('"%s" is a list of lists in the example', $m[1]),
+                [\sprintf('Each item of "%s" (%s) is itself a list of objects.', $m[1], $m[2]), 'Most often, a type file used as one item (["….array"]) holds a list instead of one item.'],
+                'The generated type is a list of lists: the real data, a simple list, would not match it.',
+                ['Open the type file and remove its outer brackets, so that it holds one item; then import again.', 'Or accept, if the API really sends lists inside the list.'],
+            ),
+            $match('/docs: "([^"]+)" is (\S+) everywhere in the docs \(line ([^)]*)\), (.+) in the example \(([^)]*)\)/') => self::note(
+                \sprintf('"%s" is %s in the docs, %s in the example', $m[1], $m[2], $m[4]),
+                [\sprintf('The docs give "%s" the type %s everywhere (line %s).', $m[1], $m[2], $m[3]), \sprintf('The example has %s there (%s).', $m[4], $m[5])],
+                'The generated type follows the example, and is probably wrong.',
+                [\sprintf('Write a value of type %s for "%s" in %s (a number without quotes, true or false…), then import again.', $m[2], $m[1], $example)],
+            ),
             $match('/docs: ([^ ]+) is (\S+) in the docs \(line (\d+)\), (.+) in the example/') => self::note(
                 \sprintf('%s is %s in the docs, %s in the example', $m[1], $m[2], $m[4]),
                 [\sprintf('The docs say %s is %s (line %s).', $m[1], $m[2], $m[3]), \sprintf('The example has %s there.', $m[4])],

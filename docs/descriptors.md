@@ -202,6 +202,9 @@ With `resource`, the events of an entity share one shape, the object of the reso
 operations can use too: in plain JSON, `TransactionPaidPayload` is the members of `envelope.shape` plus
 `data: Transaction`.
 
+Wherever there is a `review` list (resources, objects, operations, events, the API, the doctor), an `accepted` list may
+sit next to it: the notes the user accepted, hidden when an import writes them again.
+
 Each event gives a constant (`ORDER_CREATED`), a payload type (`OrderCreatedPayload`) and a consumer
 method (`onOrderCreated`); these names must be unique. An event whose resource has no object shape
 has untyped payload data, which `api-forge:generate` reports.

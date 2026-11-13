@@ -43,7 +43,7 @@ final class DescriptorLoader
             throw new InvalidDescriptorException($errors);
         }
 
-        $review = $this->review($apiFile, $api['review'] ?? []);
+        $review = $this->review($apiFile, $api['review'] ?? [], $api['accepted'] ?? []);
         $resources = [];
         $classes = [];
 
@@ -68,13 +68,13 @@ final class DescriptorLoader
 
             if (isset($resource['object'])) {
                 $this->checkShape($resource['object']['shape'], 'object.shape', $error);
-                $review = array_merge($review, $this->review($file.': object', $resource['object']['review'] ?? []));
+                $review = array_merge($review, $this->review($file.': object', $resource['object']['review'] ?? [], $resource['object']['accepted'] ?? []));
             }
-            $review = array_merge($review, $this->review($file, $resource['review'] ?? []));
+            $review = array_merge($review, $this->review($file, $resource['review'] ?? [], $resource['accepted'] ?? []));
 
             foreach ($resource['operations'] as $operationName => $operation) {
                 $this->checkOperation($api, $resource, (string) $operationName, $operation, static fn (string $message) => $error(\sprintf('operation "%s": %s', $operationName, $message)));
-                $review = array_merge($review, $this->review(\sprintf('%s: operation "%s"', $file, $operationName), $operation['review'] ?? []));
+                $review = array_merge($review, $this->review(\sprintf('%s: operation "%s"', $file, $operationName), $operation['review'] ?? [], $operation['accepted'] ?? []));
             }
 
             $resources[$resourceName] = $resource;
@@ -95,7 +95,7 @@ final class DescriptorLoader
 
         if (isset($api['doctor'])) {
             $this->checkDoctor($apiFile, $api['doctor'], $resources, $errors);
-            $review = array_merge($review, $this->review($apiFile.': doctor', $api['doctor']['review'] ?? []));
+            $review = array_merge($review, $this->review($apiFile.': doctor', $api['doctor']['review'] ?? [], $api['doctor']['accepted'] ?? []));
         }
 
         if ([] !== $errors) {
@@ -155,7 +155,7 @@ final class DescriptorLoader
      */
     private function checkWebhooks(string $file, array $webhooks, array $api, array $resources, array &$errors): array
     {
-        $review = $this->review($file, $webhooks['review'] ?? []);
+        $review = $this->review($file, $webhooks['review'] ?? [], $webhooks['accepted'] ?? []);
         if (isset($webhooks['registration'])) {
             $registration = $webhooks['registration'];
             $this->checkDoctorCall($file, 'registration.operation', 'registration.parameters', $registration['operation'], $registration['parameters'], $resources, $errors);
@@ -201,7 +201,7 @@ final class DescriptorLoader
                     $untyped[$definition['resource']][] = $event;
                 }
             }
-            $review = array_merge($review, $this->review(\sprintf('%s: event "%s"', $file, $event), $definition['review'] ?? []));
+            $review = array_merge($review, $this->review(\sprintf('%s: event "%s"', $file, $event), $definition['review'] ?? [], $definition['accepted'] ?? []));
         }
 
         foreach ($untyped as $resource => $events) {
@@ -313,8 +313,12 @@ final class DescriptorLoader
      *
      * @return list<string>
      */
-    private function review(string $location, array $notes): array
+    /**
+     * @param list<string> $notes
+     * @param list<string> $accepted the notes the user accepted: hidden when an import writes them again
+     */
+    private function review(string $location, array $notes, array $accepted = []): array
     {
-        return array_map(static fn (string $note) => $location.': '.$note, $notes);
+        return array_values(array_map(static fn (string $note) => $location.': '.$note, array_diff($notes, $accepted)));
     }
 }

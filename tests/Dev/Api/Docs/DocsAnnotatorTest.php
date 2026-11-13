@@ -137,4 +137,13 @@ final class DocsAnnotatorTest extends TestCase
 
         self::assertSame(['docs: "type" (line 3) is not in the example: add it to the example (in the docs it sits between "description" and "tax_category"; values in the docs: custom, standard)'], $notes);
     }
+
+    public function testANameTheDocsTypeTheSameEverywhereIsComparedWhenNotPaired(): void
+    {
+        // The Paddle expiry_month: "integer" in the docs, a text in the example, and the field could not be paired
+        $entries = (new DocsCapture())->parse("cardobject | nullrequired\n\nexpiry_monthintegerrequired\n\nexpiry_monthintegerrequired\n");
+        $alignment = (new DocsAnnotator())->annotate($entries, [(new LenientJsonDecoder())->decode('{"card": {"expiry_month": "12"}}', false)]);
+
+        self::assertContains('docs: "expiry_month" is integer everywhere in the docs (line 3, 5), string in the example (card.expiry_month): fix the example', $alignment->notes);
+    }
 }

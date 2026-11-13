@@ -5,6 +5,23 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- New review notes, found by rules (`ValueReview`, `DocsAnnotator`): a field with two kinds of values in the example (an
+  object here, a list there: one is probably wrong), a list of lists of objects (often a type file holding a list, used
+  as one item), and a field of another type than the one the docs give its name everywhere (`integer` in the docs, a
+  text in the example), even when the docs page and the example could not be paired.
+- Accepted notes are remembered (`accepted`, next to `review` in the descriptors): an import that writes them again
+  does not show them again.
+- Web interface: an example file that can't be read is said on the dashboard and the notes, with its error; the editor
+  and the new type file refuse a file used as one item of a list that holds a list.
+- Web interface, Fix forms: each key says which part of the docs its file comes from (the request body, the response,
+  the webhook payload, an object or a type file), not only the file name.
+- Web interface, Fix of an unknown key: "a date-time", "a date" (text in JSON, typed `string`, written as an example
+  date) and "a decimal number" join the simple choices.
+- Web interface: the placeholders of the API form are generic examples ("e.g. https://api.example.com/"): they were
+  Paddle's real values, which looked like a form already filled in when describing Paddle (and saved nothing).
+- Web interface, review notes: an unknown key can be described in a new type file from its note (a name proposed from
+  the key, a PHP array or JSON, pre-filled with the fields the docs page lists): written, pointed to by the example,
+  imported again, and offered to the other notes.
 - Webhook payloads name the keys they leave unknown (`"mixed"`, `"list<mixed>"`), as endpoint responses do: on the object
   of the resource when the payload holds one, on the event otherwise; the web interface offers their Fix.
 - The object of a resource records its sources, the examples it is described from (`object.sources`: a file, and where
