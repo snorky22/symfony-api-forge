@@ -2,14 +2,34 @@
 
 namespace Snorky22\ApiForge\Web;
 
+use Twig\Environment;
+use Twig\Loader\FilesystemLoader;
+use Twig\TwigFilter;
+use Twig\TwigFunction;
+
 /**
- * Plain PHP templates in a layout. Every value shown goes through e().
+ * The templates of the interface: Twig templates, looked for as Symfony looks for a bundle's templates, first in the
+ * project (templates/bundles/ApiForgeBundle/, to override one) then in the bundle (templates/). Pages extend
+ * layout.html.twig; values are escaped by Twig.
  */
 final class View
 {
-    public function __construct(
-        private readonly string $directory,
-    ) {
+    /** Where a project overrides the templates of the bundle, as for any Symfony bundle. */
+    public const OVERRIDES = 'templates/bundles/ApiForgeBundle';
+
+    private readonly Environment $twig;
+
+    public function __construct(?string $projectDir = null)
+    {
+        $paths = [];
+        if (null !== $projectDir && is_dir($projectDir.'/'.self::OVERRIDES)) {
+            $paths[] = $projectDir.'/'.self::OVERRIDES;
+        }
+        $paths[] = \dirname(__DIR__, 2).'/templates';
+        $this->twig = new Environment(new FilesystemLoader($paths), ['autoescape' => 'html', 'strict_variables' => false, 'cache' => false]);
+        $this->twig->addFilter(new TwigFilter('highlight', NoteFormatter::highlight(...), ['is_safe' => ['html']]));
+        $this->twig->addFilter(new TwigFilter('role', NoteFormatter::roleOfFile(...)));
+        $this->twig->addFunction(new TwigFunction('role', NoteFormatter::roleOfFile(...)));
     }
 
     /**
@@ -17,9 +37,8 @@ final class View
      */
     public function render(string $template, array $vars = [], string $title = 'api-forge'): string
     {
-        $content = $this->include($template, $vars);
-
-        return $this->include('layout', ['content' => $content, 'title' => $title] + $vars);
+        // A page extends the layout itself
+        return $this->twig->render($template.'.html.twig', ['title' => $title] + $vars);
     }
 
     /**
@@ -42,26 +61,6 @@ final class View
      */
     private function include(string $template, array $vars): string
     {
-        $file = $this->directory.'/'.$template.'.php';
-        if (!is_file($file)) {
-            throw new \LogicException(\sprintf('Unknown template "%s".', $template));
-        }
-
-        return (function (string $__file, array $__vars): string {
-            extract($__vars, \EXTR_SKIP);
-            $e = View::e(...);
-            $highlight = NoteFormatter::highlight(...);
-            $role = NoteFormatter::roleOfFile(...);
-            $partial = fn (string $template, array $values = []): string => $this->include($template, $values + $__vars);
-            ob_start();
-            try {
-                require $__file;
-            } catch (\Throwable $exception) {
-                ob_end_clean();
-                throw $exception;
-            }
-
-            return (string) ob_get_clean();
-        })($file, $vars);
+        return $this->twig->render($template.'.html.twig', $vars);
     }
 }

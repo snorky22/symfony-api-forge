@@ -1,0 +1,34 @@
+{% extends 'layout.html.twig' %}
+{% block content %}
+<h1 class="h3 mb-1">Request <small class="text-secondary"><code>{{ method }}</code> {{ url }}</small></h1>
+<p class="text-secondary">Files: <code>{{ base }}.curl</code>{% if hasBody %}, <code>{{ base }}.body.json</code>{% endif %}.
+<a href="/api/{{ api }}/file?name={{ base }}.curl&amp;area=examples" data-af-open>Edit the cURL command</a></p>
+
+{{ include('endpoint_steps.html.twig') }}
+
+{% if errors is not empty %}
+    <div class="alert alert-danger"><ul class="mb-0">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<form method="post" action="/api/{{ api }}/endpoint" class="card card-body">
+    <input type="hidden" name="_token" value="{{ token }}">
+    <input type="hidden" name="base" value="{{ base }}">
+    <input type="hidden" name="step" value="request">
+
+    <label class="form-label" for="query">Query parameters <span class="text-secondary">(optional)</span></label>
+    <textarea class="form-control font-monospace mb-1" id="query" name="query" rows="3" data-af-code="text" placeholder="include=product&#10;status=active">{{ values.query }}</textarea>
+    <div class="form-text mb-3">One <code>name=value</code> per line: an example value of each parameter the docs list. Values are typed from them; the ones the docs do not require stay optional.</div>
+
+    {% if hasBody %}
+        <label class="form-label" for="body">Body, as JSON</label>
+        <textarea class="form-control font-monospace mb-1" id="body" name="body" rows="8" data-af-code="json" placeholder='{"name": "Analytics", "tax_category": "standard"}'>{{ values.body }}</textarea>
+        <div class="form-text mb-3">What you send. Saved as <code>{{ base }}.body.json</code>.</div>
+
+        <label class="form-label" for="body_docs">The docs page of the body, as text <span class="text-secondary">(optional)</span></label>
+        <textarea class="form-control font-monospace mb-1" id="body_docs" name="body_docs" rows="4" data-af-code="text" placeholder="namestringrequired&#10;...">{{ values.body_docs }}</textarea>
+        <div class="form-text mb-3">The parameters of the body, copied: it tells which keys are required, the others become optional.</div>
+    {% endif %}
+
+    <div><button class="btn btn-primary">Save and continue</button> <a class="btn btn-link" href="/api/{{ api }}">Cancel</a></div>
+</form>
+{% endblock %}

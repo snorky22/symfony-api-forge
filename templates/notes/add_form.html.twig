@@ -1,0 +1,49 @@
+{#
+    A field the docs describe and the current structure lacks: described in a type file, added where the docs put it.
+    Variables: add (key, after, before, file, inList, skeleton, typeName), uid, mine (the draft submitted, after an
+    error), api, token, typeContents.
+#}
+{% set addName = mine.name ?? add.typeName %}
+{% set addFormat = mine.format ?? 'array' %}
+{% set addContent = mine.content ?? typeContents.content(addName, addFormat) ?? "[\n    'name' => 'value',\n]" %}
+<div class="card card-body mt-3">
+    <div class="small mb-2"><strong>Describe <code>{{ add.key }}</code> and add it to the current structure</strong> ({{ add.file|role }}, <code>{{ add.file }}</code>)</div>
+    <form method="post" action="/api/{{ api }}/fix">
+        <input type="hidden" name="_token" value="{{ token }}">
+        <input type="hidden" name="choice" value="add">
+        <input type="hidden" name="key" value="{{ add.key }}">
+        <input type="hidden" name="after" value="{{ add.after }}">
+        <input type="hidden" name="file" value="{{ add.file }}">
+        {% if add.inList %}
+        <div class="mb-2 small">
+            <div class="form-check"><input class="form-check-input" type="radio" name="placement" id="pl-item-{{ uid }}" value="item"{{ 'same' != (mine.placement ?? '') ? ' checked' }}><label class="form-check-label" for="pl-item-{{ uid }}">in a <strong>new item</strong> of the list, <strong>instead of</strong> <code>{{ add.after }}</code>: another way to give an item (the docs list alternatives, e.g. a price id <em>or</em> a price)</label></div>
+            <div class="form-check"><input class="form-check-input" type="radio" name="placement" id="pl-same-{{ uid }}" value="same"{{ 'same' == (mine.placement ?? '') ? ' checked' }}><label class="form-check-label" for="pl-same-{{ uid }}">next to <code>{{ add.after }}</code>, in the same item: one more field of the item</label></div>
+        </div>
+        {% else %}
+        <input type="hidden" name="placement" value="{{ add.before|default(false) ? 'before' : 'same' }}">
+        <div class="small text-secondary mb-2">added {{ add.before|default(false) ? 'before' : 'next to' }} <code>{{ add.after }}</code>, as in the docs</div>
+        {% endif %}
+        <div class="row g-2 align-items-center mb-2">
+            <div class="col-auto"><label class="form-label mb-0 small" for="add-name-{{ uid }}">Type file</label></div>
+            <div class="col-auto"><input class="form-control form-control-sm" id="add-name-{{ uid }}" name="new_name" value="{{ addName }}"></div>
+            <div class="col-auto">
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="new_format[{{ uid }}]" id="af-array-{{ uid }}" value="array"{{ 'json' != addFormat ? ' checked' }}><label class="form-check-label small" for="af-array-{{ uid }}">PHP array</label></div>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="new_format[{{ uid }}]" id="af-json-{{ uid }}" value="json"{{ 'json' == addFormat ? ' checked' }}><label class="form-check-label small" for="af-json-{{ uid }}">JSON</label></div>
+            </div>
+        </div>
+        <div class="row g-3">
+            <div class="{{ add.skeleton is not empty ? 'col-lg-7' : 'col-12' }}">
+                <textarea class="form-control font-monospace mb-1" name="new_content" rows="6" data-af-code="{{ 'json' == addFormat ? 'json' : 'array' }}" data-af-mode-from="new_format[{{ uid }}]" data-af-modes="json:json,array:array">{{ addContent }}</textarea>
+                <div class="form-text mb-2">An example value for each field, as the API sends it: a text in quotes, a number, <code>true</code>, a nested array for an object.</div>
+                <button class="btn btn-sm btn-primary">Save the type, add {{ add.key }} and import</button>
+                <span class="small text-secondary ms-2">or Ctrl/Cmd-S in the box: writes the type file, adds <code>{{ add.key }}</code> to {{ add.file|role }} (pointing to the type file), then imports again</span>
+            </div>
+            {% if add.skeleton is not empty %}
+            <div class="col-lg-5 small">
+                <div class="text-secondary mb-1">The fields the docs list after <code>{{ add.key }}</code>, in the page's order (the fields of an <em>object</em> come right after it: put them inside)</div>
+                <ul class="list-unstyled font-monospace mb-0 ms-1 overflow-auto border rounded p-2 bg-body" style="max-height: 22rem">{% for field in add.skeleton %}<li>{{ field.name }} <span class="text-secondary">— {{ field.type }}</span></li>{% endfor %}</ul>
+            </div>
+            {% endif %}
+        </div>
+    </form>
+</div>

@@ -139,9 +139,25 @@ A development tool that writes files, so:
   come from the server or from the files already in that folder, never from a path;
 - the API keys are never shown: they stay in `.env.local`, and the doctor runs as a console command.
 
+## Customising the interface
+
+The pages are Twig templates, in `templates/` at the root of the bundle (`layout.html.twig`, `notes.html.twig` and its
+parts in `templates/notes/`, `webhooks.html.twig`…). To change one in your project, copy it to the same path under
+**`templates/bundles/ApiForgeBundle/`**, as for any Symfony bundle, and edit the copy: the interface uses it instead
+of the bundle's, and your changes survive the updates of api-forge. A page extends `layout.html.twig` and fills its
+`content` block; the variables it receives are listed at the top of the larger templates (`notes.html.twig`).
+
+```text
+templates/bundles/ApiForgeBundle/notes.html.twig       the review page, yours
+templates/bundles/ApiForgeBundle/notes/fix_form.html.twig    one of its parts only
+```
+
+Besides Twig's own, the templates have the filters `highlight` (the names, files and lines of a note's sentence, as
+code) and `role` (what an example file is: the request body, the response, the webhook payload…).
+
 ## How it is built
 
-No framework, no new dependency: plain PHP templates, the services of api-forge built by hand
+No framework: Twig templates (above), the services of api-forge built by hand
 (`Snorky22\ApiForge\Web\WebServices`), and Bootstrap 5.3 (MIT) and Ace 1.43 (BSD-3) shipped in
 `src/Web/public/assets/`, so it works offline. `editor.js` (about 400 lines, no build step) mounts Ace on the text areas
 marked `data-af-code` and on the panels opened by the `data-af-open` links.

@@ -1,0 +1,8 @@
+{% extends 'layout.html.twig' %}
+{% block content %}
+<div class="alert alert-danger" role="alert">
+    <h1 class="h5">Error {{ status }}</h1>
+    <p class="mb-0">{{ message }}</p>
+</div>
+<a class="btn btn-outline-secondary" href="/">Back to the APIs</a>
+{% endblock %}

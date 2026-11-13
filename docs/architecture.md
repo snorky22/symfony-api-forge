@@ -46,7 +46,7 @@ src/                                     namespace Snorky22\ApiForge
 ├── Command/                             Console commands (see commands.md)
 ├── DependencyInjection/                 WebhookSenderPass: webhook routing → WebhookSender
 ├── Test/WebhookTestTrait.php            signed webhook deliveries in functional tests
-├── Web/                                 the local web interface (api-forge:serve): WebApp, templates, Bootstrap; see web.md
+├── Web/                                 the local web interface (api-forge:serve): WebApp, Bootstrap; see web.md (its Twig templates: templates/)
 └── Dev/                                 Development tools, not used at runtime
     ├── LenientJsonDecoder.php               JSON from docs: comments, {...}, trailing commas
     ├── ArrayShapeGenerator.php              JSON example → PHPDoc array shape

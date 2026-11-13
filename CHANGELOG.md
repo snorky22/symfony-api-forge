@@ -5,6 +5,11 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- Web interface: Twig templates (`twig/twig`, in `templates/` at the root of the bundle), overridable per project in
+  `templates/bundles/ApiForgeBundle/`, as for any Symfony bundle; the notes page split into parts (`templates/notes/`).
+  The plain PHP templates are gone.
+- A Symfony Flex recipe (`recipe/snorky22/symfony-api-forge/0.3/`, for symfony/recipes-contrib): registers the bundle,
+  copies `config/packages/api_forge.yaml`, and says how to start.
 - Web interface, review notes: "the current structure" (the JSON or the array of an example) instead of the vaguer
   "the example" in the sentences and the kinds (*Not in the current structure*, *Value missing*, *Structure differs*);
   the importer's own text stays in the raw note.

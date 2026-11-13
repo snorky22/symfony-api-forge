@@ -36,7 +36,7 @@ final class WebApp
         private readonly CommandRunner $runner = new CommandRunner(),
     ) {
         $this->services = new WebServices($config);
-        $this->view = new View(__DIR__.'/templates');
+        $this->view = new View($config->projectDir);
     }
 
     public function handle(Request $request): Response
@@ -1356,7 +1356,25 @@ final class WebApp
             ];
         }
 
-        return $this->page('notes', ['draft' => $draft, 'typeContent' => static fn (string $name, string $format): ?string => $fixtures->has($typeFile = 'json' === $format ? $name.'-type.json' : $name.'.array') ? rtrim($fixtures->read($typeFile)) : null, 'api' => $api, 'notes' => $notes, 'message' => $message, 'fixErrors' => $errors, 'unreadable' => $this->unreadableExamples($fixtures), 'errors' => $this->progress($api)['errors'], 'typeFiles' => $this->typeFiles($fixtures)], 'Review notes');
+        // By where they apply (file and part), in the order of the notes; how many of each kind; what each form shows
+        $groups = [];
+        $kinds = [];
+        foreach ($notes as $index => $note) {
+            $slug = trim((string) preg_replace('/[^a-z0-9]+/', '-', strtolower($note['kind']['label'])), '-');
+            $kinds[$note['kind']['label']] ??= ['count' => 0, 'colour' => $note['kind']['colour'], 'asks' => $note['kind']['asks'], 'slug' => $slug];
+            ++$kinds[$note['kind']['label']]['count'];
+            $note['slug'] = $slug;
+            $note['isDraft'] = null !== $draft && null !== $note['fix'] && [] !== array_filter($note['fix']['keys'], static fn (array $k) => $k['key'] === $draft['key'] && $k['file'] === $draft['file']);
+            foreach ($note['fix']['keys'] ?? [] as $j => $key) {
+                $note['fix']['keys'][$j]['typeName'] = strtolower((string) preg_replace('/[^a-z0-9_-]+/i', '_', $key['key']));
+            }
+            $location = $note['location'];
+            $part = null !== $location['part'] ? explode(' ', $location['part'], 2) : null;
+            $groups[$location['group']] ??= ['file' => '' !== $location['file'] ? $location['file'] : 'the API', 'partWord' => $part[0] ?? null, 'partName' => $part[1] ?? '', 'members' => []];
+            $groups[$location['group']]['members'][$index] = $note;
+        }
+
+        return $this->page('notes', ['groups' => $groups, 'kinds' => $kinds, 'draft' => $draft, 'typeContents' => new TypeFiles($fixtures), 'api' => $api, 'notes' => $notes, 'message' => $message, 'fixErrors' => $errors, 'unreadable' => $this->unreadableExamples($fixtures), 'errors' => $this->progress($api)['errors'], 'typeFiles' => $this->typeFiles($fixtures)], 'Review notes');
     }
 
     /**

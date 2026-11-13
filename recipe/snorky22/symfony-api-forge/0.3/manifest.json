@@ -1,0 +1,16 @@
+{
+    "bundles": {
+        "Snorky22\\ApiForge\\ApiForgeBundle": ["all"]
+    },
+    "copy-from-recipe": {
+        "config/": "%CONFIG_DIR%/"
+    },
+    "post-install-output": [
+        "  * <fg=blue>api-forge</> generates services for REST APIs and their webhooks from documentation examples.",
+        "  * Start the local web interface: <comment>php bin/console api-forge:serve</comment> (http://127.0.0.1:8765)",
+        "    or follow the steps in the terminal: <comment>php bin/console api-forge:guide</comment>",
+        "  * The settings are in <comment>config/packages/api_forge.yaml</comment>; secrets go in <comment>.env.local</comment>.",
+        "  * To tweak a page of the interface, copy its template into <comment>templates/bundles/ApiForgeBundle/</comment>.",
+        "  * To receive webhooks, install <comment>symfony/webhook</comment> (its recipe imports the /webhook/{type} route)."
+    ]
+}

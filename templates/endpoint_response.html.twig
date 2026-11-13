@@ -1,0 +1,27 @@
+{% extends 'layout.html.twig' %}
+{% block content %}
+<h1 class="h3 mb-1">Response <small class="text-secondary"><code>{{ method }}</code> {{ url }}</small></h1>
+<p class="text-secondary">Files: <code>{{ base }}.json</code>, <code>{{ base }}.docs.md</code>.</p>
+
+{{ include('endpoint_steps.html.twig') }}
+
+{% if errors is not empty %}
+    <div class="alert alert-danger"><ul class="mb-0">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<form method="post" action="/api/{{ api }}/endpoint" class="card card-body">
+    <input type="hidden" name="_token" value="{{ token }}">
+    <input type="hidden" name="base" value="{{ base }}">
+    <input type="hidden" name="step" value="response">
+
+    <label class="form-label" for="response">The example response, as JSON</label>
+    <textarea class="form-control font-monospace mb-1" id="response" name="response" rows="10" data-af-code="json" placeholder='{"data": {"id": "pro_01", "name": "Analytics"}}'>{{ values.response }}</textarea>
+    <div class="form-text mb-3">The response of the docs. Fields that are <code>null</code> or empty in it are fixed later, from the notes. Leave it empty for an endpoint that returns nothing useful (a delete).</div>
+
+    <label class="form-label" for="docs">The docs page of the response, as text <span class="text-secondary">(optional)</span></label>
+    <textarea class="form-control font-monospace mb-1" id="docs" name="docs" rows="5" data-af-code="text" placeholder="idstringrequired&#10;...">{{ values.docs }}</textarea>
+    <div class="form-text mb-3">The page's field list, copied: it gives the optional keys, the nulls and the enums.</div>
+
+    <div><button class="btn btn-primary">Save and continue</button> <a class="btn btn-link" href="/api/{{ api }}/endpoint?base={{ base }}&amp;step=request">Back</a></div>
+</form>
+{% endblock %}

@@ -1,0 +1,46 @@
+{# The Fix row of a key the current structure leaves unknown. Variables: note, key, api, token, typeFiles. #}
+<form method="post" action="/api/{{ api }}/fix" class="row g-2 align-items-center mb-2">
+    <input type="hidden" name="_token" value="{{ token }}">
+    <input type="hidden" name="kind" value="{{ note.fix.kind }}">
+    <input type="hidden" name="key" value="{{ key.key }}">
+    <input type="hidden" name="file" value="{{ key.file }}">
+    {% if 'free' == note.fix.kind %}
+        <input type="hidden" name="choice" value="freeform">
+        <div class="col-auto">{% if key.file is not null %}<span class="badge text-bg-light border me-1">in {{ key.file|role }}</span>{% endif %}<code>{{ key.path }}</code></div>
+        {% if key.file is null %}
+            <div class="col-auto small text-secondary">not found in an example: edit the examples below.</div>
+        {% else %}
+            <div class="col-auto"><button class="btn btn-sm btn-primary">Make it free-form</button></div>
+            <div class="col-auto small text-secondary">replaces its value with <code>{}</code> in {{ key.file|role }}, <code>{{ key.file }}</code>, then imports it again</div>
+        {% endif %}
+    {% else %}
+    <div class="col-auto">{% if key.file is not null %}<span class="badge text-bg-light border me-1">in {{ key.file|role }}</span>{% endif %}<code>{{ key.path }}</code> is</div>
+    {% if key.file is null %}
+        <div class="col-auto small text-secondary">not found in an example (it comes from a type file or an array): edit the examples below.</div>
+    {% else %}
+    <div class="col-auto">
+        <select class="form-select form-select-sm" name="choice" aria-label="What {{ key.key }} is">
+            <option value="">choose…</option>
+            {% if typeFiles is not empty %}
+            <optgroup label="One of your type files">
+                {% for typeFile in typeFiles %}<option value="type:{{ typeFile }}">{{ 'list' == note.fix.kind ? 'a list of ' ~ typeFile : typeFile }}</option>{% endfor %}
+            </optgroup>
+            {% endif %}
+            <optgroup label="Something simple">
+                <option value="string">text</option>
+                <option value="datetime">a date-time (text, e.g. 2026-01-01T00:00:00Z)</option>
+                <option value="date">a date (text, e.g. 2026-01-01)</option>
+                <option value="int">a whole number</option>
+                <option value="float">a decimal number</option>
+                <option value="bool">yes / no</option>
+                <option value="object">a free-form object</option>
+                <option value="list-string">a list of text</option>
+                <option value="list-int">a list of numbers</option>
+            </optgroup>
+        </select>
+    </div>
+    <div class="col-auto"><button class="btn btn-sm btn-primary">Fix</button></div>
+    <div class="col-auto small text-secondary">writes it in {{ key.file|role }}, <code>{{ key.file }}</code>, then imports it again</div>
+    {% endif %}
+    {% endif %}
+</form>

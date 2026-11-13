@@ -1,0 +1,64 @@
+{% extends 'layout.html.twig' %}
+{% block content %}
+<h1 class="h3 mb-1">Webhooks <small class="text-secondary">{{ api }}</small></h1>
+<p class="text-secondary">The events the API sends, and their payloads. A payload example and its docs page describe an event; when the payload
+holds an object (<code>data</code>), they describe the resource of that object, and so every event of the same entity.
+Everything is written in <code>config/api/{{ api }}/_webhooks.yaml</code> and the resource files.</p>
+
+{% if not state.described %}
+    <div class="alert alert-info">No webhook described yet. Start with a payload example: the event is added from it.
+        To list all the events first, copy the events table of the docs into <code>tests/Fixtures/{{ api }}/webhook-events.md</code> and run
+        <code>{{ command }}</code>.</div>
+    <a class="btn btn-primary" href="/api/{{ api }}/webhook">Add a payload</a>
+    <a class="btn btn-link" href="/api/{{ api }}">Back to {{ api }}</a>
+{% else %}
+    <div class="card mb-3"><div class="card-body">
+        <h2 class="h6">Receiving</h2>
+        <dl class="row mb-0 small">
+            <dt class="col-sm-3">Endpoint</dt><dd class="col-sm-9"><code>/webhook/{{ api }}</code></dd>
+            <dt class="col-sm-3">Signature</dt><dd class="col-sm-9"><code>{{ state.signature ?? '—' }}</code></dd>
+            <dt class="col-sm-3">Secret</dt><dd class="col-sm-9"><code>{{ state.secret ?? '—' }}</code> in <code>.env.local</code></dd>
+            <dt class="col-sm-3">Event name</dt><dd class="col-sm-9">{% if state.eventName is not null %}<code>{{ state.eventName }}</code>{% else %}<span class="badge text-bg-warning">not set</span> add a payload: it is read from it{% endif %}</dd>
+            <dt class="col-sm-3">Delivery id</dt><dd class="col-sm-9">{% if state.eventId is not null %}<code>{{ state.eventId }}</code>{% else %}<span class="text-secondary">none: a hash of the body</span>{% endif %}</dd>
+            {% if 'json' == state.format %}
+            <dt class="col-sm-3">Envelope</dt><dd class="col-sm-9">{% if state.envelope is not null %}the object is in <code>{{ state.envelope }}</code>{% else %}<span class="text-secondary">set by the first payload holding an object</span>{% endif %}</dd>
+            {% endif %}
+            <dt class="col-sm-3">Registered webhooks</dt><dd class="col-sm-9 mb-0">{% if state.registration is not null %}read with <code>{{ state.registration }}</code> by the doctor{% else %}<span class="text-secondary">not described: the doctor cannot check them</span>{% endif %}</dd>
+        </dl>
+        <div class="mt-2"><a class="small" href="/api/{{ api }}/file?name=_webhooks.yaml&amp;area=descriptors">Edit _webhooks.yaml</a></div>
+    </div></div>
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="h5 mb-0">Events <span class="text-secondary small">{{ state.typed }} of {{ state.total }} typed{{ state.notes > 0 ? ', ' ~ state.notes ~ ' note(s)' }}</span></h2>
+        <div>
+            <a class="btn btn-sm btn-primary" href="/api/{{ api }}/webhook">Add a payload</a>
+            {% if state.notes > 0 %}<a class="btn btn-sm btn-outline-primary" href="/api/{{ api }}/notes">Review the notes</a>{% endif %}
+            <a class="btn btn-sm btn-outline-secondary" href="/api/{{ api }}/generate">Generate</a>
+        </div>
+    </div>
+    <div class="form-text mb-2">One payload per entity is enough when it holds an object: <em>Add a payload</em> on one event of the entity types them all.</div>
+
+    {% for entity, events in state.entities %}
+        {% set typed = events|filter(event => 'untyped' != event.typed)|length %}
+        <details class="card mb-2" {{ typed < events|length and typed > 0 ? 'open' }}>
+            <summary class="card-header d-flex justify-content-between align-items-center">
+                <span><strong>{{ entity }}</strong> <span class="text-secondary small">{{ events|length }} event(s)</span></span>
+                <span class="badge {{ typed == events|length ? 'text-bg-success' : (0 == typed ? 'text-bg-secondary' : 'text-bg-warning') }}">{{ typed == events|length ? 'typed' : typed ~ ' of ' ~ events|length ~ ' typed' }}</span>
+            </summary>
+            <ul class="list-group list-group-flush">
+            {% for event in events %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><code>{{ event.name }}</code>
+                        <span class="badge {{ 'untyped' == event.typed ? 'text-bg-secondary' : 'text-bg-success' }}">{{ event.detail }}</span>
+                        {% if event.notes > 0 %}<span class="badge text-bg-warning">{{ event.notes }} note(s)</span>{% endif %}
+                        {% if event.description is not null %}<br><span class="small text-secondary">{{ event.description }}</span>{% endif %}
+                    </span>
+                    <a class="btn btn-sm {{ event.example ? 'btn-outline-secondary' : ('untyped' == event.typed ? 'btn-outline-primary' : 'btn-link') }}" href="/api/{{ api }}/webhook?event={{ event.name|url_encode }}">{{ event.example ? 'Edit the payload' : 'Add a payload' }}</a>
+                </li>
+            {% endfor %}
+            </ul>
+        </details>
+    {% endfor %}
+    <a class="btn btn-link mt-2" href="/api/{{ api }}">Back to {{ api }}</a>
+{% endif %}
+{% endblock %}

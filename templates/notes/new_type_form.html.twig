@@ -1,0 +1,31 @@
+{# A key described in a new type file, from its note. Variables: note, key (key, file, fields, typeName), uid, mine, api, token, typeContents. #}
+{% set newName = mine.name ?? key.typeName %}
+{% set newFormat = mine.format ?? 'array' %}
+{% set newContent = mine.content ?? typeContents.content(newName, newFormat) ?? "[\n    'name' => 'value',\n]" %}
+{% set fields = key.fields ?? [] %}
+<details class="mb-2"{{ mine is not null ? ' open' }}>
+    <summary class="small">Or describe <code>{{ key.key }}</code> in a new type file (JSON or PHP array)</summary>
+    <form method="post" action="/api/{{ api }}/fix" class="card card-body mt-2">
+        <input type="hidden" name="_token" value="{{ token }}">
+        <input type="hidden" name="kind" value="{{ note.fix.kind }}">
+        <input type="hidden" name="key" value="{{ key.key }}">
+        <input type="hidden" name="file" value="{{ key.file }}">
+        <input type="hidden" name="choice" value="new">
+        <div class="row g-2 align-items-center mb-2">
+            <div class="col-auto"><label class="form-label mb-0 small" for="new-name-{{ uid }}">Name</label></div>
+            <div class="col-auto"><input class="form-control form-control-sm" id="new-name-{{ uid }}" name="new_name" value="{{ newName }}"></div>
+            <div class="col-auto">
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="new_format[{{ uid }}]" id="nf-array-{{ uid }}" value="array"{{ 'json' != newFormat ? ' checked' }}><label class="form-check-label small" for="nf-array-{{ uid }}">PHP array</label></div>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="new_format[{{ uid }}]" id="nf-json-{{ uid }}" value="json"{{ 'json' == newFormat ? ' checked' }}><label class="form-check-label small" for="nf-json-{{ uid }}">JSON</label></div>
+            </div>
+            <div class="col-auto small text-secondary">saved as <code>&lt;name&gt;.array</code> or <code>&lt;name&gt;-type.json</code></div>
+        </div>
+        <textarea class="form-control font-monospace mb-1" name="new_content" rows="6" data-af-code="{{ 'json' == newFormat ? 'json' : 'array' }}" data-af-mode-from="new_format[{{ uid }}]" data-af-modes="json:json,array:array">{{ newContent }}</textarea>
+        <div class="form-text mb-2">{{ 'list' == note.fix.kind ? 'One item of the list (not the list itself)' : 'The object' }}: an example value for each field, as the API sends it (a text in quotes, a number, <code>true</code>, a nested array for an object).</div>
+        {% if fields is not empty %}
+        <div class="small text-secondary mb-2">The docs describe these fields inside <code>{{ key.key }}</code>: <span class="font-monospace">{{ fields|join(', ') }}</span></div>
+        {% endif %}
+        <div><button class="btn btn-sm btn-primary">Save the type, use it here and import</button> <span class="small text-secondary">(or Ctrl/Cmd-S in the box)</span>
+            <span class="small text-secondary ms-2">writes the type file, puts its name in {{ key.file|role }} (<code>{{ key.file }}</code>) in place of the empty value, then imports again</span></div>
+    </form>
+</details>

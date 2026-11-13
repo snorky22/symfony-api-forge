@@ -38,7 +38,8 @@ payload JSON                              │    descriptors, edited by hand    
 composer require snorky22/symfony-api-forge
 ```
 
-With Symfony Flex, the bundle is registered automatically. Otherwise, add it to `config/bundles.php`:
+With Symfony Flex, the bundle is registered automatically (its recipe, in `recipe/`, also copies
+`config/packages/api_forge.yaml`, the settings with their defaults). Otherwise, add it to `config/bundles.php`:
 
 ```php
 return [

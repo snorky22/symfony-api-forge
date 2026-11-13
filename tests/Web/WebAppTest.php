@@ -1467,4 +1467,18 @@ final class WebAppTest extends TestCase
         self::assertStringContainsString('"coupon": "coupon.array"', (string) file_get_contents($fixtures.'webhook-coupon.used.json'));
         self::assertStringContainsString('id: string,', Yaml::parseFile($this->project.'/config/api/shop/_webhooks.yaml')['events']['coupon.used']['shape']);
     }
+
+    public function testAProjectOverridesATemplateAsForAnySymfonyBundle(): void
+    {
+        $this->createApi();
+        self::assertStringContainsString('Describe a new API', $this->get('/')->body);
+
+        // templates/bundles/ApiForgeBundle/ in the project: the template there is used instead of the bundle's
+        (new Filesystem())->dumpFile($this->project.'/templates/bundles/ApiForgeBundle/home.html.twig', "{% extends 'layout.html.twig' %}{% block content %}<p>My own home: {{ apis|length }} API(s)</p>{% endblock %}");
+        $app = new WebApp(new WebConfig($this->project, $this->project.'/config/api', 'App\\Api', 'src/Api', 'config/packages', ['php', 'bin/console'], 'secret', [self::HOST]));
+        $home = $app->handle(new Request('GET', '/', [], [], self::HOST))->body;
+
+        self::assertStringContainsString('<p>My own home: 1 API(s)</p>', $home);
+        self::assertStringContainsString('<a class="navbar-brand" href="/">api-forge</a>', $home, 'the layout of the bundle, extended');
+    }
 }

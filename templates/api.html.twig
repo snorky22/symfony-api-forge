@@ -1,0 +1,124 @@
+{% extends 'layout.html.twig' %}
+{% block content %}
+<h1 class="h3 mb-3">{{ api }}</h1>
+
+{% if unreadable|default([]) is not empty %}
+    <div class="alert alert-danger" id="unreadable">
+        <strong>An example file can't be read</strong> (edited outside the interface?): it is left out of the imports until it is fixed.
+        <ul class="mb-0 mt-1">
+        {% for file, error in unreadable %}
+            <li><a href="/api/{{ api }}/file?name={{ file|url_encode }}&amp;area=examples" data-af-open><code>{{ file }}</code></a>: {{ error }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+{% endif %}
+{% if problems is not empty %}
+    <div class="alert alert-danger" id="problems">
+        <strong>A descriptor is invalid:</strong>
+        <ul class="mb-0 mt-1">
+        {% for problem in problems %}
+            <li class="mb-2">{{ problem.error }}
+                {% for example in problem.examples %}
+                    <form method="post" action="/api/{{ api }}/import" class="mt-1">
+                        <input type="hidden" name="_token" value="{{ token }}">
+                        <input type="hidden" name="name" value="{{ example }}">
+                        <input type="hidden" name="force" value="1">
+                        <input type="hidden" name="family" value="1">
+                        <button class="btn btn-sm btn-danger">Import {{ example }} again</button>
+                        <span class="small">replaces the descriptor from the example</span>
+                    </form>
+                {% endfor %}
+            </li>
+        {% endfor %}
+        </ul>
+    </div>
+{% endif %}
+
+<ol class="list-group list-group-numbered mb-4">
+{% for step in steps %}
+    <li class="list-group-item d-flex justify-content-between align-items-center {{ step.current ? 'list-group-item-warning' }}">
+        <div class="ms-2 me-auto">
+            <div class="fw-semibold">{{ step.title|replace({'1. ': '', '2. ': '', '3. ': '', '4. ': '', '5. ': ''}) }}
+                <span class="badge {{ step.done ? 'text-bg-success' : (step.current ? 'text-bg-warning' : 'text-bg-secondary') }}">{{ step.done ? 'done' : (step.current ? 'next' : 'to do') }}</span>
+            </div>
+            <span class="small text-secondary">{{ step.detail }}</span>
+        </div>
+        <a class="btn btn-sm {{ step.current ? 'btn-primary' : 'btn-outline-secondary' }}" href="{{ '/new' == step.url ? '/api/' ~ api : step.url }}">{{ step.action }}</a>
+    </li>
+{% endfor %}
+</ol>
+
+<div class="card mb-4" id="webhooks"><div class="card-body d-flex justify-content-between align-items-center">
+    <div>
+        <h2 class="h6 mb-1">Webhooks
+            {% if webhooks.described %}
+                <span class="badge {{ webhooks.typed == webhooks.total ? 'text-bg-success' : 'text-bg-warning' }}">{{ webhooks.typed }} of {{ webhooks.total }} events typed</span>
+                {% if webhooks.notes > 0 %}<span class="badge text-bg-warning">{{ webhooks.notes }} note(s)</span>{% endif %}
+            {% else %}<span class="badge text-bg-secondary">none</span>{% endif %}
+        </h2>
+        <span class="small text-secondary">{{ webhooks.described ? 'received on /webhook/' ~ api ~ (webhooks.secret ? ', secret in ' ~ webhooks.secret : '') : 'if the API sends events: add a payload example and its docs page' }}</span>
+    </div>
+    <a class="btn btn-sm btn-outline-primary" href="/api/{{ api }}/webhooks">{{ webhooks.described ? 'Webhooks' : 'Add webhooks' }}</a>
+</div></div>
+
+{% if endpoints is not empty %}
+<h2 class="h5 mb-2">Endpoints</h2>
+<ul class="list-group mb-4">
+{% for endpoint in endpoints %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+        <span><code>{{ endpoint.method }}</code> {{ endpoint.path }}
+            {% if not endpoint.response %}<span class="badge text-bg-warning">no response yet</span>{% endif %}
+            {% if endpoint.imported is same as(false) %}<span class="badge text-bg-warning">not imported</span>{% endif %}
+            <span class="text-secondary small">{{ endpoint.base }}</span></span>
+        <span>
+            <a href="/api/{{ api }}/endpoint?base={{ endpoint.base }}&amp;step=request">Edit</a>
+            {% if not endpoint.response or endpoint.imported is same as(false) %}
+                · <a href="/api/{{ api }}/endpoint?base={{ endpoint.base }}&amp;step={{ endpoint.response ? 'import' : 'response' }}">Continue</a>
+            {% endif %}
+        </span>
+    </li>
+{% endfor %}
+</ul>
+{% endif %}
+
+<div class="d-flex justify-content-between align-items-center mb-2" id="examples">
+    <h2 class="h5 mb-0">Files <span class="text-secondary small"><code>tests/Fixtures/{{ api }}/</code></span></h2>
+    <div><a class="btn btn-sm btn-primary" href="/api/{{ api }}/endpoint">New endpoint</a>
+        <a class="btn btn-sm btn-outline-primary" href="/api/{{ api }}/type">Add a type file</a>
+        <a class="btn btn-sm btn-link" href="/api/{{ api }}/example">Add an example (advanced)</a></div>
+</div>
+{% if notImported is not empty %}
+    <form method="post" action="/api/{{ api }}/import-all" class="alert alert-warning d-flex justify-content-between align-items-center py-2">
+        <input type="hidden" name="_token" value="{{ token }}">
+        <span>{{ notImported|length }} example(s) not imported yet: {{ notImported|join(', ') }}.</span>
+        <button class="btn btn-sm btn-primary">Import them</button>
+    </form>
+{% endif %}
+{% if files is empty %}
+    <p class="text-secondary">No example yet.</p>
+{% else %}
+    <ul class="list-group">
+    {% for file in files %}
+        <li class="list-group-item d-flex justify-content-between">
+            <span><code>{{ file }}</code>{% if file in notImported %} <span class="badge text-bg-warning">not imported</span>{% endif %}</span>
+            <a href="/api/{{ api }}/file?name={{ file|url_encode }}&amp;area=examples" data-af-open>Edit</a>
+        </li>
+    {% endfor %}
+    </ul>
+{% endif %}
+
+<h2 class="h5 mt-4 mb-2">Descriptors <span class="text-secondary small"><code>config/api/{{ api }}/</code></span></h2>
+{% if descriptors is empty %}
+    <p class="text-secondary">None yet.</p>
+{% else %}
+    <ul class="list-group">
+    {% for file in descriptors %}
+        <li class="list-group-item d-flex justify-content-between">
+            <code>{{ file }}</code>
+            <a href="/api/{{ api }}/file?name={{ file|url_encode }}&amp;area=descriptors" data-af-open>Edit</a>
+        </li>
+    {% endfor %}
+    </ul>
+    <div class="form-text">Written by the importer: improving the examples and importing again is usually better than editing a descriptor.</div>
+{% endif %}
+{% endblock %}

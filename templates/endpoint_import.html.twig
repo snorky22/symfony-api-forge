@@ -1,0 +1,31 @@
+{% extends 'layout.html.twig' %}
+{% block content %}
+<h1 class="h3 mb-1">Import <small class="text-secondary"><code>{{ method }}</code> {{ url }}</small></h1>
+
+{{ include('endpoint_steps.html.twig') }}
+
+{% if errors is not empty %}
+    <div class="alert alert-danger"><ul class="mb-0">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+{% if files is not empty %}
+<ul class="list-group mb-3">
+{% for file in files %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+        <span><span class="badge {{ file.present ? 'text-bg-success' : 'text-bg-light border' }}">{{ file.present ? 'saved' : 'none' }}</span>
+            <code>{{ file.name }}</code> <span class="text-secondary small">{{ file.role }}</span></span>
+        {% if file.present %}<a href="/api/{{ api }}/file?name={{ file.name|url_encode }}&amp;area=examples" data-af-open>Edit</a>{% endif %}
+    </li>
+{% endfor %}
+</ul>
+
+<form method="post" action="/api/{{ api }}/endpoint" class="mb-3">
+    <input type="hidden" name="_token" value="{{ token }}">
+    <input type="hidden" name="base" value="{{ base }}">
+    <input type="hidden" name="step" value="import">
+    <button class="btn btn-primary">Import the endpoint</button>
+    <a class="btn btn-link" href="/api/{{ api }}/endpoint?base={{ base }}&amp;step=response">Back</a>
+    <div class="form-text">Writes the descriptor from these files, and adds the variants of the endpoint after it. The notes it leaves are fixed on the next page.</div>
+</form>
+{% endif %}
+{% endblock %}

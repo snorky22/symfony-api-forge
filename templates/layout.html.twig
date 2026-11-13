@@ -3,10 +3,10 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= $e($title) ?> · api-forge</title>
+    <title>{{ title }} · api-forge</title>
     <link rel="stylesheet" href="/assets/bootstrap.min.css">
-<?php if (!empty($editor)): ?>    <link rel="stylesheet" href="/assets/editor.css">
-<?php endif ?></head>
+{% if editor|default(false) %}    <link rel="stylesheet" href="/assets/editor.css">
+{% endif %}</head>
 <body class="bg-body-tertiary">
 <nav class="navbar navbar-dark bg-dark mb-4">
     <div class="container">
@@ -15,11 +15,11 @@
     </div>
 </nav>
 <main class="container pb-5">
-<?= $content ?>
+{% block content %}{{ content|default('')|raw }}{% endblock %}
 </main>
-<?php if (!empty($editor)): ?>
+{% if editor|default(false) %}
 <script src="/assets/ace/ace.js"></script>
-<script src="/assets/editor.js" data-token="<?= $e($token) ?>"></script>
-<?php endif ?>
+<script src="/assets/editor.js" data-token="{{ token }}"></script>
+{% endif %}
 </body>
 </html>

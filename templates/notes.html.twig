@@ -1,0 +1,158 @@
+{% extends 'layout.html.twig' %}
+
+{#
+    The review notes: one accordion item per note, grouped by where they apply, with a summary of their kinds that
+    filters them (assets/notes.js). Override it in templates/bundles/ApiForgeBundle/notes.html.twig.
+
+    Variables: api, groups (file, partWord, partName, members: index => note), kinds (label => count, colour, asks,
+    slug), notes, message, fixErrors, errors, unreadable (file => error), typeFiles, draft, typeContents.
+    A note: note (raw text), shown, location, kind (label, colour, asks), part, subject, guide (title, found, impact,
+    options), object, choice, fix (kind, keys), examples, descriptor, slug, isDraft.
+#}
+
+{% block content %}
+<h1 class="h3 mb-1">Review the notes <small class="text-secondary">{{ api }}</small></h1>
+<p class="text-secondary">What the importer had to guess, or could not align. Most notes have a <strong>Fix</strong> form: the page writes the fix in your
+current structure (the JSON or the array of the example) and imports it again. Tick the notes you accept and delete them (they are removed from the descriptors).</p>
+
+{% if unreadable|default([]) is not empty %}
+    <div class="alert alert-danger" id="unreadable">
+        <strong>An example file can't be read</strong> (edited outside the interface?): it is left out of the imports until it is fixed.
+        <ul class="mb-0 mt-1">
+        {% for file, error in unreadable %}
+            <li><a href="/api/{{ api }}/file?name={{ file|url_encode }}&amp;area=examples" data-af-open><code>{{ file }}</code></a>: {{ error }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+{% endif %}
+{% if message is not null %}<div class="alert alert-success">{{ message }}</div>{% endif %}
+{% if fixErrors is not empty %}
+    <div class="alert alert-danger"><ul class="mb-0">{% for error in fixErrors %}<li>{{ error }}</li>{% endfor %}</ul></div>
+{% endif %}
+{% if errors is not empty %}
+    <div class="alert alert-danger"><strong>The descriptors are invalid:</strong><ul class="mb-0">{% for error in errors|slice(0, 8) %}<li>{{ error|replace({(projectDir ~ '/'): ''}) }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+{% if notes is empty and errors is empty %}
+    <div class="alert alert-success">No note left.</div>
+    <a class="btn btn-primary" href="/api/{{ api }}/generate">Generate the code</a>
+{% elseif notes is not empty %}
+<div class="card card-body mb-3 py-2" data-af-kinds="{{ api }}">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="small text-secondary">{{ notes|length }} note(s) in {{ groups|length }} place(s), by kind<span data-af-shown></span>:</span>
+        <button type="button" class="btn btn-sm btn-link py-0 d-none" data-af-show-all>Show all</button>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+    {% for label, kind in kinds %}
+        <button type="button" class="btn btn-sm btn-{{ kind.colour }} af-kind" data-af-kind-toggle="{{ kind.slug }}" aria-pressed="true"
+                title="{{ kind.asks|capitalize }}. Click: only these notes (again: all). Shift-click: hide or show them.">
+            <span class="badge text-bg-light me-1">{{ kind.count }}</span>{{ label }}
+        </button>
+    {% endfor %}
+    </div>
+    <div class="small text-secondary mt-2">Click a kind to see only its notes, one routine at a time (click it again to see all); Shift-click to hide or show a kind. Each note has its <strong>Fix</strong> when the page can do it, or <strong>Accept</strong> when nothing needs to change.</div>
+</div>
+
+<div data-af-notes>
+    {% for group in groups %}
+    <section data-af-group>
+    <h2 class="h6 mt-4 mb-2 d-flex align-items-center gap-2">
+        <code>{{ group.file }}</code>
+        {% if group.partWord is not null %}<span class="text-secondary">›</span> <span>{{ group.partWord }} <code>{{ group.partName }}</code></span>{% endif %}
+        <span class="badge rounded-pill text-bg-light border" data-af-group-count data-total="{{ group.members|length }}">{{ group.members|length }}</span>
+    </h2>
+    <div class="accordion af-accordion mb-3">
+    {% for i, note in group.members %}
+        <details class="accordion-item" id="note-{{ i }}" data-af-kind="{{ note.slug }}"{{ note.isDraft ? ' open' }}>
+            <summary class="accordion-button py-2">
+                <span class="badge text-bg-{{ note.kind.colour }} me-2 flex-shrink-0">{{ note.kind.label }}</span>
+                {% if note.part is not null %}<span class="badge text-bg-light border me-2 flex-shrink-0" title="The part of the API this note is about{{ 'object' == note.part ? ': the object of the resource, shared by its responses and webhook payloads' }}">{{ note.part|capitalize }}</span>{% endif %}
+                <span>{{ note.guide.title|highlight }}</span>
+            </summary>
+            <div class="accordion-body">
+                {% if note.object is not null %}
+                    {{ include('notes/object.html.twig', {object: note.object}) }}
+                {% endif %}
+                {% if note.guide.found is not empty %}
+                    <h3 class="h6 text-secondary mb-1">What api-forge found</h3>
+                    <ul class="mb-3">{% for line in note.guide.found %}<li>{{ line|highlight }}</li>{% endfor %}</ul>
+                {% endif %}
+                {% if note.guide.impact is not null %}
+                    <h3 class="h6 text-secondary mb-1">What it means for the code</h3>
+                    <p class="mb-3">{{ note.guide.impact|highlight }}</p>
+                {% endif %}
+                <h3 class="h6 text-secondary mb-1">What you can do</h3>
+                <ul class="mb-2">{% for line in note.guide.options %}<li>{{ line|highlight }}</li>{% endfor %}</ul>
+                {% if note.choice is not null %}
+                    <div class="d-flex gap-2 mt-2">
+                    {% for mode, button in {merge: ['Merge both', 'btn-primary', 'Describe the object from its examples and this one'], replace: ['Replace with this one', 'btn-outline-primary', 'Describe the object from this example only']} %}
+                        <form method="post" action="/api/{{ api }}/object-choice">
+                            <input type="hidden" name="_token" value="{{ token }}">
+                            <input type="hidden" name="example" value="{{ note.choice.example }}">
+                            <input type="hidden" name="mode" value="{{ mode }}">
+                            <button class="btn btn-sm {{ button[1] }}" title="{{ button[2] }}">{{ button[0] }}</button>
+                        </form>
+                    {% endfor %}
+                    </div>
+                {% endif %}
+
+            {% if note.fix is not null and 'add' == note.fix.kind %}
+                {{ include('notes/add_form.html.twig', {add: note.fix.keys[0], uid: i ~ '_add', mine: note.isDraft and 'add' == draft.choice ? draft : null}) }}
+            {% elseif note.fix is not null %}
+                <div class="mt-3">
+                {% for j, key in note.fix.keys %}
+                    {{ include('notes/fix_form.html.twig') }}
+                    {% if 'free' != note.fix.kind and key.file is not null %}
+                        {{ include('notes/new_type_form.html.twig', {uid: i ~ '_' ~ j, mine: draft is not null and 'new' == draft.choice and draft.key == key.key and draft.file == key.file ? draft : null}) }}
+                    {% endif %}
+                {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="d-flex align-items-center gap-3 mt-3">
+                <form method="post" action="/api/{{ api }}/notes">
+                    <input type="hidden" name="_token" value="{{ token }}">
+                    <input type="hidden" name="notes[]" value="{{ note.note }}">
+                    <button class="btn btn-sm btn-outline-success" title="Nothing to change: delete this note">Accept</button>
+                </form>
+                <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" name="notes[]" id="n{{ i }}" value="{{ note.note }}" form="notes-delete">
+                    <label class="form-check-label small text-secondary" for="n{{ i }}">select, to accept several at once (button at the bottom)</label>
+                </div>
+            </div>
+
+            {% if note.examples is not empty %}
+                <div class="small text-secondary mt-3">Open to edit:</div>
+                <ul class="list-group list-group-flush small">
+                {% for link in note.examples %}
+                    <li class="list-group-item px-0 py-1"><a href="{{ link.url }}" data-af-open><code>{{ link.label }}</code></a>
+                        <span class="text-secondary">{{ link.role }}</span></li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+            {% if note.descriptor is not null %}
+                <details class="small mt-2">
+                    <summary class="text-secondary">Advanced: the descriptor</summary>
+                    <ul class="list-group list-group-flush small">
+                        <li class="list-group-item px-0 py-1"><a href="{{ note.descriptor.url }}" data-af-open><code>{{ note.descriptor.label }}</code></a>
+                            <span class="text-secondary">written by the importer: the next import of the example replaces what you change here.</span></li>
+                    </ul>
+                </details>
+            {% endif %}
+                <details class="small mt-1"><summary class="text-secondary">Raw note</summary><span class="text-secondary">{{ note.shown }}</span></details>
+            </div>
+        </details>
+    {% endfor %}
+    </div>
+    </section>
+    {% endfor %}
+    <p class="text-secondary d-none" data-af-none>All the kinds are hidden: click one above, or <em>Show all</em>.</p>
+    <form id="notes-delete" method="post" action="/api/{{ api }}/notes">
+        <input type="hidden" name="_token" value="{{ token }}">
+        <button class="btn btn-primary">Accept the selected notes</button>
+        <a class="btn btn-outline-secondary" href="/api/{{ api }}">Back to {{ api }}</a>
+    </form>
+</div>
+{% endif %}
+<script src="/assets/notes.js"></script>
+{% endblock %}

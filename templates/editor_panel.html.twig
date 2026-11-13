@@ -1,0 +1,22 @@
+<div class="af-panel card mb-3" data-af-panel
+     data-url="/api/{{ api }}/file" data-area="{{ area }}" data-name="{{ name }}"
+     data-mode="{{ mode }}" data-line="{{ line }}" data-import="{{ importTarget|default('') }}">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><code>{{ 'descriptors' == area ? 'config/api/' ~ api : 'tests/Fixtures/' ~ api }}/{{ name }}</code></span>
+        <span class="small text-secondary" data-af-status></span>
+    </div>
+    <div class="card-body p-2">
+        <div data-af-messages>
+            {% if saved is not null %}<div class="alert alert-success py-2">{{ saved }}</div>{% endif %}
+            {% for error in errors %}<div class="alert alert-danger py-2">{{ error }}</div>{% endfor %}
+        </div>
+        {# A fragment is inserted by the page's script, maybe inside another form (the notes): no form tag then #}
+        {% if fragment|default(false) %}<div data-af-form>{% else %}<form method="post" action="/api/{{ api }}/file" data-af-form>{% endif %}
+            <input type="hidden" name="_token" value="{{ token }}">
+            <input type="hidden" name="name" value="{{ name }}">
+            <input type="hidden" name="area" value="{{ area }}">
+            <textarea class="form-control font-monospace" name="content" rows="18" data-af-source>{{ content }}</textarea>
+            <div class="mt-2" data-af-nojs><button class="btn btn-primary btn-sm">Save</button></div>
+        {% if fragment|default(false) %}</div>{% else %}</form>{% endif %}
+    </div>
+</div>

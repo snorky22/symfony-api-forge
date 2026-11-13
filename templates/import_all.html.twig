@@ -1,0 +1,23 @@
+{% extends 'layout.html.twig' %}
+{% block content %}
+<h1 class="h3 mb-3">Imported <small class="text-secondary">{{ api }}</small></h1>
+
+{% if errors is not empty %}
+    <div class="alert alert-danger"><strong>Not imported:</strong><ul class="mb-0">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+{% if results is not empty %}
+    <ul class="list-group mb-3">
+    {% for pair in results %}
+        {% set name = pair[0] %}{% set result = pair[1] %}
+        <li class="list-group-item d-flex justify-content-between">
+            <span><code>{{ name }}</code> → <code>{{ result.resource }}.{{ result.operation }}</code> <span class="text-secondary small">{{ result.endpoint }}</span></span>
+            <span class="badge {{ result.review is empty ? 'text-bg-success' : 'text-bg-warning' }}">{{ result.review|length }} note(s)</span>
+        </li>
+    {% endfor %}
+    </ul>
+{% endif %}
+
+<a class="btn btn-primary" href="/api/{{ api }}/notes">Review the notes</a>
+<a class="btn btn-outline-secondary" href="/api/{{ api }}">Back to {{ api }}</a>
+{% endblock %}

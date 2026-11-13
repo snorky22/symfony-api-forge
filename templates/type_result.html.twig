@@ -1,0 +1,7 @@
+{% extends 'layout.html.twig' %}
+{% block content %}
+<div class="alert alert-success">Saved <code>{{ file }}</code>. Use that name as the value of a field in an example
+(in brackets for a list: <code>["{{ file }}"]</code>), then import the example again.</div>
+<a class="btn btn-primary" href="/api/{{ api }}/type">Add another type</a>
+<a class="btn btn-outline-secondary" href="/api/{{ api }}">Back to {{ api }}</a>
+{% endblock %}

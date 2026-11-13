@@ -1,0 +1,23 @@
+{# Where the object of a resource is described, with the button to give it a file of its own. Variables: object, api, token. #}
+<div class="alert {{ object.described ? 'alert-light border' : 'alert-warning' }} d-flex justify-content-between align-items-center py-2 mb-3">
+    <div class="small">
+        <strong>The {{ object.label }} object</strong>
+        {% if not object.described %}
+            is not described yet{{ object.payloads is not empty ? ': its file can be made from ' ~ object.payloads[0] : ': add a payload example that holds it (Webhooks page)' }}.
+        {% elseif object.sources|length > 1 %}
+            is described once, merged from {{ object.sources|length }} examples: {{ object.sources|join(', ') }}; generated into <code>{{ object.resource }}.yaml</code>.
+        {% elseif object.exists %}
+            is described once, in <code>{{ object.file }}</code>{{ object.pointing is not empty ? ', which ' ~ object.pointing|join(', ') ~ ' point' ~ (1 == object.pointing|length ? 's' : '') ~ ' to' }}; generated into <code>{{ object.resource }}.yaml</code>.
+        {% else %}
+            is described once, in <code>{{ object.resource }}.yaml</code>, from {{ object.payloads|join(', ')|default('an example') }}.
+            Give it a file of its own to edit it as a PHP array.
+        {% endif %}
+    </div>
+    {% if object.exists or object.payloads is not empty %}
+    <form method="post" action="/api/{{ api }}/object" class="ms-3 flex-shrink-0">
+        <input type="hidden" name="_token" value="{{ token }}">
+        <input type="hidden" name="resource" value="{{ object.resource }}">
+        <button class="btn btn-sm btn-outline-primary" title="{{ object.exists ? 'Opens ' ~ object.file : 'Creates ' ~ object.file ~ ' from the object of ' ~ object.payloads[0] ~ ', points the payload to it, and opens it' }}">{{ object.exists ? 'Edit the ' ~ object.label ~ ' object' : 'Create ' ~ object.file ~ ' and edit it' }}</button>
+    </form>
+    {% endif %}
+</div>

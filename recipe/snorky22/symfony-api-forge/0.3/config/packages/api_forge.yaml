@@ -1,0 +1,17 @@
+# api-forge: generates the services of REST APIs and their webhooks from documentation examples.
+# The values below are the defaults: uncomment to change them. See the bundle's docs/descriptors.md.
+api_forge:
+    # Where the descriptors of the APIs are (one folder per API, written by the importers and the web interface)
+    # descriptor_dir: '%kernel.project_dir%/config/api'
+
+    # Namespace and directory of the generated code (the namespace of each API is appended)
+    # namespace: 'App\Api'
+    # source_dir: 'src/Api'
+
+    # Directory of the generated configuration (HTTP client, webhook routing), relative to the project
+    # config_dir: 'config/packages'
+
+    # The webhook deliveries received, kept for api-forge:webhook:inbox, api-forge:webhook:replay and the doctor
+    # webhook_inbox:
+    #     directory: '%kernel.project_dir%/var/api-forge/%kernel.environment%/webhooks'
+    #     keep: 50

@@ -1,0 +1,29 @@
+{% extends 'layout.html.twig' %}
+{% block content %}
+<h1 class="h3 mb-1">Check with the doctor <small class="text-secondary">{{ api }}</small></h1>
+<p class="text-secondary">Calls the API's probe with your key and checks the credentials, the response against the descriptors, and (for APIs with webhooks)
+the webhook chain.</p>
+
+{% if result is null %}
+    <div class="card card-body mb-3">
+        <p class="mb-2">The button runs this command for you; you do not need a terminal:</p>
+        <pre class="bg-body-secondary p-2 rounded mb-2"><code>{{ command }}</code></pre>
+        {% if keyEnv is not null %}
+            <p class="mb-0 small">It reads the API key from <code>{{ keyEnv }}</code>{% if hostEnv is not null %} and the host (sandbox or live) from <code>{{ hostEnv }}</code>{% endif %}:
+            set them in <code>.env.local</code> first. If one is empty, the doctor says so.</p>
+        {% else %}
+            <p class="mb-0 small">The API has no authentication in its descriptor.</p>
+        {% endif %}
+    </div>
+    <form method="post" action="/api/{{ api }}/doctor">
+        <input type="hidden" name="_token" value="{{ token }}">
+        <button class="btn btn-primary">Run the doctor</button> <a class="btn btn-link" href="/api/{{ api }}">Back</a>
+    </form>
+{% else %}
+    <div class="alert {{ 0 == result.code ? 'alert-success' : 'alert-warning' }}">{{ 0 == result.code ? 'The doctor found no problem.' : 'The doctor found problems (exit code ' ~ result.code ~ ').' }}</div>
+    {% if hint is not null %}<div class="alert alert-info"><strong>Why:</strong> {{ hint }}</div>{% endif %}
+    <pre class="bg-dark text-light p-3 rounded small">{{ result.output }}</pre>
+    <a class="btn btn-outline-primary" href="/api/{{ api }}/doctor">Run it again</a>
+    <a class="btn btn-outline-secondary" href="/api/{{ api }}">Back to {{ api }}</a>
+{% endif %}
+{% endblock %}
