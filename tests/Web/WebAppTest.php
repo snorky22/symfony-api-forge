@@ -1481,4 +1481,90 @@ final class WebAppTest extends TestCase
         self::assertStringContainsString('<p>My own home: 1 API(s)</p>', $home);
         self::assertStringContainsString('<a class="navbar-brand" href="/">api-forge</a>', $home, 'the layout of the bundle, extended');
     }
+
+    public function testAMissingListIsAddedAtTheLevelTheUserChooses(): void
+    {
+        $this->createApi();
+        $this->example([
+            'operation' => 'create', 'resource' => 'prices', 'request' => 'curl -X POST https://api.shop.test/prices',
+            'body' => "{\n  \"name\": \"Pro\",\n  \"trial_period\": {\n    \"interval\": \"day\"\n  }\n}",
+            'body_docs' => "namestringrequired\n\ntrial_periodobject\n\nintervalstringrequired\n\nallowancesarray\n\nusage_balance_unit_idstringrequired\n\namountstringrequired\n",
+            'response' => '{"data": {"id": "pri_1"}}',
+        ]);
+        $fixtures = $this->project.'/tests/Fixtures/shop/';
+
+        // The docs put allowances after "interval": inside trial_period, or one level up; a list in the docs
+        $notes = $this->get('/api/shop/notes')->body;
+        self::assertStringContainsString('value="level:trial_period"', $notes);
+        self::assertStringContainsString('one level up: after <code>trial_period</code>, at the top of <code>create-prices.body.json</code>', $notes);
+        self::assertStringContainsString('name="as_list" value="1"', $notes);
+
+        $this->post('/api/shop/fix', ['choice' => 'add', 'key' => 'allowances', 'after' => 'interval', 'file' => 'create-prices.body.json', 'placement' => 'level:trial_period', 'as_list' => '1', 'new_name' => 'allowance', 'new_format' => ['0_add' => 'array'], 'new_content' => "['usage_balance_unit_id' => 'ubu_1', 'amount' => '100']"]);
+        $body = json_decode((string) file_get_contents($fixtures.'create-prices.body.json'), true);
+        self::assertSame(['name' => 'Pro', 'trial_period' => ['interval' => 'day'], 'allowances' => ['allowance.array']], $body, 'at the level of trial_period, as a list');
+        self::assertStringContainsString("allowances?: list<array{\n", Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['operations']['create']['body']['shape']);
+    }
+
+    public function testThePasteOfAPageIsSavedWithItsHtml(): void
+    {
+        self::assertStringContainsString('id="clipboard-target"', $this->get('/clipboard')->body);
+
+        $saved = $this->decode($this->json('POST', '/clipboard', ['html' => '<div><b>price</b><div><b>amount</b></div></div>', 'text' => "price\namount"]));
+
+        self::assertTrue($saved['ok']);
+        self::assertSame(8, $saved['elements'], 'opening and closing tags');
+        self::assertStringStartsWith('var/api-forge/web/clipboard-', $saved['html']);
+        self::assertSame('<div><b>price</b><div><b>amount</b></div></div>', file_get_contents($this->project.'/'.$saved['html']));
+        self::assertNull($this->decode($this->json('POST', '/clipboard', ['html' => '', 'text' => 'only text']))['html']);
+    }
+
+    public function testTheHtmlOfAPastedDocsPageGivesTheLevel(): void
+    {
+        $this->createApi();
+        // The page as the browser copies it: each field a block, its fields inside it; inline styles everywhere
+        $field = static fn (string $name, string $type, string $inside = '') => '<div style="padding: 4px"><div class="flex"><span>'.$name.'</span><span>'.$type.'</span></div><p>About <code>'.$name.'</code>.</p>'.('' !== $inside ? '<div>'.$inside.'</div>' : '').'</div>';
+        $html = '<meta charset="utf-8"><div>'.$field('name', 'string').$field('trial_period', 'object', $field('interval', 'string'))
+            .$field('allowances', 'array', $field('usage_balance_unit_id', 'string').$field('amount', 'string')).'</div>';
+        $this->example([
+            'operation' => 'create', 'resource' => 'prices', 'request' => 'curl -X POST https://api.shop.test/prices',
+            'body' => "{\n  \"name\": \"Pro\",\n  \"trial_period\": {\n    \"interval\": \"day\"\n  }\n}",
+            // The text of a browser copy: names and types on their own lines, which the text capture can't read
+            'body_docs' => "name\nstring\ntrial_period\nobject\ninterval\nstring\nallowances\narray\n",
+            'body_docs_html' => $html,
+            'response' => '{"data": {"id": "pri_1"}}',
+        ]);
+        $fixtures = $this->project.'/tests/Fixtures/shop/';
+
+        // The HTML is kept without its styles, and the text is written from it
+        self::assertStringNotContainsString('style=', (string) file_get_contents($fixtures.'create-prices.body.docs.html'));
+        self::assertStringStartsWith("namestring\n\nAbout `name`.\n\ntrial_periodobject\n", (string) file_get_contents($fixtures.'create-prices.body.docs.md'));
+
+        // allowances is a field of the body, after trial_period: the level is known, not guessed from "after interval"
+        $notes = $this->get('/api/shop/notes')->body;
+        self::assertStringContainsString('in the docs it sits after &quot;trial_period&quot;', $notes);
+        self::assertStringNotContainsString('Counted differently', $notes);
+        self::assertStringContainsString('added next to <code>trial_period</code>, as in the docs', $notes);
+        self::assertStringNotContainsString('Where?', $notes);
+
+        self::assertStringContainsString('nesting of the fields known', $this->get('/api/shop/endpoint', ['base' => 'create-prices', 'step' => 'request'])->body);
+    }
+
+    public function testTheHtmlOfAPastedDocsPageChoosesTheLevelOfANestedField(): void
+    {
+        $this->createApi();
+        $field = static fn (string $name, string $type, string $inside = '') => '<div><div><span>'.$name.'</span><span>'.$type.'</span></div>'.('' !== $inside ? '<div>'.$inside.'</div>' : '').'</div>';
+        $this->example([
+            'operation' => 'create', 'resource' => 'prices', 'request' => 'curl -X POST https://api.shop.test/prices',
+            'body' => "{\n  \"price\": {\n    \"name\": \"Pro\",\n    \"billing_cycle\": {\n      \"interval\": \"month\"\n    },\n    \"product_id\": \"pro_1\"\n  }\n}",
+            'body_docs' => 'pasted',
+            'body_docs_html' => '<div>'.$field('price', 'object', $field('name', 'string').$field('billing_cycle', 'object', $field('interval', 'string')).$field('tax_mode', 'string').$field('product_id', 'string')).'</div>',
+            'response' => '{"data": {"id": "pri_1"}}',
+        ]);
+
+        // tax_mode follows "interval" in the page, but the HTML puts it in price, after billing_cycle: one level up, chosen
+        $notes = $this->get('/api/shop/notes')->body;
+        self::assertStringContainsString('in the docs it sits between &quot;billing_cycle&quot; and &quot;product_id&quot;, inside price', $notes);
+        self::assertStringContainsString('The HTML of the docs page puts <code>tax_mode</code> inside <code>price</code>', $notes);
+        self::assertMatchesRegularExpression('/value="same" checked/', $notes);
+    }
 }

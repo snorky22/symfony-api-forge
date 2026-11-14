@@ -14,6 +14,10 @@ namespace Snorky22\ApiForge\Dev\Api\Docs;
  * What the documentation describes and the example doesn't (an object only returned with an "include"
  * parameter, an early access field) would make its names ambiguous: such an object, and what follows it up to
  * the next aligned field, is set aside, and the count is made again without it.
+ *
+ * When the HTML of the page gave each entry its parents (DocsHtml), the alignment is by path and exact: no count.
+ * A name described several times under the same object marks alternatives ("price_id" or "price"): what is not in
+ * all of them is optional.
  */
 final class DocsAnnotator
 {
@@ -29,6 +33,11 @@ final class DocsAnnotator
         $root = new Field('');
         foreach ($items as $item) {
             $root->absorb($item);
+        }
+        foreach ($entries as $entry) {
+            if (null !== $entry->parents) {
+                return $this->byPath($entries, $root);
+            }
         }
 
         $inExample = [];
@@ -159,6 +168,154 @@ final class DocsAnnotator
         }
 
         return new DocsAlignment($hints, $notes);
+    }
+
+    /**
+     * The alignment by path, when the entries have their parents.
+     *
+     * @param list<DocsEntry> $entries
+     */
+    private function byPath(array $entries, Field $root): DocsAlignment
+    {
+        // The fields of the example by their path in the docs: the items of a list have no name
+        $fields = [];
+        foreach ($this->fields($root) as $field) {
+            if ('' !== $field->name) {
+                $fields[str_replace('[]', '', $field->path())] = $field;
+            }
+        }
+
+        // The docs may describe what the example holds in a member ("data"): the prefix that matches the most
+        $keyOf = static fn (DocsEntry $entry): string => implode('.', [...($entry->parents ?? []), $entry->name]);
+        $prefix = '';
+        $best = -1;
+        foreach (['', ...array_map(static fn (Field $field) => $field->name.'.', array_filter($root->children, static fn (Field $field) => null !== $field->container()))] as $candidate) {
+            $found = \count(array_filter($entries, static fn (DocsEntry $entry) => null !== $entry->parents && isset($fields[$candidate.$keyOf($entry)])));
+            if ($found > $best) {
+                [$prefix, $best] = [$candidate, $found];
+            }
+        }
+
+        // The first description of a path wins; a name described fewer times than its siblings is in some alternatives only
+        $docs = [];
+        $times = [];
+        foreach ($entries as $index => $entry) {
+            if (null === $entry->parents) {
+                continue;
+            }
+            $key = $prefix.$keyOf($entry);
+            $docs[$key] ??= $index;
+            $times[$prefix.implode('.', $entry->parents)][$entry->name] = ($times[$prefix.implode('.', $entry->parents)][$entry->name] ?? 0) + 1;
+        }
+        $hint = static function (string $key) use ($entries, $docs, $times, $prefix): DocsEntry {
+            $entry = $entries[$docs[$key]];
+            $siblings = $times[$prefix.implode('.', $entry->parents ?? [])];
+
+            return $siblings[$entry->name] < max($siblings) ? $entry->optional() : $entry;
+        };
+
+        $hints = [];
+        $notes = [];
+        foreach ($fields as $key => $field) {
+            if (isset($docs[$key])) {
+                $hints[$field->path()] = $entry = $hint($key);
+                if (null !== $difference = $field->differsFrom($entry)) {
+                    $notes[] = \sprintf('docs: %s is %s in the docs (line %d), %s in the example', $field->path(), $entry->type, $entry->line, $difference);
+                }
+            }
+        }
+
+        // An object the docs call free-form (no field described) that the example fills: one note, not one per key
+        $freeForm = [];
+        foreach ($fields as $key => $field) {
+            $entry = $hints[$field->path()] ?? null;
+            if (null !== $entry && 'object' === $entry->type && $field->isObject && [] !== $field->children && [] === preg_grep('/^'.preg_quote($key, '/').'\./', array_keys($docs))) {
+                $freeForm[$key] = true;
+                $notes[] = \sprintf('example: "%s" (%s) is a free-form object in the docs (no field is described), but the example gives it fields (%s): replace its value with {} in the example', $field->name, $field->path(), implode(', ', array_keys($field->children)));
+            }
+        }
+
+        // What the example has and the docs don't: said once, for the outermost field (the docs of the object held in a
+        // member say nothing of the other members)
+        foreach ($fields as $key => $field) {
+            $parent = (string) preg_replace('/\.?[^.]+$/', '', $key);
+            if (!str_starts_with($key, $prefix)) {
+                continue;
+            }
+            if (!isset($docs[$key]) && !isset($freeForm[$parent]) && ('' === $parent || $parent.'.' === $prefix || isset($docs[$parent]))) {
+                $notes[] = \sprintf('example: "%s" (%s) is not in the docs: complete the docs page text, or remove it from the example', $field->name, $field->path());
+            }
+        }
+
+        // What the docs describe and the example doesn't: under an object the example shows empty, or missing
+        $underEmpty = [];
+        foreach ($docs as $key => $index) {
+            if (isset($fields[$key])) {
+                continue;
+            }
+            $entry = $entries[$index];
+            $parentKey = $prefix.implode('.', $entry->parents ?? []);
+            $parent = '' === $parentKey || $parentKey.'.' === $prefix ? $root : ($fields[rtrim($parentKey, '.')] ?? null);
+            if (null === $parent) {
+                continue; // its parent is missing too: said for the parent
+            }
+            if ($parent !== $root && [] === ($parent->container()?->children ?? [])) {
+                $underEmpty[$parent->path()][] = $entry->name;
+                continue;
+            }
+            $values = $entry->values;
+            $notes[] = \sprintf(
+                'docs: "%s" (line %d) is not in the example: add it to the example (in the docs it sits %s%s%s)',
+                $entry->name,
+                $entry->line,
+                $this->siblings($entries, $index, $docs, $fields, $prefix),
+                // The items of a list hold it, not the list: "inside data.payments[]"
+                $parent === $root ? '' : ', inside '.($parent->container()?->path() ?? $parent->path()),
+                null !== $values ? '; values in the docs: '.implode(', ', $values) : '',
+            );
+        }
+        foreach ($underEmpty as $path => $names) {
+            $notes[] = \sprintf('docs: "%s" (%s) shows no fields in the example (null or empty), but the docs describe %s: give it an example value', (string) preg_replace('/^.*[.\]]/', '', str_replace('[]', '', $path)), $path, implode(', ', array_unique($names)));
+        }
+
+        foreach ($entries as $entry) {
+            if (null === $entry->parents) {
+                $notes[] = \sprintf('docs: "%s" (line %d) is in the text of the docs page but not in its HTML: its place is unknown, nothing is applied', $entry->name, $entry->line);
+            }
+        }
+
+        return new DocsAlignment($hints, $notes);
+    }
+
+    /**
+     * Where a field of the docs sits among the fields of its object that the example has, in the order of the page.
+     *
+     * @param list<DocsEntry>      $entries
+     * @param array<string, int>   $docs    docs path => position of its first entry
+     * @param array<string, Field> $fields  the fields of the example by docs path
+     */
+    private function siblings(array $entries, int $index, array $docs, array $fields, string $prefix): string
+    {
+        $parents = $entries[$index]->parents;
+        $present = static function (int $i) use ($entries, $parents, $docs, $fields, $prefix): bool {
+            $key = $prefix.implode('.', [...($entries[$i]->parents ?? []), $entries[$i]->name]);
+
+            return $entries[$i]->parents === $parents && ($docs[$key] ?? null) === $i && isset($fields[$key]);
+        };
+        $before = $after = null;
+        for ($i = $index - 1; $i >= 0 && null === $before; --$i) {
+            $before = $present($i) ? $entries[$i]->name : null;
+        }
+        for ($i = $index + 1; $i < \count($entries) && null === $after; ++$i) {
+            $after = $present($i) ? $entries[$i]->name : null;
+        }
+
+        return match (true) {
+            null !== $before && null !== $after => \sprintf('between "%s" and "%s"', $before, $after),
+            null !== $before => \sprintf('after "%s"', $before),
+            null !== $after => \sprintf('before "%s"', $after),
+            default => 'alone in its object',
+        };
     }
 
     /**

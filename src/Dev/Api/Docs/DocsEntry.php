@@ -15,6 +15,8 @@ final class DocsEntry
      * @param array<string, string> $details  Default, Example, Length, Pattern, Min, Max, Range, Items...
      * @param int               $line     line of the capture, for the reports
      * @param ?string           $itemType the type of the items of an array ("array of strings"), when the page says it
+     * @param ?list<string>     $parents  the names of the fields holding it, outermost first, when the HTML of the page
+     *                                    gives them (DocsHtml); null when only the text is known
      */
     public function __construct(
         public readonly string $name,
@@ -30,6 +32,23 @@ final class DocsEntry
         public readonly bool $deprecated = false,
         public readonly bool $readOnly = false,
         public readonly bool $writeOnly = false,
+        public readonly ?array $parents = null,
     ) {
+    }
+
+    /**
+     * The same entry, not required: it is in some alternatives of its object only.
+     */
+    public function optional(): self
+    {
+        return new self($this->name, $this->type, $this->nullable, false, $this->format, $this->values, $this->valueCount, $this->details, $this->line, $this->itemType, $this->deprecated, $this->readOnly, $this->writeOnly, $this->parents);
+    }
+
+    /**
+     * @param list<string> $parents
+     */
+    public function withParents(array $parents): self
+    {
+        return new self($this->name, $this->type, $this->nullable, $this->required, $this->format, $this->values, $this->valueCount, $this->details, $this->line, $this->itemType, $this->deprecated, $this->readOnly, $this->writeOnly, $parents);
     }
 }

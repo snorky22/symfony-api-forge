@@ -1,6 +1,6 @@
 {#
     A field the docs describe and the current structure lacks: described in a type file, added where the docs put it.
-    Variables: add (key, after, before, file, inList, skeleton, typeName), uid, mine (the draft submitted, after an
+    Variables: add (key, after, before, file, inList, levels, inside, placed, skeleton, typeName), uid, mine (the draft submitted, after an
     error), api, token, typeContents.
 #}
 {% set addName = mine.name ?? add.typeName %}
@@ -14,14 +14,30 @@
         <input type="hidden" name="key" value="{{ add.key }}">
         <input type="hidden" name="after" value="{{ add.after }}">
         <input type="hidden" name="file" value="{{ add.file }}">
-        {% if add.inList %}
+        {% set levels = add.levels|default([]) %}
+        {% set chosen = mine.placement ?? (add.placed ?? (add.inList ? 'item' : 'same')) %}
+        {% if add.inList or levels is not empty %}
         <div class="mb-2 small">
-            <div class="form-check"><input class="form-check-input" type="radio" name="placement" id="pl-item-{{ uid }}" value="item"{{ 'same' != (mine.placement ?? '') ? ' checked' }}><label class="form-check-label" for="pl-item-{{ uid }}">in a <strong>new item</strong> of the list, <strong>instead of</strong> <code>{{ add.after }}</code>: another way to give an item (the docs list alternatives, e.g. a price id <em>or</em> a price)</label></div>
-            <div class="form-check"><input class="form-check-input" type="radio" name="placement" id="pl-same-{{ uid }}" value="same"{{ 'same' == (mine.placement ?? '') ? ' checked' }}><label class="form-check-label" for="pl-same-{{ uid }}">next to <code>{{ add.after }}</code>, in the same item: one more field of the item</label></div>
+            {% if add.placed ?? false %}
+            <div class="text-secondary mb-1">Where? The HTML of the docs page puts <code>{{ add.key }}</code> inside <code>{{ add.inside }}</code>: chosen below.</div>
+            {% else %}
+            <div class="text-secondary mb-1">Where? The docs page has no indentation: say at which level <code>{{ add.key }}</code> goes.</div>
+            {% endif %}
+            {% if add.inList %}
+            <div class="form-check"><input class="form-check-input" type="radio" name="placement" id="pl-item-{{ uid }}" value="item"{{ 'item' == chosen ? ' checked' }}><label class="form-check-label" for="pl-item-{{ uid }}">in a <strong>new item</strong> of the list, <strong>instead of</strong> <code>{{ add.after }}</code>: another way to give an item (the docs list alternatives, e.g. a price id <em>or</em> a price)</label></div>
+            {% endif %}
+            <div class="form-check"><input class="form-check-input" type="radio" name="placement" id="pl-same-{{ uid }}" value="same"{{ 'same' == chosen ? ' checked' }}><label class="form-check-label" for="pl-same-{{ uid }}">next to <code>{{ add.after }}</code>{% if levels is not empty %}, inside <code>{{ levels[0] }}</code>{% endif %}{{ add.inList ? ', in the same item: one more field of the item' }}</label></div>
+            {% for k, level in levels %}
+            <div class="form-check"><input class="form-check-input" type="radio" name="placement" id="pl-level-{{ uid }}-{{ k }}" value="level:{{ level }}"{{ ('level:' ~ level) == chosen ? ' checked' }}><label class="form-check-label" for="pl-level-{{ uid }}-{{ k }}">one level up: after <code>{{ level }}</code>, {% if levels[k + 1] is defined %}inside <code>{{ levels[k + 1] }}</code>{% else %}at the top of <code>{{ add.file }}</code>{% endif %}</label></div>
+            {% endfor %}
         </div>
         {% else %}
         <input type="hidden" name="placement" value="{{ add.before|default(false) ? 'before' : 'same' }}">
         <div class="small text-secondary mb-2">added {{ add.before|default(false) ? 'before' : 'next to' }} <code>{{ add.after }}</code>, as in the docs</div>
+        {% endif %}
+        {% if add.isList|default(false) %}
+        <input type="hidden" name="as_list" value="1">
+        <div class="small text-secondary mb-2">The docs say <code>{{ add.key }}</code> is a <strong>list</strong>: it is added as <code>["{{ add.key }}.array"]</code>, and the type file describes <strong>one item</strong>.</div>
         {% endif %}
         <div class="row g-2 align-items-center mb-2">
             <div class="col-auto"><label class="form-label mb-0 small" for="add-name-{{ uid }}">Type file</label></div>

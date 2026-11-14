@@ -33,9 +33,9 @@
     <div class="form-text mb-3">The example of the docs page of the event, or the body of a real delivery (the inbox of <code>api-forge:webhook:inbox</code> keeps them).
         When it holds an object in <code>data</code>, that object types its resource, and every event of the same entity.</div>
 
-    <label class="form-label" for="docs">The docs page of the event, as text <span class="text-secondary">(optional, recommended)</span></label>
-    <textarea class="form-control font-monospace mb-1" id="docs" name="docs" rows="6" data-af-code="text" placeholder="event_idstringrequired&#10;...">{{ values.docs }}</textarea>
-    <div class="form-text mb-3">Select the page's field list in the browser, copy, paste: it gives the optional keys, the nulls and the enums.</div>
+    <label class="form-label" for="docs">The docs page of the event <span class="text-secondary">(optional, recommended)</span>{% if kept.docs ?? false %} <span class="badge text-bg-success">nesting of the fields known</span>{% endif %}</label>
+    <textarea class="form-control font-monospace mb-1" id="docs" name="docs" rows="6" data-af-code="text" data-af-html="docs_html" placeholder="event_idstringrequired&#10;...">{{ values.docs }}</textarea>
+    <div class="form-text mb-3">Select the page's field list in the browser, copy, paste: it gives the optional keys, the nulls and the enums. Copy it from the page in the browser: the copy holds the page's HTML, which keeps the nesting of the fields; api-forge saves it and writes the text from it.</div>
 
     <div class="form-check mb-3">
         <input class="form-check-input" type="checkbox" id="force" name="force" value="1" {{ values.force ? 'checked' }}>

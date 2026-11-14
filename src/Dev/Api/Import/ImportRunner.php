@@ -5,6 +5,7 @@ namespace Snorky22\ApiForge\Dev\Api\Import;
 use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
 use Snorky22\ApiForge\Dev\Api\Curl\CurlRequest;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsPage;
 use Snorky22\ApiForge\Dev\Api\Example\ExampleReader;
 
 /**
@@ -117,27 +118,18 @@ final class ImportRunner
         return $request;
     }
 
-    private function bodyDocs(string $example): ?string
+    private function bodyDocs(string $example): ?DocsPage
     {
-        $file = preg_replace('/\.[^.\/]+$/', '', $example).'.body.docs.md';
-
-        return is_file($file) ? (string) file_get_contents($file) : null;
+        return DocsPage::fromFile(preg_replace('/\.[^.\/]+$/', '', $example).'.body.docs.md');
     }
 
-    private function docs(?string $docs, string $example): ?string
+    private function docs(?string $docs, string $example): ?DocsPage
     {
         if (null === $docs) {
-            $docs = preg_replace('/\.[^.\/]+$/', '', $example).'.docs.md';
-            if (!is_file($docs)) {
-                return null;
-            }
-        }
-        $content = is_file($docs) ? file_get_contents($docs) : false;
-        if (false === $content) {
-            throw new \InvalidArgumentException(\sprintf('Cannot read file "%s".', $docs));
+            return DocsPage::fromFile(preg_replace('/\.[^.\/]+$/', '', $example).'.docs.md');
         }
 
-        return $content;
+        return DocsPage::fromFile($docs) ?? throw new \InvalidArgumentException(\sprintf('Cannot read file "%s".', $docs));
     }
 
     /**

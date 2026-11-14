@@ -300,6 +300,41 @@
             });
         });
 
+        // A docs page: the HTML of a paste keeps the nesting of the fields; it goes with the form, in a hidden field
+        var htmlName = textarea.getAttribute('data-af-html');
+        if (htmlName && textarea.form) {
+            var hidden = textarea.form.querySelector('input[name="' + htmlName + '"]');
+            if (!hidden) {
+                hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = htmlName;
+                textarea.form.appendChild(hidden);
+            }
+            editor.container.addEventListener('paste', function (event) {
+                var html = event.clipboardData ? event.clipboardData.getData('text/html') : '';
+                var fields = 0;
+                if (html) {
+                    // Roughly what api-forge will find: an element with a name, then a type
+                    var page = new DOMParser().parseFromString(html, 'text/html');
+                    page.querySelectorAll('*').forEach(function (node) {
+                        var first = node.firstElementChild;
+                        var second = first ? first.nextElementSibling : null;
+                        if (second && /^[A-Za-z_][\w.-]*$/.test(first.textContent.trim()) && /^(string|integer|number|boolean|object|array|null)\b/i.test(second.textContent.trim())) {
+                            fields++;
+                        }
+                    });
+                }
+                hidden.value = fields > 0 ? html : '';
+                if (fields > 0) {
+                    owner.message('success', 'The paste holds the HTML of the page: about ' + fields + ' fields with their nesting. When you save, api-forge keeps it and writes the text from it.');
+                } else {
+                    owner.message('warning', html
+                        ? 'The paste holds HTML, but no field list api-forge can read (a name, then its type): the text is used, the nesting of the fields stays unknown.'
+                        : 'The paste holds text only: the nesting of the fields stays unknown. Copy from the page itself in the browser, not from an extension or a text editor.');
+                }
+            }, true);
+        }
+
         // Ctrl/Cmd-S submits the form of the box, as it saves the file in the editor of a file
         if (textarea.form) {
             editor.commands.addCommand({

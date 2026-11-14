@@ -5,6 +5,7 @@ namespace Snorky22\ApiForge\Dev\Api\Import;
 use Snorky22\ApiForge\Dev\Api\Docs\DocsAlignment;
 use Snorky22\ApiForge\Dev\Api\Docs\DocsAnnotator;
 use Snorky22\ApiForge\Dev\Api\Docs\DocsCapture;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsPage;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 use Symfony\Component\String\Inflector\EnglishInflector;
@@ -68,14 +69,14 @@ final class WebhookImporter
      * Describes an example payload.
      *
      * @param string  $format API format, "json" or "jsonapi"
-     * @param ?string $docs   text capture of the docs page of the payload (DocsCapture): optional fields, nulls, enums
+     * @param string|DocsPage|null $docs text capture of the docs page of the payload (DocsCapture): optional fields, nulls, enums
      *
      * @return array{event: ?string, event_path: ?string, type: ?string, meta: ?string, data: ?string, envelope: ?string, shape: ?string, review: list<string>, objectReview: list<string>}
      *                event name and its location, JSON:API type, shapes of "meta" and "data" (JSON:API); in plain
      *                JSON, of the whole payload, and when "data" is an object, of it and of the other members
      *                ("envelope"); what the docs page could not settle
      */
-    public function importPayload(string $json, string $format, ?string $docs = null): array
+    public function importPayload(string $json, string $format, string|DocsPage|null $docs = null): array
     {
         try {
             $payload = $this->decoder->decode($json, false);
@@ -89,7 +90,7 @@ final class WebhookImporter
         $result = ['event' => null, 'event_path' => null, 'type' => null, 'meta' => null, 'data' => null, 'envelope' => null, 'shape' => null, 'review' => [], 'objectReview' => []];
         $hints = [];
         if (null !== $docs) {
-            $alignment = $this->docsAnnotator->annotate($this->docsCapture->parse($docs), [$payload]);
+            $alignment = $this->docsAnnotator->annotate((\is_string($docs) ? new DocsPage($docs) : $docs)->entries($this->docsCapture), [$payload]);
             $hints = $alignment->hints;
             $result['review'] = $alignment->notes;
             if ([] === $hints) {

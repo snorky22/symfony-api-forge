@@ -5,6 +5,7 @@ namespace Snorky22\ApiForge\Dev\Api\Import;
 use Snorky22\ApiForge\Dev\Api\Docs\DocsAlignment;
 use Snorky22\ApiForge\Dev\Api\Docs\DocsAnnotator;
 use Snorky22\ApiForge\Dev\Api\Docs\DocsCapture;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsPage;
 use Snorky22\ApiForge\Dev\Api\Example\ExampleReader;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 use Snorky22\ApiForge\Dev\LenientJsonDecoder;
@@ -50,7 +51,7 @@ final class ObjectSources
             $docs = preg_replace('/\.[^.\/]+$/', '', $file).'.docs.md';
             if (is_file($docs)) {
                 // The first source that documents a field wins
-                $hints += DocsAlignment::under($source['path'], $this->docsAnnotator->annotate($this->docsCapture->parse((string) file_get_contents($docs)), [$document])->hints);
+                $hints += DocsAlignment::under($source['path'], $this->docsAnnotator->annotate(DocsPage::fromFile($docs)?->entries($this->docsCapture) ?? [], [$document])->hints);
             }
         }
 

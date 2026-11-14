@@ -5,6 +5,20 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- Docs pages: their HTML keeps the nesting of the fields, which their text loses. `<example>.docs.html` next to the
+  `.docs.md` (`DocsPage`) gives each field its parents (`DocsHtml`: a field is an element holding its name then its
+  type; its fields are inside its block, by containment, so a second section of the page stays apart), and the
+  alignment with the example is then by path (`DocsAnnotator`): no counting of names ("described 5 times, found 3"),
+  a missing field is said with the object holding it (`inside items[].price`), and a name described several times in
+  an object marks alternatives (what is not in all of them is optional).
+- Web interface, docs boxes: a paste from the page in the browser keeps its HTML (the box says how many fields it
+  holds); saving writes it cleaned (`.docs.html`, no styles or scripts: 1.6 MB → 40 KB on a real page) and writes the
+  text from it, in the form the text capture reads (a browser's text splits each field on lines). A badge says when
+  the nesting is known; the add form of a missing field then chooses its level by itself.
+- A clipboard page (`/clipboard`) shows what a copy holds (text and HTML) and keeps both in `var/api-forge/web/`.
+- Web interface, a field of the docs missing from the current structure: found next to its anchor in the files the
+  examples point to (a type file); the user chooses its level (next to the anchor, or one level up after each object
+  holding it: the page has no indentation); a list in the docs is added as a list, its type file holding one item.
 - Web interface: Twig templates (`twig/twig`, in `templates/` at the root of the bundle), overridable per project in
   `templates/bundles/ApiForgeBundle/`, as for any Symfony bundle; the notes page split into parts (`templates/notes/`).
   The plain PHP templates are gone.

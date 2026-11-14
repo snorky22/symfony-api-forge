@@ -103,6 +103,41 @@ final class JsonText
      * @return ?array{int, int} the position of the first "key" (its opening quote) and of the end of its value
      */
     /**
+     * The keys whose objects hold the first "key" of the text, nearest first ("trial_period", then "price"…): the
+     * levels a field missing next to it may belong to. Items of lists are crossed, their lists named.
+     *
+     * @return list<string>
+     */
+    public static function ancestors(string $json, string $key): array
+    {
+        $found = self::findKey($json, $key);
+        if (null === $found) {
+            return [];
+        }
+        // The containers open at the key, with the key that names each one (null for a list item, the root)
+        $stack = [];
+        $lastKey = null;
+        for ($i = 0; $i < $found[0]; ++$i) {
+            $char = $json[$i];
+            if ('"' === $char) {
+                $end = self::endOfString($json, $i);
+                $colon = self::skipSpace($json, $end + 1);
+                $lastKey = ':' === ($json[$colon] ?? '') ? substr($json, $i + 1, $end - $i - 1) : $lastKey;
+                $i = $end;
+            } elseif ('{' === $char || '[' === $char) {
+                $stack[] = $lastKey;
+                $lastKey = null;
+            } elseif ('}' === $char || ']' === $char) {
+                array_pop($stack);
+            } elseif (',' === $char) {
+                $lastKey = null;
+            }
+        }
+
+        return array_values(array_reverse(array_filter($stack, static fn (?string $name) => null !== $name)));
+    }
+
+    /**
      * Whether the value of the first "outer" key of the text holds the key "inner" (an object and one of its fields).
      */
     public static function holds(string $json, string $outer, string $inner): bool

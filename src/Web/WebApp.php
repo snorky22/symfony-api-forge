@@ -3,6 +3,8 @@
 namespace Snorky22\ApiForge\Web;
 
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorSchema;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsHtml;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsPage;
 use Snorky22\ApiForge\Dev\Api\Example\PhpArrayExample;
 use Snorky22\ApiForge\Dev\Api\Generator\GenerateResult;
 use Snorky22\ApiForge\Dev\PhpArrayDumper;
@@ -68,6 +70,9 @@ final class WebApp
         if ('/' === $path) {
             return $this->home();
         }
+        if ('/clipboard' === $path) {
+            return 'POST' === $request->method ? $this->saveClipboard($request) : $this->page('clipboard', [], 'Clipboard');
+        }
         if ('/new' === $path) {
             return 'POST' === $request->method ? $this->createApi($request) : $this->page('api_form', ['values' => $this->apiDefaults(), 'errors' => [], 'edit' => false], 'New API');
         }
@@ -100,6 +105,33 @@ final class WebApp
     }
 
     // Pages
+
+    /**
+     * Saves what a paste brought (its HTML and its text), to see whether a page gives its structure, and to keep it.
+     */
+    private function saveClipboard(Request $request): Response
+    {
+        $html = $request->text('html');
+        $text = $request->text('text');
+        $directory = $this->config->projectDir.'/var/api-forge/web';
+        if (!is_dir($directory) && !@mkdir($directory, 0777, true) && !is_dir($directory)) {
+            return Response::json(['ok' => false, 'errors' => ['Cannot create '.$directory.'.']], 500);
+        }
+        $base = $directory.'/clipboard-'.date('Ymd-His');
+        if ('' !== $html) {
+            file_put_contents($base.'.html', $html);
+        }
+        file_put_contents($base.'.txt', $text);
+
+        return Response::json([
+            'ok' => true,
+            'html' => '' !== $html ? str_replace($this->config->projectDir.'/', '', $base).'.html' : null,
+            'text' => str_replace($this->config->projectDir.'/', '', $base).'.txt',
+            'htmlLength' => \strlen($html),
+            'textLength' => \strlen($text),
+            'elements' => substr_count($html, '<'),
+        ]);
+    }
 
     private function home(): Response
     {
@@ -443,6 +475,8 @@ final class WebApp
         }
         $values['overwrite'] = $request->flag('overwrite') ? '1' : '';
         $values['force'] = $request->flag('force') ? '1' : '';
+        // The HTML of the docs pages, when the paste held it (the boxes keep it aside)
+        $html = ['docs' => $request->text('docs_html'), 'body_docs' => $request->text('body_docs_html')];
         $errors = [];
 
         foreach (['operation' => $values['operation'], 'resource' => $values['resource']] as $label => $value) {
@@ -493,10 +527,10 @@ final class WebApp
                 }
             }
             if ('' !== $values['docs']) {
-                $files[$base.'.docs.md'] = $values['docs']."\n";
+                $files += self::docsFiles($base.'.docs.md', $values['docs'], $html['docs']);
             }
             if ('' !== $values['body_docs']) {
-                $files[$base.'.body.docs.md'] = $values['body_docs']."\n";
+                $files += self::docsFiles($base.'.body.docs.md', $values['body_docs'], $html['body_docs']);
             }
         } catch (\InvalidArgumentException $e) {
             $errors[] = $e->getMessage();
@@ -817,7 +851,7 @@ final class WebApp
             'force' => true,
         ];
 
-        return $this->page('webhook_form', ['api' => $api, 'values' => $values, 'errors' => $errors, 'state' => $state, 'known' => $known], '' !== $event ? $event : 'Webhook payload');
+        return $this->page('webhook_form', ['api' => $api, 'values' => $values, 'errors' => $errors, 'state' => $state, 'known' => $known, 'kept' => ['docs' => '' !== $event && $fixtures->has('webhook-'.$event.'.docs.html')]], '' !== $event ? $event : 'Webhook payload');
     }
 
     private function importPayload(string $api, Request $request): Response
@@ -847,10 +881,13 @@ final class WebApp
         $written = [basename($fixtures->write('webhook-'.$event.'.json', $values['payload']."\n"))];
         $docsName = 'webhook-'.$event.'.docs.md';
         if ('' !== $values['docs']) {
-            $written[] = basename($fixtures->write($docsName, $values['docs']."\n"));
+            array_push($written, ...self::writeDocs($fixtures, $docsName, $values['docs'], $request->text('docs_html')));
         } elseif ($fixtures->has($docsName)) {
             // Emptied in the form, which showed it: the payload is imported without it
             unlink($fixtures->path($docsName));
+            if ($fixtures->has($html = DocsPage::htmlFile($docsName))) {
+                unlink($fixtures->path($html));
+            }
         }
 
         try {
@@ -1183,8 +1220,49 @@ final class WebApp
             'api' => $api, 'base' => $base, 'step' => 'request', 'method' => $curl->method, 'url' => $curl->url,
             'hasBody' => \in_array($curl->method, self::BODY_METHODS, true),
             'values' => $values ?? ['query' => implode("\n", $lines), 'body' => $fixtures->read($base.'.body.json'), 'body_docs' => $fixtures->read($base.'.body.docs.md')],
+            'kept' => ['body_docs' => $fixtures->has($base.'.body.docs.html')],
             'errors' => $errors,
         ], 'Endpoint: request');
+    }
+
+    /**
+     * The files of a docs page pasted in a box: its text, and its HTML when the paste held one with fields. The text is
+     * then written from the HTML, the way DocsCapture reads it (the text of a browser copy splits each field on lines).
+     *
+     * @return array<string, string> file name => content
+     */
+    private static function docsFiles(string $name, string $text, string $html): array
+    {
+        if ('' !== trim($html)) {
+            $docsHtml = new DocsHtml();
+            $clean = $docsHtml->clean($html);
+            if ([] !== $docsHtml->fields($clean)) {
+                return [$name => $docsHtml->text($clean), DocsPage::htmlFile($name) => $clean];
+            }
+        }
+
+        return [$name => $text."\n"];
+    }
+
+    /**
+     * Writes a docs page pasted in a box. The HTML kept from an earlier paste stays while the text is the same; a new
+     * text without HTML makes it stale: it is removed.
+     *
+     * @return list<string> the files written
+     */
+    private static function writeDocs(FixtureDirectory $fixtures, string $name, string $text, string $html): array
+    {
+        $files = self::docsFiles($name, $text, $html);
+        $htmlName = DocsPage::htmlFile($name);
+        if (!isset($files[$htmlName]) && $fixtures->has($htmlName) && trim($fixtures->read($name)) !== trim($text)) {
+            unlink($fixtures->path($htmlName));
+        }
+        $written = [];
+        foreach ($files as $file => $content) {
+            $written[] = basename($fixtures->write($file, $content));
+        }
+
+        return $written;
     }
 
     private function endpointSaveRequest(string $api, string $base, \Snorky22\ApiForge\Dev\Api\Curl\CurlRequest $curl, Request $request): Response
@@ -1223,7 +1301,7 @@ final class WebApp
             $fixtures->write($base.'.body.json', $values['body']."\n");
         }
         if ($hasBody && '' !== $values['body_docs']) {
-            $fixtures->write($base.'.body.docs.md', $values['body_docs']."\n");
+            self::writeDocs($fixtures, $base.'.body.docs.md', $values['body_docs'], $request->text('body_docs_html'));
         }
 
         return Response::redirect('/api/'.$api.'/endpoint?base='.$base.'&step=response');
@@ -1234,6 +1312,7 @@ final class WebApp
         return $this->page('endpoint_response', [
             'api' => $api, 'base' => $base, 'step' => 'response', 'method' => $curl->method, 'url' => $curl->url,
             'values' => $values ?? ['response' => $fixtures->read($base.'.json'), 'docs' => $fixtures->read($base.'.docs.md')],
+            'kept' => ['docs' => $fixtures->has($base.'.docs.html')],
             'errors' => $errors,
         ], 'Endpoint: response');
     }
@@ -1251,7 +1330,7 @@ final class WebApp
             $fixtures->write($base.'.json', $values['response']."\n");
         }
         if ('' !== $values['docs']) {
-            $fixtures->write($base.'.docs.md', $values['docs']."\n");
+            self::writeDocs($fixtures, $base.'.docs.md', $values['docs'], $request->text('docs_html'));
         }
 
         return Response::redirect('/api/'.$api.'/endpoint?base='.$base.'&step=import');
@@ -1417,7 +1496,14 @@ final class WebApp
         // A field the docs describe and the example lacks: added next to the field the docs put it after
         if (1 === preg_match('/docs: "([A-Za-z0-9_-]+)" \(line (\d+)[^)]*\) is not in the example: add it to the example \(in the docs it sits (after|between|before) "([A-Za-z0-9_-]+)"(?: and "([A-Za-z0-9_-]+)")?/', $note, $m)) {
             $before = 'before' === $m[3];
+            // The examples of the note, then the files they point to (a type file holding the anchor)
+            $docsFile = null;
+            $searched = [];
             foreach ($candidates as $name) {
+                $docsFile ??= ($fixtures->has($docs = (string) preg_replace('/\.(json|array|php)$/', '', $name).'.docs.md') ? $docs : null);
+                array_push($searched, ...self::pointedFiles($fixtures, $name));
+            }
+            foreach (array_values(array_unique($searched)) as $name) {
                 $text = $fixtures->read($name);
                 $json = str_ends_with($name, '.json');
                 // Between an object and one of its fields: the field goes first in that object, before the second one
@@ -1426,10 +1512,31 @@ final class WebApp
                     $before = true;
                 }
                 if (($json && str_contains($text, '"'.$m[4].'"')) || (!$json && 1 === preg_match('/[\'"]'.preg_quote($m[4], '/').'[\'"]\s*=>/', $text))) {
+                    $entry = null !== $docsFile ? $this->docsEntryAt($fixtures->read($docsFile), (int) $m[2], $m[1]) : null;
+                    $levels = $before ? [] : ($json ? JsonText::ancestors($text, $m[4]) : PhpText::ancestors($text, $m[4]));
+                    // The HTML of the docs page gave the object holding it: the level is known, not asked
+                    $inside = 1 === preg_match('/, inside ([^;)]+)\)?/', $note, $in) ? trim($in[1]) : null;
+                    $placed = null;
+                    if (null !== $inside) {
+                        $holder = (string) preg_replace('/^.*\./', '', str_replace('[]', '', $inside));
+                        foreach ($levels as $k => $level) {
+                            if ($level === $holder) {
+                                $placed = 0 === $k ? 'same' : 'level:'.$levels[$k - 1];
+                                break;
+                            }
+                        }
+                    }
+
                     return ['kind' => 'add', 'keys' => [[
                         'path' => $m[1], 'key' => $m[1], 'after' => $m[4], 'before' => $before, 'file' => $name,
                         'inList' => !$before && ($json ? JsonText::isInListItem($text, $m[4]) : PhpText::isInListItem($text, $m[4])),
-                        'skeleton' => $json ? $this->skeletonFromDocs($fixtures, $name, (int) $m[2], $m[1], $m[4]) : [],
+                        // The objects holding the anchor: the page has no indentation, the user says which level
+                        'levels' => $levels,
+                        'inside' => $inside,
+                        'placed' => $placed,
+                        // A list in the docs is added as a list of items, each described in the type file
+                        'isList' => 'array' === $entry?->type,
+                        'skeleton' => null !== $docsFile ? $this->skeletonFromDocs($fixtures, $docsFile, $name, (int) $m[2], $m[1], $m[4]) : [],
                     ]]];
                 }
             }
@@ -1503,11 +1610,14 @@ final class WebApp
      *
      * @return list<array{name: string, type: string}>
      */
-    private function skeletonFromDocs(FixtureDirectory $fixtures, string $example, int $line, string $key, string $after): array
+    private function skeletonFromDocs(FixtureDirectory $fixtures, string $docs, string $example, int $line, string $key, string $after): array
     {
-        $docs = (string) preg_replace('/\.json$/', '', $example).'.docs.md';
         $siblings = [$after];
-        $data = json_decode($fixtures->read($example), true);
+        try {
+            $data = str_ends_with($example, '.json') ? json_decode($fixtures->read($example), true) : PhpLiteral::evaluate($fixtures->read($example));
+        } catch (\InvalidArgumentException) {
+            $data = null;
+        }
         $found = self::objectWith(\is_array($data) ? $data : [], $after);
         if (null !== $found) {
             $siblings = array_keys($found);
@@ -1519,7 +1629,7 @@ final class WebApp
             $count = 0;
             foreach ($entries as $entry) {
                 if (!$started) {
-                    $started = $entry->line === $line;
+                    $started = $entry->line === $line || ($entry->name === $key && abs($entry->line - $line) <= 3);
                     continue;
                 }
                 if (\in_array($entry->name, $siblings, true) || ++$count > 40) {
@@ -1530,6 +1640,20 @@ final class WebApp
         }
 
         return $listed;
+    }
+
+    /**
+     * The entry of the docs page that a note names (by its line, or the name just before it).
+     */
+    private function docsEntryAt(string $docs, int $line, string $key): ?\Snorky22\ApiForge\Dev\Api\Docs\DocsEntry
+    {
+        foreach ((new \Snorky22\ApiForge\Dev\Api\Docs\DocsCapture())->parse($docs) as $entry) {
+            if ($entry->name === $key && abs($entry->line - $line) <= 3) {
+                return $entry;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1566,8 +1690,14 @@ final class WebApp
         $formats = $request->post['new_format'] ?? 'array';
         $format = \is_array($formats) ? (string) reset($formats) : (string) $formats;
         $content = trim($request->text('new_content'));
-        $asNewItem = 'item' === $request->text('placement');
-        $before = 'before' === $request->text('placement');
+        $placement = $request->text('placement');
+        $asNewItem = 'item' === $placement;
+        $before = 'before' === $placement;
+        // One level up: after the object (named by its key) that holds the anchor
+        if (1 === preg_match('/^level:([A-Za-z0-9_-]+)$/', $placement, $level)) {
+            $after = $level[1];
+        }
+        $asList = $request->flag('as_list');
         $typeFile = 'json' === $format ? $name.'-type.json' : $name.'.array';
         try {
             if (1 !== preg_match('/^[A-Za-z0-9_-]+$/', $key) || 1 !== preg_match('/^[A-Za-z0-9_-]+$/', $after) || !$fixtures->has($file) || 1 !== preg_match('/\.(json|array|php)$/', $file)) {
@@ -1578,8 +1708,11 @@ final class WebApp
             }
             'json' === $format ? $this->checkJson($content) : $this->arrayFile($content, false);
             $added = str_ends_with($file, '.json')
-                ? JsonText::addMember($fixtures->read($file), $after, $key, '"'.$typeFile.'"', $asNewItem, $before)
-                : PhpText::addMember($fixtures->read($file), $after, $key, "'".$typeFile."'", $asNewItem, $before);
+                ? JsonText::addMember($fixtures->read($file), $after, $key, $asList ? '["'.$typeFile.'"]' : '"'.$typeFile.'"', $asNewItem, $before)
+                : PhpText::addMember($fixtures->read($file), $after, $key, $asList ? "['".$typeFile."']" : "'".$typeFile."'", $asNewItem, $before);
+            if ($asList && null !== $problem = $this->listItemProblem($fixtures, $typeFile, $content, true)) {
+                throw new \InvalidArgumentException($problem);
+            }
             if (null === $added) {
                 throw new \InvalidArgumentException(\sprintf('"%s" was not found in %s%s.', $after, $file, $asNewItem ? ' inside an item of a list' : ''));
             }

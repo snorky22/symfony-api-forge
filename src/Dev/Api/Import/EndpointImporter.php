@@ -6,6 +6,8 @@ use Snorky22\ApiForge\Dev\Api\Curl\CurlRequest;
 use Snorky22\ApiForge\Dev\Api\Docs\DocsAlignment;
 use Snorky22\ApiForge\Dev\Api\Docs\DocsAnnotator;
 use Snorky22\ApiForge\Dev\Api\Docs\DocsCapture;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsEntry;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsPage;
 use Snorky22\ApiForge\Dev\ArrayShapeGenerator;
 use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 
@@ -41,9 +43,9 @@ final class EndpointImporter
      * @param ?string $resource      resource name; first path segment when null
      * @param ?string $operationName operation name; inferred from method and path when null
      * @param ?string $format        known API format ("json" or "jsonapi"); detected from the headers when null
-     * @param ?string $docs          text capture of the documentation of the response (DocsCapture): optional fields, nulls,
+     * @param string|DocsPage|null $docs text capture of the documentation of the response (DocsCapture): optional fields, nulls,
      *                               enums and the types the example leaves unknown come from it
-     * @param ?string $bodyDocs      the same for the request body: the keys it does not require are optional
+     * @param string|DocsPage|null $bodyDocs the same for the request body: the keys it does not require are optional
      */
     public function import(
         CurlRequest $request,
@@ -53,8 +55,8 @@ final class EndpointImporter
         ?string $resource = null,
         ?string $operationName = null,
         ?string $format = null,
-        ?string $docs = null,
-        ?string $bodyDocs = null,
+        string|DocsPage|null $docs = null,
+        string|DocsPage|null $bodyDocs = null,
     ): ImportedEndpoint {
         $review = [];
         foreach ($request->unknownOptions as $option) {
@@ -106,7 +108,7 @@ final class EndpointImporter
             } elseif (null !== $body) {
                 $hints = [];
                 if (null !== $bodyDocs) {
-                    $alignment = $this->docsAnnotator->annotate($this->docsCapture->parse($bodyDocs), [$body]);
+                    $alignment = $this->docsAnnotator->annotate($this->entries($bodyDocs), [$body]);
                     $hints = $alignment->hints;
                     array_push($review, ...array_map(static fn (string $note) => 'body '.$note, $alignment->notes));
                 }
@@ -147,7 +149,7 @@ final class EndpointImporter
                 [$items, $isList] = $held;
                 $hints = [];
                 if (null !== $docs) {
-                    $alignment = $this->docsAnnotator->annotate($this->docsCapture->parse($docs), [$response]);
+                    $alignment = $this->docsAnnotator->annotate($this->entries($docs), [$response]);
                     $hints = $alignment->hints;
                     array_push($review, ...$alignment->notes);
                     if ([] === $hints) {
@@ -171,7 +173,7 @@ final class EndpointImporter
             } elseif (null !== $response) {
                 $hints = [];
                 if (null !== $docs) {
-                    $alignment = $this->docsAnnotator->annotate($this->docsCapture->parse($docs), [$response]);
+                    $alignment = $this->docsAnnotator->annotate($this->entries($docs), [$response]);
                     $hints = $alignment->hints;
                     array_push($review, ...$alignment->notes);
                     if ([] === $hints) {
@@ -481,5 +483,13 @@ final class EndpointImporter
             \in_array($value, ['true', 'false'], true) => 'bool',
             default => 'string',
         };
+    }
+
+    /**
+     * @return list<DocsEntry>
+     */
+    private function entries(string|DocsPage $docs): array
+    {
+        return (\is_string($docs) ? new DocsPage($docs) : $docs)->entries($this->docsCapture);
     }
 }

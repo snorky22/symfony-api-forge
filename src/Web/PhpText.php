@@ -72,6 +72,41 @@ final class PhpText
      * @return ?array{int, int} the position of the first 'key' (its opening quote) and of the end of its value
      */
     /**
+     * The keys whose arrays hold the first 'key' of the text, nearest first: the levels a missing field may belong to.
+     *
+     * @return list<string>
+     */
+    public static function ancestors(string $php, string $key): array
+    {
+        $found = self::findKey($php, $key);
+        if (null === $found) {
+            return [];
+        }
+        $stack = [];
+        $lastKey = null;
+        for ($i = 0; $i < $found[0]; ++$i) {
+            $char = $php[$i];
+            if ('/' === $char && '/' === ($php[$i + 1] ?? '')) {
+                $i = self::endOfLine($php, $i);
+            } elseif ("'" === $char || '"' === $char) {
+                $end = self::endOfString($php, $i);
+                $arrow = self::skipSpace($php, $end + 1);
+                $lastKey = '=>' === substr($php, $arrow, 2) ? substr($php, $i + 1, $end - $i - 1) : $lastKey;
+                $i = $end;
+            } elseif ('[' === $char) {
+                $stack[] = $lastKey;
+                $lastKey = null;
+            } elseif (']' === $char) {
+                array_pop($stack);
+            } elseif (',' === $char) {
+                $lastKey = null;
+            }
+        }
+
+        return array_values(array_reverse(array_filter($stack, static fn (?string $name) => null !== $name)));
+    }
+
+    /**
      * Whether the value of the first "outer" key of the text holds the key "inner" (an object and one of its fields).
      */
     public static function holds(string $php, string $outer, string $inner): bool

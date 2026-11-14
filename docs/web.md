@@ -67,7 +67,7 @@ A note that the docs describe a field the current structure lacks (*Not in the c
 example**: a type file (PHP array or JSON) started from a checklist of the fields the docs list after it, in the page's
 order, with their types and values (a checklist, not keys: the page has no indentation, nested fields come at the same
 level, and a key written twice in a PHP array silently replaces the first one), then added to the example where the docs
-put it: after the field before it, or before the field after it (first of an object), or, when that field is in an item
+put it (when the HTML of the docs page was kept, the object holding it is known, and its level is chosen for you): after the field before it, or before the field after it (first of an object), or, when that field is in an item
 of a list, **in a new item instead of it**: another form of the item (a price id, or a price). It works in every
 example that holds the field: a response or a request body in JSON, a webhook payload, a PHP array (an operation, a
 type file); the layout of the file is kept, and what depends on it is imported again.

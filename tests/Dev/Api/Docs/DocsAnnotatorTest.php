@@ -146,4 +146,104 @@ final class DocsAnnotatorTest extends TestCase
 
         self::assertContains('docs: "expiry_month" is integer everywhere in the docs (line 3, 5), string in the example (card.expiry_month): fix the example', $alignment->notes);
     }
+
+    /**
+     * A page given as "parent.name type [required]" lines: the text and the parents the HTML would give.
+     */
+    private function annotateByPath(string $page, string $json): \Snorky22\ApiForge\Dev\Api\Docs\DocsAlignment
+    {
+        $text = '';
+        $parents = [];
+        foreach (array_filter(array_map('trim', explode("\n", $page))) as $line) {
+            [$path, $type, $required] = explode(' ', $line.' ', 3);
+            $names = explode('.', $path);
+            $text .= array_pop($names).$type.('' !== trim($required) ? 'required' : '')."\n\nAbout it.\n\n";
+            $parents[] = $names;
+        }
+        $entries = (new DocsCapture())->parse($text);
+        foreach ($entries as $index => $entry) {
+            $entries[$index] = $entry->withParents($parents[$index]);
+        }
+
+        return (new DocsAnnotator())->annotate($entries, [(new LenientJsonDecoder())->decode($json, false)]);
+    }
+
+    public function testWithTheParentsOfTheHtmlTheAlignmentIsByPath(): void
+    {
+        $alignment = $this->annotateByPath(<<<'PAGE'
+            amount string required
+            price object required
+            price.amount string
+            price.unit_price object
+            price.unit_price.amount string required
+            PAGE, '{"amount": "1", "price": {"amount": "2", "unit_price": {"amount": "3"}}}');
+
+        self::assertSame([], $alignment->notes);
+        self::assertTrue($alignment->hints['amount']->required);
+        self::assertFalse($alignment->hints['price.amount']->required);
+        self::assertTrue($alignment->hints['price.unit_price.amount']->required);
+    }
+
+    public function testANameInSomeAlternativesOnlyIsOptional(): void
+    {
+        $alignment = $this->annotateByPath(<<<'PAGE'
+            items array required
+            items.quantity integer required
+            items.price_id string required
+            items.quantity integer required
+            items.price object required
+            items.price.amount string required
+            PAGE, '{"items": [{"quantity": 1, "price_id": "pri_1"}, {"quantity": 2, "price": {"amount": "3"}}]}');
+
+        self::assertTrue($alignment->hints['items[].quantity']->required);
+        self::assertFalse($alignment->hints['items[].price_id']->required);
+        self::assertFalse($alignment->hints['items[].price']->required);
+        self::assertTrue($alignment->hints['items[].price.amount']->required);
+    }
+
+    public function testAMissingFieldSaysInWhichObjectItSits(): void
+    {
+        $alignment = $this->annotateByPath(<<<'PAGE'
+            items array required
+            items.price object required
+            items.price.name string
+            items.price.tax_mode string
+            items.price.allowances array
+            items.price.allowances.amount string
+            items.price.product_id string
+            checkout object
+            checkout.url string
+            PAGE, '{"items": [{"price": {"name": "A", "tax_mode": "internal", "product_id": "pro_1"}}]}');
+
+        self::assertSame([
+            'docs: "allowances" (line 17) is not in the example: add it to the example (in the docs it sits between "tax_mode" and "product_id", inside items[].price)',
+            'docs: "checkout" (line 29) is not in the example: add it to the example (in the docs it sits after "items")',
+        ], $alignment->notes);
+    }
+
+    public function testByPathAnObjectTheExampleShowsEmptyIsOneNote(): void
+    {
+        $alignment = $this->annotateByPath(<<<'PAGE'
+            id string required
+            trial_period object
+            trial_period.interval string required
+            trial_period.frequency integer required
+            PAGE, '{"id": "pri_1", "trial_period": null, "extra": 1}');
+
+        self::assertSame([
+            'example: "extra" (extra) is not in the docs: complete the docs page text, or remove it from the example',
+            'docs: "trial_period" (trial_period) shows no fields in the example (null or empty), but the docs describe interval, frequency: give it an example value',
+        ], $alignment->notes);
+    }
+
+    public function testByPathTheDocsOfAnObjectHeldInDataAreFound(): void
+    {
+        $alignment = $this->annotateByPath(<<<'PAGE'
+            id string required
+            status string required
+            PAGE, '{"data": {"id": "txn_1", "status": "ready"}, "meta": {"request_id": "r"}}');
+
+        self::assertSame(['data.id', 'data.status'], array_keys($alignment->hints));
+        self::assertSame([], $alignment->notes);
+    }
 }

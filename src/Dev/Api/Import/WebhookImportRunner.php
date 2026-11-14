@@ -3,6 +3,7 @@
 namespace Snorky22\ApiForge\Dev\Api\Import;
 
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorStore;
+use Snorky22\ApiForge\Dev\Api\Docs\DocsPage;
 use Snorky22\ApiForge\Dev\Api\Example\ExampleReader;
 
 /**
@@ -60,7 +61,7 @@ final class WebhookImportRunner
             if (null === $docs && !is_file($docsFile)) {
                 $docsFile = null;
             }
-            $description = $this->importer->importPayload($this->examples->json($file), $format, null !== $docsFile ? $this->read($docsFile) : null);
+            $description = $this->importer->importPayload($this->examples->json($file), $format, null !== $docsFile ? new DocsPage($this->read($docsFile), is_file($html = DocsPage::htmlFile($docsFile)) ? $this->read($html) : null) : null);
             if (null !== $docsFile) {
                 $notes[] = \sprintf('docs page read: %s', $docsFile);
             }

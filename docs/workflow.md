@@ -38,6 +38,7 @@ its extension:
 | `<operation>-<resource>.json` | its example response | get-account.json, list-products.json |
 | `<operation>-<resource>.php` | the same, written by hand as an array when the docs describe it in prose: request and response | create-price.php, list-prices.php |
 | `<operation>-<resource>.docs.md` | the docs page of its response copied as text: required fields, nulls, enums | list-prices.docs.md |
+| `<operation>-<resource>.docs.html` | the HTML of that docs page, kept by the web interface from a copy in the browser: the nesting of the fields | list-prices.docs.html |
 | `<operation>-<resource>.body.json` | the JSON body of its request, next to the .curl (an array example has "body") | create-products.body.json |
 | `<operation>-<resource>.body.docs.md` | the docs page of that body copied as text: required keys, enums | create-products.body.docs.md |
 | `<type>-type.json` | a data type the other examples point to by its file name (also .php) | duration-type.json, unit-price-override-type.php |
@@ -261,8 +262,18 @@ A page copied as Markdown separates them with spaces instead (`trial_period obje
 `Example:`, `Values`) are its details.
 
 `api-forge:import` finds it by its name (or `--docs=<file>`) and applies it to the response shape, on the structure
-of the example: the example, checked by a human, holds the nesting, since the copied page is flat (no
+of the example: the example, checked by a human, holds the nesting, since the copied text is flat (no
 indentation, no parents).
+
+**The HTML of the page keeps the nesting.** Next to the text, `<example>.docs.html` (`.body.docs.html`,
+`webhook-<event>.docs.html`) is the HTML of the same part of the page. A copy in the browser holds it: paste the page
+in a docs box of the web interface, which keeps it (cleaned of styles and scripts) and writes the text from it
+(`DocsHtml`). A field of the page is an element whose first child is its name and the second its type
+(`<div><span>status</span><span>string | null</span></div>`); the fields of an object are inside its block. With it,
+each field of the docs has its parents and is aligned with the example **by path**: no counting of names, and a
+missing field is said with the object it belongs to (`inside items[].price`). A name described several times in the
+same object marks alternatives (an item with `price_id`, or with `price`): what is not in all of them is optional.
+Without the HTML (a Markdown copy, a page typed by hand), the alignment is the one below.
 
 | The docs say | The shape gets |
 |---|---|

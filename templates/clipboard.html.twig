@@ -1,0 +1,38 @@
+{% extends 'layout.html.twig' %}
+{% block content %}
+<h1 class="h3 mb-1">Clipboard</h1>
+<p class="text-secondary">Copy part of a documentation page in the browser (select it, Cmd/Ctrl-C), then paste it below (Cmd/Ctrl-V).
+The page says what the clipboard held: the text, and the HTML that keeps the structure (the nesting of the fields).
+Both are saved in <code>var/api-forge/web/</code>.</p>
+
+<div class="card card-body mb-3" id="clipboard-target" tabindex="0" contenteditable="true" data-token="{{ token }}"
+     style="min-height: 8rem; outline: 2px dashed var(--bs-border-color);">
+    <span class="text-secondary">Click here, then paste.</span>
+</div>
+<div id="clipboard-result"></div>
+
+<script>
+(function () {
+    'use strict';
+    var target = document.getElementById('clipboard-target');
+    var result = document.getElementById('clipboard-result');
+    target.addEventListener('paste', function (event) {
+        event.preventDefault();
+        var html = event.clipboardData.getData('text/html');
+        var text = event.clipboardData.getData('text/plain');
+        target.textContent = text.slice(0, 2000) + (text.length > 2000 ? '…' : '');
+        var body = new URLSearchParams({_token: target.getAttribute('data-token'), html: html, text: text});
+        fetch('/clipboard', {method: 'POST', headers: {Accept: 'application/json'}, body: body})
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                result.className = 'alert ' + (data.html ? 'alert-success' : 'alert-warning');
+                result.textContent = data.ok
+                    ? (data.html
+                        ? 'The clipboard held the HTML (' + data.htmlLength + ' characters, ' + data.elements + ' tags): saved in ' + data.html + ', and the text in ' + data.text + '.'
+                        : 'The clipboard held text only (' + data.textLength + ' characters), saved in ' + data.text + ': no structure. Copy from the page itself, not from an extension or a text editor.')
+                    : (data.errors || ['Not saved.']).join(' ');
+            });
+    });
+})();
+</script>
+{% endblock %}

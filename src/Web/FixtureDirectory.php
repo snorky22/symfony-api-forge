@@ -9,7 +9,7 @@ namespace Snorky22\ApiForge\Web;
  */
 final class FixtureDirectory
 {
-    public const EXAMPLES = ['curl', 'json', 'php', 'array', 'md'];
+    public const EXAMPLES = ['curl', 'json', 'php', 'array', 'md', 'html'];
 
     /**
      * @param list<string> $extensions the extensions of the files of this folder

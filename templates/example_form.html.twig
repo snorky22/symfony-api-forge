@@ -63,12 +63,12 @@ or
     </div>
     <textarea class="form-control font-monospace mb-3" name="response" rows="8" data-af-code="json" data-af-mode-from="response_format" data-af-modes="json:json,array:array" placeholder='{"data": [{"id": "pri_01"}]}'>{{ values.response }}</textarea>
 
-    <label class="form-label" for="docs">The docs page of the response, as text <span class="text-secondary">(optional)</span></label>
-    <textarea class="form-control font-monospace mb-1" id="docs" name="docs" rows="5" data-af-code="text" placeholder="idstringrequired&#10;...">{{ values.docs }}</textarea>
-    <div class="form-text mb-3">The page's field list, copied: it gives the optional keys, the nulls and the enums.</div>
+    <label class="form-label" for="docs">The docs page of the response <span class="text-secondary">(optional)</span></label>
+    <textarea class="form-control font-monospace mb-1" id="docs" name="docs" rows="5" data-af-code="text" data-af-html="docs_html" placeholder="idstringrequired&#10;...">{{ values.docs }}</textarea>
+    <div class="form-text mb-3">The page's field list, copied: it gives the optional keys, the nulls and the enums. Copy it from the page in the browser: the copy holds the page's HTML, which keeps the nesting of the fields; api-forge saves it and writes the text from it.</div>
 
-    <label class="form-label" for="body_docs">The docs page of the request body, as text <span class="text-secondary">(optional)</span></label>
-    <textarea class="form-control font-monospace mb-1" id="body_docs" name="body_docs" rows="4" data-af-code="text" placeholder="namestringrequired&#10;...">{{ values.body_docs }}</textarea>
+    <label class="form-label" for="body_docs">The docs page of the request body <span class="text-secondary">(optional)</span></label>
+    <textarea class="form-control font-monospace mb-1" id="body_docs" name="body_docs" rows="4" data-af-code="text" data-af-html="body_docs_html" placeholder="namestringrequired&#10;...">{{ values.body_docs }}</textarea>
     <div class="form-text mb-3">The parameters of the body, copied: it tells which keys are required (the others become optional).</div>
 
     <div class="form-check"><input class="form-check-input" type="checkbox" name="overwrite" id="overwrite" value="1"{{ values.overwrite is not same as('') ? ' checked' }}><label class="form-check-label" for="overwrite">Replace the files if they exist</label></div>
