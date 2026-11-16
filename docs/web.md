@@ -66,6 +66,9 @@ forms of the other notes (the same object elsewhere: one description).
 Above the notes, **Your type files** lists the type and object files of the examples (`price.array`,
 `unit_price_overrides.array`, `transaction-object.json`…), each with the examples that use it: click one to edit it
 in the page; **Save** writes it and imports again the examples that use it.
+**New type file**, in the same box, creates one from scratch: a name, PHP array (`<name>.array`) or JSON
+(`<name>-type.json`), its content (one object; for a list, one item). Then use its name in an example, or choose it in
+the Fix of a note.
 
 A note that the docs describe a field the current structure lacks (*Not in the current structure*) offers **Describe … and add it to the
 example**: a type file (PHP array or JSON) started from a checklist of the fields the docs list after it, in the page's
@@ -124,6 +127,7 @@ pages that have an editor only):
 | **Save**, **Save & import**, **Restore** | **Save & import** (for an example, or the response or docs page next to it) saves, then imports the example again on the server (`--force`, then its variants such as `list-prices-include.php`, which add their query parameters) and links to the next step. Save posts the file to the server, which checks it (JSON, curl, array, YAML) and answers in the editor, with the line of an error marked in the margin. Restore discards your changes and reloads the file from disk. Ctrl/Cmd-S saves. The **×** of the panel closes the editor (it asks first if there are unsaved changes; on the page of a file it goes back to the API). A page with unsaved changes asks before it is left |
 | Languages | JSON (with live syntax check), PHP arrays (also without `<?php`), YAML, Markdown, cURL (shell), text |
 | Themes | Light and Cobalt, remembered in the browser |
+| Two formats | a PHP array (`.array`) or a JSON file opens in its own format; **View as JSON** shows it as JSON (to fold its objects from the gutter), **View as PHP array** shows it back. **Save** writes the file in its own format. Back with nothing changed, the file's own text returns; the comments of a PHP array are not in the JSON view (the editor says so), and saving from the JSON view writes the file without them |
 | Options | line numbers, folding, undo/redo (Ctrl-Z), auto-indent with indentation detection, automatic closing of `{`, `[`, `(` and quotes (typing the closing one goes over it, Enter between braces opens a block), find and replace (Ctrl-F), go to line (Ctrl-L), soft wrap, invisible characters, text size, the height of the editor (a code box of a form starts as tall as its content, between its rows and about half of the window; the chevron buttons make it shorter or taller by five lines, from 120 px to 95% of the window; the bottom edge can be dragged too), **Format** for JSON, and every other Ace option in **Settings** (Ctrl-,) |
 
 Without JavaScript, or if Ace does not load, the pages work with plain text areas and the edit links open a page with

@@ -262,7 +262,7 @@ final class WebAppTest extends TestCase
         self::assertFileExists($this->project.'/tests/Fixtures/shop/duration-type.json');
 
         $array = $this->post('/api/shop/type', ['name' => 'money', 'format' => 'array', 'content' => "['amount' => '1', 'currency_code' => 'EUR']"]);
-        self::assertStringContainsString('money-type.array', $array->body);
+        self::assertStringContainsString('money.array', $array->body);
 
         $bad = $this->post('/api/shop/type', ['name' => 'x', 'format' => 'json', 'content' => '[']);
         self::assertStringContainsString('alert-danger', $bad->body);
@@ -1572,8 +1572,49 @@ final class WebAppTest extends TestCase
         // tax_mode follows "interval" in the page, but the HTML puts it in price, after billing_cycle: one level up, chosen
         $notes = $this->get('/api/shop/notes')->body;
         self::assertStringContainsString('in the docs it sits between &quot;billing_cycle&quot; and &quot;product_id&quot;, inside price', $notes);
-        self::assertStringNotContainsString('id="data-files"', $notes, 'no type file yet');
+        self::assertStringContainsString('<strong>Your type files</strong> <span class="badge text-bg-secondary">0</span>', $notes, 'no type file yet');
         self::assertStringContainsString('The HTML of the docs page puts <code>tax_mode</code> inside <code>price</code>', $notes);
         self::assertMatchesRegularExpression('/value="same" checked/', $notes);
+    }
+
+    public function testATypeFileIsCreatedFromTheNotesPage(): void
+    {
+        $this->createApi();
+        $this->example();
+
+        $notes = $this->get('/api/shop/notes')->body;
+        self::assertStringContainsString('<strong>Your type files</strong> <span class="badge text-bg-secondary">0</span>', $notes);
+        self::assertStringContainsString('name="back" value="notes"', $notes);
+
+        // A mistake keeps what was typed, the form open
+        $refused = $this->post('/api/shop/type', ['back' => 'notes', 'name' => 'allowance', 'format' => 'array', 'content' => "['amount': '100']"])->body;
+        self::assertStringContainsString('Review the notes', $refused);
+        self::assertStringContainsString("['amount': '100']", html_entity_decode($refused, \ENT_QUOTES));
+        self::assertFileDoesNotExist($this->project.'/tests/Fixtures/shop/allowance.array');
+
+        $created = $this->post('/api/shop/type', ['back' => 'notes', 'name' => 'allowance', 'format' => 'array', 'content' => "['amount' => '100']"])->body;
+        self::assertStringContainsString('allowance.array is created', $created);
+        self::assertStringContainsString('<code>allowance.array</code></a>', $created);
+        self::assertStringContainsString('used by no example yet', $created);
+        self::assertFileExists($this->project.'/tests/Fixtures/shop/allowance.array');
+    }
+
+    public function testTheEditorShowsAPhpArrayAsJsonAndBack(): void
+    {
+        $this->createApi();
+        $array = "// One price\n[\n    'name' => 'Pro',\n    'custom_data' => [],\n    'unit_price_overrides' => ['unit_price_overrides.array'],\n    'amount' => 1.0,\n]";
+
+        $json = $this->decode($this->json('POST', '/api/shop/convert', ['content' => $array, 'to' => 'json']));
+        self::assertTrue($json['ok']);
+        self::assertSame("{\n    \"name\": \"Pro\",\n    \"custom_data\": [],\n    \"unit_price_overrides\": [\n        \"unit_price_overrides.array\"\n    ],\n    \"amount\": 1.0\n}\n", $json['content']);
+        self::assertStringContainsString('comments', $json['warnings'][0]);
+
+        $back = $this->decode($this->json('POST', '/api/shop/convert', ['content' => $json['content'], 'to' => 'array']));
+        self::assertSame("[\n    'name' => 'Pro',\n    'custom_data' => [],\n    'unit_price_overrides' => [\n        'unit_price_overrides.array',\n    ],\n    'amount' => 1.0,\n]\n", $back['content']);
+        self::assertSame([], $back['warnings']);
+
+        $bad = $this->json('POST', '/api/shop/convert', ['content' => "['a': 1]", 'to' => 'json']);
+        self::assertSame(422, $bad->status);
+        self::assertStringStartsWith('Not a PHP array I can read', $this->decode($bad)['errors'][0]);
     }
 }

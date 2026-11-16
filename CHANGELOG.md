@@ -17,8 +17,14 @@ until 1.0, minor versions may contain breaking changes.
   the nesting is known; the add form of a missing field then chooses its level by itself.
 - Docs: an empty `[]` where the docs say `object` is an empty object, not another type (a PHP array can't write `{}`,
   and PHP APIs send `[]` for an empty object).
+- Web interface, editor of a PHP array or a JSON file: *View as JSON* / *View as PHP array* shows the content in the
+  other format (JSON folds its objects in the gutter; `/api/<api>/convert`, with the importer's reader); Save writes the
+  file in its own format; back with nothing changed, the file's own text (comments, layout) comes back. The comments
+  of a PHP array can't go to JSON: the editor says so.
 - Web interface, notes page: *Your type files* lists the type and object files (`.array`, `-type.json`, `-object.json`…)
   with the examples that use them; each one opens in the editor in the page (Save imports those examples again).
+  *New type file* creates one there from scratch (PHP array `<name>.array`, or JSON `<name>-type.json`, as the notes
+  name them; the *Add a type* page names its arrays `<name>.array` too).
 - Web interface, notes: the HTML of a docs page (`.docs.html`) is listed with the files of the note, next to its text.
 - A clipboard page (`/clipboard`) shows what a copy holds (text and HTML) and keeps both in `var/api-forge/web/`.
 - Web interface, a field of the docs missing from the current structure: found next to its anchor in the files the

@@ -392,15 +392,34 @@
             }
         };
         var editor = create(textarea, {mode: mode, height: '', wrap: mode === 'markdown' || mode === 'sh'});
+        // The format shown: the file's own, or the other one (a PHP array viewed as JSON folds its objects); a change
+        // made in the other view keeps the file unsaved
+        var view = mode;
+        var changedInOtherView = false;
 
         function dirty() {
-            return editor.getValue() !== saved;
+            return changedInOtherView || editor.getValue() !== saved;
+        }
+
+        // The content in another format, by the server (the same reader as the importer)
+        function convert(content, to) {
+            var body = new URLSearchParams({_token: token, content: content, to: to});
+            return fetch(url.replace(/\/file$/, '/convert'), {method: 'POST', headers: {Accept: 'application/json'}, body: body})
+                .then(function (response) {
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (!data.ok) {
+                        throw new Error((data.errors || ['Not converted.']).join(' '));
+                    }
+                    return data;
+                });
         }
 
         function updateStatus() {
             var pos = editor.getCursorPosition();
             status.textContent = (dirty() ? '● unsaved · ' : '') + 'Ln ' + (pos.row + 1) + ', Col ' + (pos.column + 1)
-                + ' · ' + editor.session.getLength() + ' lines · ' + (LABELS[mode] || mode);
+                + ' · ' + editor.session.getLength() + ' lines · ' + (LABELS[mode] || mode) + (view !== mode ? ', viewed as ' + LABELS[view] : '');
             panel.afDirty = dirty();
         }
 
@@ -413,10 +432,16 @@
             }
         }
 
-        // Resolves to true when the file was saved
+        // Resolves to true when the file was saved; viewed in the other format, it is written back in its own
         function save() {
-            var body = new URLSearchParams({_token: token, name: name, area: area, content: editor.getValue()});
-            return fetch(url, {method: 'POST', headers: {Accept: 'application/json'}, body: body})
+            var shown = editor.getValue();
+            var content = view === mode ? Promise.resolve(shown) : convert(shown, mode).then(function (data) {
+                return data.content;
+            });
+            return content.then(function (text) {
+                var body = new URLSearchParams({_token: token, name: name, area: area, content: text});
+                return fetch(url, {method: 'POST', headers: {Accept: 'application/json'}, body: body});
+            })
                 .then(function (response) {
                     return response.json().then(function (data) {
                         return {ok: response.ok && data.ok, data: data};
@@ -432,7 +457,8 @@
                         return false;
                     }
                     saved = editor.getValue();
-                    messages.appendChild(alertBox('success', result.data.message || 'Saved.'));
+                    changedInOtherView = false;
+                    messages.appendChild(alertBox('success', (result.data.message || 'Saved.') + (view !== mode ? ' (written as ' + LABELS[mode] + ')' : '')));
                     (result.data.warnings || []).forEach(function (warning) {
                         messages.appendChild(alertBox('warning', warning));
                     });
@@ -501,8 +527,14 @@
                     return response.json();
                 })
                 .then(function (data) {
+                    if (view !== mode) {
+                        view = mode;
+                        setMode(editor, mode);
+                        toggleLabel();
+                    }
                     editor.setValue(data.content, -1);
                     saved = data.content;
+                    changedInOtherView = false;
                     editor.session.clearAnnotations();
                     messages.textContent = '';
                     messages.appendChild(alertBox('info', 'Restored from disk.'));
@@ -540,6 +572,52 @@
             buttons.push(button('Save & import', 'Save, then import ' + importTarget + ' again on the server', 'btn-primary', saveAndImport));
         }
         buttons.push(restoreButton);
+
+        // A PHP array or JSON: shown in the other format and back (JSON folds its objects in the gutter)
+        var toggle = null;
+        function toggleLabel() {
+            if (toggle) {
+                toggle.textContent = view === 'json' ? 'View as PHP array' : 'View as JSON';
+            }
+        }
+        if (mode === 'array' || mode === 'json') {
+            var ownText = null;
+            toggle = button('', 'Show the content in the other format; Save writes the file in its own format', 'btn-outline-warning', function () {
+                var to = view === 'json' ? 'array' : 'json';
+                var wasDirty = editor.getValue() !== saved;
+                // Back to the file's own format with nothing changed: its text as it was, comments and layout included
+                if (to === mode && !wasDirty && !changedInOtherView && ownText !== null) {
+                    view = to;
+                    editor.setValue(ownText, -1);
+                    setMode(editor, to);
+                    saved = ownText;
+                    toggleLabel();
+                    messages.textContent = '';
+                    updateStatus();
+                    return;
+                }
+                if (view === mode) {
+                    ownText = wasDirty ? null : editor.getValue();
+                }
+                convert(editor.getValue(), to).then(function (data) {
+                    changedInOtherView = changedInOtherView || wasDirty;
+                    view = to;
+                    editor.setValue(data.content, -1);
+                    setMode(editor, to);
+                    saved = data.content;
+                    toggleLabel();
+                    messages.textContent = '';
+                    (data.warnings || []).forEach(function (warning) {
+                        messages.appendChild(alertBox('warning', warning));
+                    });
+                    updateStatus();
+                }).catch(function (error) {
+                    owner.message('danger', 'Cannot show it as ' + LABELS[to] + ': ' + error.message);
+                });
+            });
+            toggleLabel();
+            buttons.push(toggle);
+        }
         var bar = toolbar(editor, owner, buttons);
         editor.container.parentNode.insertBefore(bar, editor.container);
         editors.push({editor: editor, theme: owner.theme, refresh: owner.refresh});

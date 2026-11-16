@@ -76,7 +76,7 @@ final class WebApp
         if ('/new' === $path) {
             return 'POST' === $request->method ? $this->createApi($request) : $this->page('api_form', ['values' => $this->apiDefaults(), 'errors' => [], 'edit' => false], 'New API');
         }
-        if (1 !== preg_match('#^/api/('.self::NAME.')(?:/(describe|endpoint|example|type|file|import|import-all|notes|fix|generate|doctor|webhooks|webhook|object|object-choice))?$#', $path, $matches)) {
+        if (1 !== preg_match('#^/api/('.self::NAME.')(?:/(describe|endpoint|example|type|file|import|import-all|notes|fix|generate|doctor|webhooks|webhook|object|object-choice|convert))?$#', $path, $matches)) {
             return $this->error(404, 'Not found.');
         }
         $api = $matches[1];
@@ -92,6 +92,7 @@ final class WebApp
             'type' => 'POST' === $request->method ? $this->addType($api, $request) : $this->typeForm($api),
             'file' => 'POST' === $request->method ? $this->saveFile($api, $request) : $this->fileForm($api, $request),
             'import' => $this->importFile($api, $request),
+            'convert' => 'POST' === $request->method ? $this->convert($request) : Response::redirect('/api/'.$api),
             'import-all' => 'POST' === $request->method ? $this->importAll($api) : Response::redirect('/api/'.$api),
             'notes' => 'POST' === $request->method ? $this->deleteNotes($api, $request) : $this->notes($api),
             'fix' => 'POST' === $request->method ? $this->applyFix($api, $request) : Response::redirect('/api/'.$api.'/notes'),
@@ -560,6 +561,28 @@ final class WebApp
         return $this->page('example_result', ['api' => $api, 'files' => array_keys($files), 'result' => $result, 'named' => $values['operation'].'-'.$values['resource'], 'steps' => $this->steps($api), 'descriptors' => [$result->resource.'.yaml']], 'Imported');
     }
 
+    /**
+     * The content of a code box in the other format, for the editor's toggle: a PHP array as JSON (to fold its objects),
+     * JSON as a PHP array. The comments of a PHP array don't go to JSON.
+     */
+    private function convert(Request $request): Response
+    {
+        $content = $request->text('content');
+        try {
+            if ('json' === $request->text('to')) {
+                $converted = json_encode(PhpLiteral::evaluate($content), \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_PRESERVE_ZERO_FRACTION | \JSON_THROW_ON_ERROR);
+                $lost = 1 === preg_match('~(^|\n)\s*(//|#|/\*)~', $content);
+            } else {
+                $converted = (new PhpArrayDumper())->dump($this->services->decoder->decode($content));
+                $lost = false;
+            }
+        } catch (\InvalidArgumentException|\JsonException $e) {
+            return Response::json(['ok' => false, 'errors' => [('json' === $request->text('to') ? 'Not a PHP array I can read: ' : 'Not JSON I can read: ').$e->getMessage()]], 422);
+        }
+
+        return Response::json(['ok' => true, 'content' => $converted."\n", 'warnings' => $lost ? ['The comments of the PHP array are not in the JSON view: saving from it writes the file without them.'] : []]);
+    }
+
     private function typeForm(string $api, array $values = [], array $errors = []): Response
     {
         return $this->page('type_form', ['api' => $api, 'values' => $values + ['name' => '', 'format' => 'json', 'content' => ''], 'errors' => $errors], 'Add a type');
@@ -572,7 +595,9 @@ final class WebApp
         if (1 !== preg_match('/^[a-z][a-z0-9_-]*$/', $values['name'])) {
             $errors[] = 'The name is lowercase letters, digits, "-" and "_" (e.g. duration).';
         }
-        $file = $values['name'].'-type.'.('array' === $values['format'] ? 'array' : 'json');
+        // Named as the notes name them: <name>.array, <name>-type.json
+        $file = 'array' === $values['format'] ? $values['name'].'.array' : $values['name'].'-type.json';
+        $fromNotes = 'notes' === $request->text('back');
         try {
             'array' === $values['format'] ? $this->arrayFile($values['content'], false) : $this->checkJson($values['content']);
         } catch (\InvalidArgumentException $e) {
@@ -584,6 +609,11 @@ final class WebApp
             } catch (\InvalidArgumentException $e) {
                 $errors[] = $e->getMessage();
             }
+        }
+        if ($fromNotes) {
+            return [] !== $errors
+                ? $this->notes($api, null, $errors, ['choice' => 'type'] + $values)
+                : $this->notes($api, \sprintf('%s is created. Use it in an example by its name ("%s" as the value of a field, ["%s"] for a list of them), or choose it in the Fix of a note.', $file, $file, $file));
         }
         if ([] !== $errors) {
             return $this->typeForm($api, $values, $errors);
@@ -1443,7 +1473,7 @@ final class WebApp
             $kinds[$note['kind']['label']] ??= ['count' => 0, 'colour' => $note['kind']['colour'], 'asks' => $note['kind']['asks'], 'slug' => $slug];
             ++$kinds[$note['kind']['label']]['count'];
             $note['slug'] = $slug;
-            $note['isDraft'] = null !== $draft && null !== $note['fix'] && [] !== array_filter($note['fix']['keys'], static fn (array $k) => $k['key'] === $draft['key'] && $k['file'] === $draft['file']);
+            $note['isDraft'] = null !== $draft && null !== $note['fix'] && [] !== array_filter($note['fix']['keys'], static fn (array $k) => $k['key'] === ($draft['key'] ?? null) && $k['file'] === ($draft['file'] ?? null));
             foreach ($note['fix']['keys'] ?? [] as $j => $key) {
                 $note['fix']['keys'][$j]['typeName'] = strtolower((string) preg_replace('/[^a-z0-9_-]+/i', '_', $key['key']));
             }

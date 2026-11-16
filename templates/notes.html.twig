@@ -34,18 +34,37 @@ current structure (the JSON or the array of the example) and imports it again. T
     <div class="alert alert-danger"><strong>The descriptors are invalid:</strong><ul class="mb-0">{% for error in errors|slice(0, 8) %}<li>{{ error|replace({(projectDir ~ '/'): ''}) }}</li>{% endfor %}</ul></div>
 {% endif %}
 
-{% if dataFiles|default([]) is not empty %}
-<details class="card card-body mb-3 py-2" id="data-files"{{ dataFiles|length <= 8 ? ' open' }}>
-    <summary class="small"><strong>Your type files</strong> <span class="badge text-bg-secondary">{{ dataFiles|length }}</span>
-        <span class="text-secondary">: the structures you described once; click one to edit it here (Save imports the examples that use it again)</span></summary>
+{% set typeDraft = draft is not null and 'type' == draft.choice ? draft : null %}
+<details class="card card-body mb-3 py-2" id="data-files"{{ typeDraft or (dataFiles|default([]) is not empty and dataFiles|length <= 8) ? ' open' }}>
+    <summary class="small"><strong>Your type files</strong> <span class="badge text-bg-secondary">{{ dataFiles|default([])|length }}</span>
+        <span class="text-secondary">: the structures you describe once; click one to edit it here (Save imports the examples that use it again)</span></summary>
+    {% if dataFiles|default([]) is not empty %}
     <ul class="list-unstyled small mb-0 mt-2">
     {% for file in dataFiles %}
         <li class="mb-1"><a href="/api/{{ api }}/file?name={{ file.name|url_encode }}&amp;area=examples" data-af-open><code>{{ file.name }}</code></a>
             <span class="text-secondary">{% if file.usedBy is empty %}used by no example yet{% else %}used in {% for used in file.usedBy %}<code>{{ used }}</code>{{ not loop.last ? ', ' }}{% endfor %}{% endif %}</span></li>
     {% endfor %}
     </ul>
+    {% endif %}
+    <details class="mt-2"{{ typeDraft ? ' open' }}>
+        <summary class="small">New type file</summary>
+        <form method="post" action="/api/{{ api }}/type" class="mt-2">
+            <input type="hidden" name="_token" value="{{ token }}">
+            <input type="hidden" name="back" value="notes">
+            <div class="row g-2 align-items-center mb-2">
+                <div class="col-auto"><label class="form-label mb-0 small" for="type-name">Name</label></div>
+                <div class="col-auto"><input class="form-control form-control-sm" id="type-name" name="name" value="{{ typeDraft.name ?? '' }}" placeholder="allowance" required></div>
+                <div class="col-auto">
+                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="format" id="type-array" value="array"{{ 'json' != (typeDraft.format ?? 'array') ? ' checked' }}><label class="form-check-label small" for="type-array">PHP array (<code>&lt;name&gt;.array</code>)</label></div>
+                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="format" id="type-json" value="json"{{ 'json' == (typeDraft.format ?? 'array') ? ' checked' }}><label class="form-check-label small" for="type-json">JSON (<code>&lt;name&gt;-type.json</code>)</label></div>
+                </div>
+            </div>
+            <textarea class="form-control font-monospace mb-2" name="content" rows="6" data-af-code="array" data-af-mode-from="format" data-af-modes="json:json,array:array" placeholder="['usage_balance_unit_id' => 'ubu_01', 'amount' => '100']" required>{{ typeDraft.content ?? '' }}</textarea>
+            <div class="small text-secondary mb-2">One object, with an example value for each field (for a list, write one item: the example says <code>["allowance.array"]</code>).</div>
+            <button class="btn btn-sm btn-primary">Create the type file</button>
+        </form>
+    </details>
 </details>
-{% endif %}
 
 {% if notes is empty and errors is empty %}
     <div class="alert alert-success">No note left.</div>
