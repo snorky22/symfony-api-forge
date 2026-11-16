@@ -84,7 +84,8 @@ final class Field
     {
         $kinds = array_keys(array_diff_key($this->scalars, ['null' => true]));
         if ('object' === $entry->type) {
-            return $this->isList || [] !== $kinds ? 'another type' : null;
+            // An empty [] is an empty object too: a PHP array can't write {}, and PHP APIs send [] for an empty object
+            return ($this->isList && !$this->isEmptyList()) || [] !== $kinds ? 'another type' : null;
         }
         if ('array' === $entry->type) {
             return $this->isObject || [] !== $kinds ? 'another type' : null;
@@ -95,6 +96,14 @@ final class Field
         $expected = self::scalarKinds($entry->type);
 
         return [] !== array_diff($kinds, $expected) ? implode('|', $kinds) : null;
+    }
+
+    /**
+     * Only empty lists were seen: [] in every value.
+     */
+    private function isEmptyList(): bool
+    {
+        return null !== $this->item && !$this->item->isObject && !$this->item->isList && [] === $this->item->scalars && !$this->isObject;
     }
 
     /**

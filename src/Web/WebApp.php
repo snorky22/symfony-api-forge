@@ -1453,7 +1453,7 @@ final class WebApp
             $groups[$location['group']]['members'][$index] = $note;
         }
 
-        return $this->page('notes', ['groups' => $groups, 'kinds' => $kinds, 'draft' => $draft, 'typeContents' => new TypeFiles($fixtures), 'api' => $api, 'notes' => $notes, 'message' => $message, 'fixErrors' => $errors, 'unreadable' => $this->unreadableExamples($fixtures), 'errors' => $this->progress($api)['errors'], 'typeFiles' => $this->typeFiles($fixtures)], 'Review notes');
+        return $this->page('notes', ['groups' => $groups, 'kinds' => $kinds, 'draft' => $draft, 'typeContents' => new TypeFiles($fixtures), 'api' => $api, 'notes' => $notes, 'message' => $message, 'fixErrors' => $errors, 'unreadable' => $this->unreadableExamples($fixtures), 'errors' => $this->progress($api)['errors'], 'typeFiles' => $this->typeFiles($fixtures), 'dataFiles' => $this->dataFiles($fixtures)], 'Review notes');
     }
 
     /**
@@ -1461,6 +1461,31 @@ final class WebApp
      *
      * @return list<string>
      */
+    /**
+     * The type and object files of the examples, with the files that point to them: what the user described once.
+     *
+     * @return list<array{name: string, usedBy: list<string>}>
+     */
+    private function dataFiles(FixtureDirectory $fixtures): array
+    {
+        $names = $fixtures->names();
+        $files = [];
+        foreach ($names as $name) {
+            if (1 !== preg_match('/(-type\.(json|php|array)|-object\.(json|php|array)|\.array)$/', $name) || 1 === preg_match('/^(list|get|create|update|delete)-/', $name)) {
+                continue;
+            }
+            $usedBy = [];
+            foreach ($names as $candidate) {
+                if ($candidate !== $name && 1 === preg_match('/\.(json|php|array)$/', $candidate) && 1 === preg_match('/["\']'.preg_quote($name, '/').'["\']/', $fixtures->read($candidate))) {
+                    $usedBy[] = $candidate;
+                }
+            }
+            $files[] = ['name' => $name, 'usedBy' => $usedBy];
+        }
+
+        return $files;
+    }
+
     private function typeFiles(FixtureDirectory $fixtures): array
     {
         return array_values(array_filter($fixtures->names(), static fn (string $name) => 1 === preg_match('/(-type\.(json|php|array)|\.array)$/', $name) && 1 !== preg_match('/^(list|get|create|update|delete)-/', $name)));
@@ -2083,7 +2108,7 @@ final class WebApp
         if ('_webhooks' === $resource && 1 === preg_match('/: event "([^"]+)": /', $note, $event)) {
             $fixtures = new FixtureDirectory($this->config->fixturesDir($api));
             $line = 1 === preg_match('/\(line (\d+)/', $note, $lines) ? (int) $lines[1] : 0;
-            foreach (['json' => ['response', 'the payload example'], 'docs.md' => ['responseDocs', 'the docs page of the payload']] as $ext => [$key, $role]) {
+            foreach (['json' => ['response', 'the payload example'], 'docs.md' => ['responseDocs', 'the docs page of the payload'], 'docs.html' => ['responseDocsHtml', 'the HTML of that docs page (the nesting of the fields)']] as $ext => [$key, $role]) {
                 $name = 'webhook-'.$event[1].'.'.$ext;
                 if ($fixtures->has($name)) {
                     $result['examples'][] = ['label' => $name, 'name' => $name, 'role' => $role, 'key' => $key, 'url' => $link($api, 'examples', $name, 'docs.md' === $ext ? $line : 0)];
@@ -2101,15 +2126,17 @@ final class WebApp
         $scope = self::scopeOf($note);
         $names = [];
         foreach ((new FixtureDirectory($this->config->fixturesDir($api)))->names() as $name) {
-            if (1 === preg_match('/^([a-z0-9]+)-'.preg_quote($resource, '/').'(-[a-z0-9-]+)?(\.body)?\.(curl|json|array|php|docs\.md)$/', $name, $m) && !str_contains($name, '-type.')) {
+            if (1 === preg_match('/^([a-z0-9]+)-'.preg_quote($resource, '/').'(-[a-z0-9-]+)?(\.body)?\.(curl|json|array|php|docs\.md|docs\.html)$/', $name, $m) && !str_contains($name, '-type.')) {
                 $body = '' !== ($m[3] ?? '') || str_contains($name, '.body.');
                 $ext = $m[4];
                 $role = match (true) {
                     'curl' === $ext => ['request', 'the request'],
                     'php' === $ext => ['array', 'the array example'],
                     $body && 'docs.md' === $ext => ['bodyDocs', 'the docs page of the body'],
+                    $body && 'docs.html' === $ext => ['bodyDocsHtml', 'the HTML of that docs page (the nesting of the fields)'],
                     $body => ['body', 'the body example'],
                     'docs.md' === $ext => ['responseDocs', 'the docs page of the response'],
+                    'docs.html' === $ext => ['responseDocsHtml', 'the HTML of that docs page (the nesting of the fields)'],
                     default => ['response', 'the response example'],
                 };
                 $inScope = match ($scope) {

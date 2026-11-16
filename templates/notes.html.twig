@@ -5,7 +5,8 @@
     filters them (assets/notes.js). Override it in templates/bundles/ApiForgeBundle/notes.html.twig.
 
     Variables: api, groups (file, partWord, partName, members: index => note), kinds (label => count, colour, asks,
-    slug), notes, message, fixErrors, errors, unreadable (file => error), typeFiles, draft, typeContents.
+    slug), notes, message, fixErrors, errors, unreadable (file => error), typeFiles, dataFiles (name, usedBy), draft,
+    typeContents.
     A note: note (raw text), shown, location, kind (label, colour, asks), part, subject, guide (title, found, impact,
     options), object, choice, fix (kind, keys), examples, descriptor, slug, isDraft.
 #}
@@ -31,6 +32,19 @@ current structure (the JSON or the array of the example) and imports it again. T
 {% endif %}
 {% if errors is not empty %}
     <div class="alert alert-danger"><strong>The descriptors are invalid:</strong><ul class="mb-0">{% for error in errors|slice(0, 8) %}<li>{{ error|replace({(projectDir ~ '/'): ''}) }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+{% if dataFiles|default([]) is not empty %}
+<details class="card card-body mb-3 py-2" id="data-files"{{ dataFiles|length <= 8 ? ' open' }}>
+    <summary class="small"><strong>Your type files</strong> <span class="badge text-bg-secondary">{{ dataFiles|length }}</span>
+        <span class="text-secondary">: the structures you described once; click one to edit it here (Save imports the examples that use it again)</span></summary>
+    <ul class="list-unstyled small mb-0 mt-2">
+    {% for file in dataFiles %}
+        <li class="mb-1"><a href="/api/{{ api }}/file?name={{ file.name|url_encode }}&amp;area=examples" data-af-open><code>{{ file.name }}</code></a>
+            <span class="text-secondary">{% if file.usedBy is empty %}used by no example yet{% else %}used in {% for used in file.usedBy %}<code>{{ used }}</code>{{ not loop.last ? ', ' }}{% endfor %}{% endif %}</span></li>
+    {% endfor %}
+    </ul>
+</details>
 {% endif %}
 
 {% if notes is empty and errors is empty %}

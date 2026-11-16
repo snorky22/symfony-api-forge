@@ -1503,6 +1503,12 @@ final class WebAppTest extends TestCase
         $body = json_decode((string) file_get_contents($fixtures.'create-prices.body.json'), true);
         self::assertSame(['name' => 'Pro', 'trial_period' => ['interval' => 'day'], 'allowances' => ['allowance.array']], $body, 'at the level of trial_period, as a list');
         self::assertStringContainsString("allowances?: list<array{\n", Yaml::parseFile($this->project.'/config/api/shop/prices.yaml')['operations']['create']['body']['shape']);
+
+        // The type file is listed on the notes page, with the example using it, and opens in the editor
+        $notes = $this->get('/api/shop/notes')->body;
+        self::assertStringContainsString('<strong>Your type files</strong>', $notes);
+        self::assertStringContainsString('<code>allowance.array</code></a>', $notes);
+        self::assertStringContainsString('used in <code>create-prices.body.json</code>', $notes);
     }
 
     public function testThePasteOfAPageIsSavedWithItsHtml(): void
@@ -1545,6 +1551,8 @@ final class WebAppTest extends TestCase
         self::assertStringNotContainsString('Counted differently', $notes);
         self::assertStringContainsString('added next to <code>trial_period</code>, as in the docs', $notes);
         self::assertStringNotContainsString('Where?', $notes);
+        // The HTML is listed with the files of the note, next to the text
+        self::assertStringContainsString('create-prices.body.docs.html', $notes);
 
         self::assertStringContainsString('nesting of the fields known', $this->get('/api/shop/endpoint', ['base' => 'create-prices', 'step' => 'request'])->body);
     }
@@ -1564,6 +1572,7 @@ final class WebAppTest extends TestCase
         // tax_mode follows "interval" in the page, but the HTML puts it in price, after billing_cycle: one level up, chosen
         $notes = $this->get('/api/shop/notes')->body;
         self::assertStringContainsString('in the docs it sits between &quot;billing_cycle&quot; and &quot;product_id&quot;, inside price', $notes);
+        self::assertStringNotContainsString('id="data-files"', $notes, 'no type file yet');
         self::assertStringContainsString('The HTML of the docs page puts <code>tax_mode</code> inside <code>price</code>', $notes);
         self::assertMatchesRegularExpression('/value="same" checked/', $notes);
     }

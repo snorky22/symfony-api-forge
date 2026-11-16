@@ -69,7 +69,7 @@ final class DocsAnnotatorTest extends TestCase
 
     public function testReportsATypeThatDiffersFromTheDocs(): void
     {
-        $alignment = $this->annotate('{"data": [{"id": 5, "custom_data": []}]}');
+        $alignment = $this->annotate('{"data": [{"id": 5, "custom_data": ["a"]}]}');
 
         self::assertContains('docs: data[].id is string in the docs (line 5), int in the example', $alignment->notes);
         self::assertContains('docs: data[].custom_data is object in the docs (line 85), another type in the example', $alignment->notes);
@@ -245,5 +245,18 @@ final class DocsAnnotatorTest extends TestCase
 
         self::assertSame(['data.id', 'data.status'], array_keys($alignment->hints));
         self::assertSame([], $alignment->notes);
+    }
+
+    public function testAnEmptyArrayIsAnEmptyObjectWhenTheDocsSaySo(): void
+    {
+        $alignment = $this->annotateByPath(<<<'PAGE'
+            id string required
+            custom_data object
+            tags array
+            PAGE, '{"id": "add_1", "custom_data": [], "tags": "a"}');
+
+        // [] is how a PHP array (and many PHP APIs) write {}; a string where the docs say array is still another type
+        self::assertSame(['docs: tags is array in the docs (line 9), another type in the example'], $alignment->notes);
+        self::assertSame('object', $alignment->hints['custom_data']->type);
     }
 }

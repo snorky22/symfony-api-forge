@@ -15,6 +15,11 @@ until 1.0, minor versions may contain breaking changes.
   holds); saving writes it cleaned (`.docs.html`, no styles or scripts: 1.6 MB → 40 KB on a real page) and writes the
   text from it, in the form the text capture reads (a browser's text splits each field on lines). A badge says when
   the nesting is known; the add form of a missing field then chooses its level by itself.
+- Docs: an empty `[]` where the docs say `object` is an empty object, not another type (a PHP array can't write `{}`,
+  and PHP APIs send `[]` for an empty object).
+- Web interface, notes page: *Your type files* lists the type and object files (`.array`, `-type.json`, `-object.json`…)
+  with the examples that use them; each one opens in the editor in the page (Save imports those examples again).
+- Web interface, notes: the HTML of a docs page (`.docs.html`) is listed with the files of the note, next to its text.
 - A clipboard page (`/clipboard`) shows what a copy holds (text and HTML) and keeps both in `var/api-forge/web/`.
 - Web interface, a field of the docs missing from the current structure: found next to its anchor in the files the
   examples point to (a type file); the user chooses its level (next to the anchor, or one level up after each object

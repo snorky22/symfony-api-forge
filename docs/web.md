@@ -63,6 +63,10 @@ when the note names them). **Save the type, use it here and import** writes `<na
 puts its name in the example in place of the empty value, and imports again; the file is then offered by the Fix
 forms of the other notes (the same object elsewhere: one description).
 
+Above the notes, **Your type files** lists the type and object files of the examples (`price.array`,
+`unit_price_overrides.array`, `transaction-object.json`…), each with the examples that use it: click one to edit it
+in the page; **Save** writes it and imports again the examples that use it.
+
 A note that the docs describe a field the current structure lacks (*Not in the current structure*) offers **Describe … and add it to the
 example**: a type file (PHP array or JSON) started from a checklist of the fields the docs list after it, in the page's
 order, with their types and values (a checklist, not keys: the page has no indentation, nested fields come at the same
