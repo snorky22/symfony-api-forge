@@ -13,6 +13,9 @@ use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 
 /**
  * Application used by the tests: the bundle, and the Lemon Squeezy example of examples/lemonsqueezy/.
+ *
+ * The hand-written REST resources of api-forge:make:resource go to test-API/src/API (App\API, git-ignored): a
+ * scratch application directory, where the classes are autoloaded and autowired as in a real application.
  */
 final class TestKernel extends Kernel
 {
@@ -22,6 +25,7 @@ final class TestKernel extends Kernel
     /** The webhook inbox of the tests, emptied by them */
     public const INBOX = '/tmp/symfony-api-forge-tests/inbox';
     private const EXAMPLE = __DIR__.'/../../examples/lemonsqueezy';
+    private const REST = __DIR__.'/../../test-API/src/API';
 
     public function registerBundles(): iterable
     {
@@ -60,13 +64,19 @@ final class TestKernel extends Kernel
             'http_client' => ['mock_response_factory' => ApiMock::class],
         ]);
 
-        $container->extension('api_forge', ['webhook_inbox' => ['directory' => self::INBOX]]);
+        $container->extension('api_forge', [
+            'webhook_inbox' => ['directory' => self::INBOX],
+            'rest' => ['source_dir' => 'test-API/src/API'],
+        ]);
 
         // The example application: generated services, webhook routing, consumer
         $container->import(self::EXAMPLE.'/config/packages/api_lemonsqueezy.yaml');
         $container->parameters()->set('env(LEMONSQUEEZY_WEBHOOK_SECRET)', self::WEBHOOK_SECRET);
         $services = $container->services();
         $services->defaults()->autowire()->autoconfigure()->load('App\\', self::EXAMPLE.'/src/');
+        if (is_dir(self::REST)) {
+            $services->load('App\\API\\', self::REST.'/');
+        }
         // Rejected webhooks are logged as errors: keep the test output clean
         $services->set('logger', NullLogger::class);
         $services->set(ApiMock::class)->public();

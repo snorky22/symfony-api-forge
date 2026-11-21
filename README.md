@@ -67,6 +67,9 @@ api_forge:
     namespace: 'App\Api'                                # namespace of the generated code
     source_dir: 'src/Api'                               # its directory, relative to the project
     config_dir: 'config/packages'                       # generated configuration, relative to the project
+    rest:                                               # hand-written REST resources (api-forge:make:resource)
+        namespace: 'App\API'
+        source_dir: 'src/API'
 ```
 
 ## Quick start
@@ -115,6 +118,7 @@ generated code and configuration, and a webhook consumer.
 | [Descriptors](docs/descriptors.md) | Reference of the descriptor format (`config/api/`) |
 | [Commands](docs/commands.md) | Console commands and their options |
 | [Generated services](docs/generated-services.md) | Using the generated code, the runtime layer, errors, pagination |
+| [Hand-written REST resources](docs/rest-resources.md) | The other way: one class per resource, CRUD interfaces, only what you use |
 | [Doctor](docs/doctor.md) | Generated doctors: what they check, the probe |
 | [Webhooks](docs/webhooks.md) | Receiving webhooks: setup, consumers, payload types, simulated deliveries, testing |
 | [Roadmap](docs/roadmap.md) | Known limitations and next steps |

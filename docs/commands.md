@@ -155,6 +155,27 @@ Delivers a webhook of the inbox again, signed with the routing secret, in-proces
 bin/console api-forge:webhook:replay <id>       # an id of the inbox, or its beginning
 ```
 
+## `api-forge:make:resource`
+
+Writes a hand-written REST resource class ([Hand-written REST resources](rest-resources.md)), asking for what is not
+given as an option. TODOs mark the shapes to fill from the docs.
+
+```bash
+bin/console api-forge:make:resource [<class>] [--actions=list,get] [--no-interaction]
+```
+
+| Option | Default | |
+|---|---|---|
+| `<class>` | asked | Class name, relative to `api_forge.rest.namespace` (`App\API`), e.g. `Paddle\Prices`; written in `api_forge.rest.source_dir` (`src/API`) |
+| `--path` | from the class name (`prices`, `license-keys`) | Path of the resource, relative to the base URI |
+| `--client` | from the namespace (`paddle.client`) | Service id of the scoped HTTP client |
+| `--actions` | `list,get` | Comma-separated: `list`, `get`, `create`, `update`, `delete`; empty for none |
+| `--envelope` | none | Key wrapping the responses, e.g. `data` |
+| `--docs` | none | URL of the API docs, written as `@see` |
+| `--output` | this project | Project directory to write into |
+
+An existing file is never overwritten.
+
 ## `api-forge:json-to-php`
 
 Converts a JSON example to a PHP array literal and/or a PHPDoc array shape. Accepts documentation

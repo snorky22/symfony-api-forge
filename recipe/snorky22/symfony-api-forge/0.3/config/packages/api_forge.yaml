@@ -8,6 +8,11 @@ api_forge:
     # namespace: 'App\Api'
     # source_dir: 'src/Api'
 
+    # Namespace and directory of the hand-written REST resources (api-forge:make:resource)
+    # rest:
+    #     namespace: 'App\API'
+    #     source_dir: 'src/API'
+
     # Directory of the generated configuration (HTTP client, webhook routing), relative to the project
     # config_dir: 'config/packages'
 

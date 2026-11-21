@@ -5,6 +5,14 @@ until 1.0, minor versions may contain breaking changes.
 
 ## Unreleased
 
+- Hand-written REST resources, without descriptors nor generated code (`Core\Rest`): one interface per action
+  (`Listable`, `Readable`, `Creatable`, `Updatable`, `Deletable`; `Crud` extends the five), bodies and responses as
+  PHP arrays, a trait implementing each one in an `AbstractRestResource` that only gives its path. A class implements
+  the actions you use and adds its own methods. See [Hand-written REST resources](docs/rest-resources.md).
+- `api-forge:make:resource` writes such a class interactively, like `make:entity`: class name, path, HTTP client,
+  actions, envelope key and docs URL are asked (or given as options), and TODOs mark the shapes to fill. The classes
+  go to `src/API`, namespace `App\API` (`api_forge.rest.namespace`, `api_forge.rest.source_dir`); a warning says when
+  the directory on disk only differs by case (`src/Api` on macOS), which a case-sensitive server would not autoload.
 - Docs pages: their HTML keeps the nesting of the fields, which their text loses. `<example>.docs.html` next to the
   `.docs.md` (`DocsPage`) gives each field its parents (`DocsHtml`: a field is an element holding its name then its
   type; its fields are inside its block, by containment, so a second section of the page stays apart), and the

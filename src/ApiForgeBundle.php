@@ -9,6 +9,7 @@ use Snorky22\ApiForge\Command\ApiImportWebhookCommand;
 use Snorky22\ApiForge\Command\DoctorCommand;
 use Snorky22\ApiForge\Command\GuideCommand;
 use Snorky22\ApiForge\Command\JsonToPhpCommand;
+use Snorky22\ApiForge\Command\MakeResourceCommand;
 use Snorky22\ApiForge\Command\ServeCommand;
 use Snorky22\ApiForge\Command\WebhookCheckCommand;
 use Snorky22\ApiForge\Command\WebhookInboxCommand;
@@ -40,6 +41,7 @@ use Snorky22\ApiForge\Dev\Doctor\ApiDiagnosis;
 use Snorky22\ApiForge\Dev\Guide;
 use Snorky22\ApiForge\Dev\LenientJsonDecoder;
 use Snorky22\ApiForge\Dev\PhpArrayDumper;
+use Snorky22\ApiForge\Dev\Rest\ResourceMaker;
 use Snorky22\ApiForge\Dev\Webhook\DeliveryInbox;
 use Snorky22\ApiForge\Dev\Webhook\DeliveryRecorder;
 use Snorky22\ApiForge\Dev\Webhook\WebhookDiagnostics;
@@ -85,6 +87,14 @@ final class ApiForgeBundle extends AbstractBundle
                     ->info('Directory of this namespace, relative to the project directory')
                     ->defaultValue('src/Api')
                 ->end()
+                ->arrayNode('rest')
+                    ->info('Hand-written REST resources (api-forge:make:resource)')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->scalarNode('namespace')->info('PHP namespace of the resource classes')->defaultValue('App\\API')->end()
+                        ->scalarNode('source_dir')->info('Directory of this namespace, relative to the project directory')->defaultValue('src/API')->end()
+                    ->end()
+                ->end()
                 ->arrayNode('webhook_inbox')
                     ->info('Records the webhook deliveries received (api-forge:webhook:inbox, api-forge:webhook:replay, the doctor)')
                     ->canBeDisabled()
@@ -101,7 +111,7 @@ final class ApiForgeBundle extends AbstractBundle
     }
 
     /**
-     * @param array{descriptor_dir: string, namespace: string, source_dir: string, config_dir: string, webhook_inbox: array{enabled: bool, directory: string, keep: int}} $config
+     * @param array{descriptor_dir: string, namespace: string, source_dir: string, config_dir: string, rest: array{namespace: string, source_dir: string}, webhook_inbox: array{enabled: bool, directory: string, keep: int}} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -155,6 +165,9 @@ final class ApiForgeBundle extends AbstractBundle
             ->arg('$projectDir', '%kernel.project_dir%')
             ->arg('$descriptorDir', $config['descriptor_dir']);
         $services->set(ApiGenerateCommand::class);
+        $services->set(ResourceMaker::class);
+        $services->set(MakeResourceCommand::class)
+            ->args(['$projectDir' => '%kernel.project_dir%', '$namespace' => $config['rest']['namespace'], '$sourceDir' => $config['rest']['source_dir']]);
         $services->set(ServeCommand::class)
             ->args(['%kernel.project_dir%', $config['descriptor_dir'], $config['namespace'], $config['source_dir'], $config['config_dir'], '%kernel.environment%']);
         // The webhook routing is set by WebhookSenderPass

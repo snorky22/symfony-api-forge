@@ -1,0 +1,12 @@
+# Static analysis. For now limited to the hand-written REST resources and their maker; the rest of src/ is to be
+# brought to the level progressively. Level 6: the shape of a decoded response is a declaration about the API, not
+# something PHPStan can prove (from level 7, returning it from request() is reported).
+parameters:
+    level: 6
+    paths:
+        - src/Core/Rest
+        - src/Dev/Rest
+        - src/Command/MakeResourceCommand.php
+        - tests/Core/Rest
+        - tests/Dev/Rest
+        - tests/Command/MakeResourceCommandTest.php
