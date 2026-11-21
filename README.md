@@ -16,7 +16,8 @@ payload JSON                              │    descriptors, edited by hand    
   pagination, PHPStan / PhpStorm array shapes for every response.
 - **Or hand-written REST resources**: one class per resource implementing the CRUD interfaces it needs
   (`Listable`, `Readable`, `Creatable`, `Updatable`, `Deletable`), bodies and responses as PHP arrays, only the fields
-  you use; `api-forge:make:resource` writes the class interactively, like `make:entity`.
+  you use; `api-forge:make:resource` writes the class and its scoped client interactively, like `make:entity`, and
+  completes it later; `api-forge:call` tries a method against the API (a sandbox, with the keys of `.env.local`).
 - **Signed webhooks**: request parser checking the HMAC signature (Symfony Webhook), typed consumer
   methods per event (RemoteEvent), asynchronous processing with Messenger.
 - **Local webhook testing**: `api-forge:webhook:send` and `WebhookTestTrait` deliver payloads signed like

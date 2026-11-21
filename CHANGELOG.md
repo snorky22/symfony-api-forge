@@ -3,7 +3,10 @@
 All notable changes are documented in this file. The project follows [Semantic Versioning](https://semver.org);
 until 1.0, minor versions may contain breaking changes.
 
-## Unreleased
+## 0.4.0 - 2026-11-21
+
+`api-forge:make:resource` completes existing classes, asks for the endpoint and writes the scoped client;
+`api-forge:call` tries a method against the API; error objects in `ApiException`.
 
 - `api-forge:make:resource` on an existing class: it lists the actions the class does not have yet and adds those
   chosen (use statements, interfaces, traits, `@implements` lines, TODO shapes), keeping the rest of the file (shapes
