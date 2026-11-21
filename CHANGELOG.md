@@ -3,7 +3,10 @@
 All notable changes are documented in this file. The project follows [Semantic Versioning](https://semver.org);
 until 1.0, minor versions may contain breaking changes.
 
-## Unreleased
+## 0.3.0 - 2026-11-21
+
+Hand-written REST resources and `api-forge:make:resource`; docs pages read from their HTML; a web interface in Twig
+with a Flex recipe; review notes found by rules; plain JSON webhook payloads and pluggable signature schemes.
 
 - Hand-written REST resources, without descriptors nor generated code (`Core\Rest`): one interface per action
   (`Listable`, `Readable`, `Creatable`, `Updatable`, `Deletable`; `Crud` extends the five), bodies and responses as

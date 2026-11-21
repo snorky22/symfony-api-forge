@@ -1,6 +1,6 @@
 {
     "name": "snorky22/symfony-api-forge",
-    "description": "Generate Symfony services for REST APIs and webhooks from the API's documentation: curl and JSON examples become editable descriptors, from which typed HTTP clients and signed webhook consumers are regenerated. With generated doctors, local webhook testing and a local web interface that guides the whole workflow.",
+    "description": "Symfony services for REST APIs and webhooks, two ways: generated from the API's documentation (curl and JSON examples become editable descriptors, from which typed HTTP clients and signed webhook consumers are regenerated), or hand-written with CRUD interfaces and a make:resource command, keeping only what you use. With generated doctors, local webhook testing and a local web interface that guides the whole workflow.",
     "type": "symfony-bundle",
     "license": "MIT",
     "keywords": [
@@ -16,7 +16,9 @@
         "curl",
         "developer-tools",
         "web-interface",
-        "webhook-testing"
+        "webhook-testing",
+        "crud",
+        "maker"
     ],
     "homepage": "https://github.com/snorky22/symfony-api-forge",
     "authors": [

@@ -14,6 +14,9 @@ payload JSON                              │    descriptors, edited by hand    
   every guess listed for review; the code is regenerated from the descriptors, so manual fixes survive.
 - **Typed REST clients**: one service per resource on a scoped HttpClient, JSON:API request bodies and
   pagination, PHPStan / PhpStorm array shapes for every response.
+- **Or hand-written REST resources**: one class per resource implementing the CRUD interfaces it needs
+  (`Listable`, `Readable`, `Creatable`, `Updatable`, `Deletable`), bodies and responses as PHP arrays, only the fields
+  you use; `api-forge:make:resource` writes the class interactively, like `make:entity`.
 - **Signed webhooks**: request parser checking the HMAC signature (Symfony Webhook), typed consumer
   methods per event (RemoteEvent), asynchronous processing with Messenger.
 - **Local webhook testing**: `api-forge:webhook:send` and `WebhookTestTrait` deliver payloads signed like

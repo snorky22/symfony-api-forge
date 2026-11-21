@@ -3,6 +3,7 @@
 /.gitignore export-ignore
 /.editorconfig export-ignore
 /phpunit.dist.xml export-ignore
+/phpstan.dist.neon export-ignore
 /tests export-ignore
 /examples export-ignore
 /CLAUDE.md export-ignore
