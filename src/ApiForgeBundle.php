@@ -6,6 +6,7 @@ use Snorky22\ApiForge\Command\ApiGenerateCommand;
 use Snorky22\ApiForge\Command\ApiImportCommand;
 use Snorky22\ApiForge\Command\ApiImportObjectCommand;
 use Snorky22\ApiForge\Command\ApiImportWebhookCommand;
+use Snorky22\ApiForge\Command\CallCommand;
 use Snorky22\ApiForge\Command\DoctorCommand;
 use Snorky22\ApiForge\Command\GuideCommand;
 use Snorky22\ApiForge\Command\JsonToPhpCommand;
@@ -16,6 +17,8 @@ use Snorky22\ApiForge\Command\WebhookInboxCommand;
 use Snorky22\ApiForge\Command\WebhookReplayCommand;
 use Snorky22\ApiForge\Command\WebhookSendCommand;
 use Snorky22\ApiForge\Command\YamlToPhpCommand;
+use Snorky22\ApiForge\Core\AbstractResource;
+use Snorky22\ApiForge\DependencyInjection\ResourceLocatorPass;
 use Snorky22\ApiForge\DependencyInjection\WebhookSenderPass;
 use Snorky22\ApiForge\Dev\Api\Curl\CurlParser;
 use Snorky22\ApiForge\Dev\Api\Descriptor\DescriptorLoader;
@@ -48,6 +51,7 @@ use Snorky22\ApiForge\Dev\Webhook\WebhookDiagnostics;
 use Snorky22\ApiForge\Dev\Webhook\WebhookSender;
 use Snorky22\ApiForge\Dev\YamlToPhpConverter;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
+use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
@@ -69,6 +73,7 @@ final class ApiForgeBundle extends AbstractBundle
     public function build(ContainerBuilder $container): void
     {
         $container->addCompilerPass(new WebhookSenderPass());
+        $container->addCompilerPass(new ResourceLocatorPass(), PassConfig::TYPE_BEFORE_REMOVING);
     }
 
     public function configure(DefinitionConfigurator $definition): void
@@ -93,6 +98,7 @@ final class ApiForgeBundle extends AbstractBundle
                     ->children()
                         ->scalarNode('namespace')->info('PHP namespace of the resource classes')->defaultValue('App\\API')->end()
                         ->scalarNode('source_dir')->info('Directory of this namespace, relative to the project directory')->defaultValue('src/API')->end()
+                        ->scalarNode('config_dir')->info('Directory of the scoped HTTP clients they use, relative to the project directory')->defaultValue('config/packages')->end()
                     ->end()
                 ->end()
                 ->arrayNode('webhook_inbox')
@@ -111,13 +117,15 @@ final class ApiForgeBundle extends AbstractBundle
     }
 
     /**
-     * @param array{descriptor_dir: string, namespace: string, source_dir: string, config_dir: string, rest: array{namespace: string, source_dir: string}, webhook_inbox: array{enabled: bool, directory: string, keep: int}} $config
+     * @param array{descriptor_dir: string, namespace: string, source_dir: string, config_dir: string, rest: array{namespace: string, source_dir: string, config_dir: string}, webhook_inbox: array{enabled: bool, directory: string, keep: int}} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
         $services = $container->services()->defaults()->autowire()->autoconfigure();
         // The generated doctors (Generated/<Api>Doctor.php), run by api-forge:doctor
         $builder->registerForAutoconfiguration(AbstractApiDoctor::class)->addTag('api_forge.doctor');
+        // The API resources (hand-written and generated), called by api-forge:call
+        $builder->registerForAutoconfiguration(AbstractResource::class)->addTag('api_forge.resource');
         // The formats of documentation examples (curl and JSON are read as they are)
         $builder->registerForAutoconfiguration(ExampleFormat::class)->addTag('api_forge.example_format');
 
@@ -165,9 +173,12 @@ final class ApiForgeBundle extends AbstractBundle
             ->arg('$projectDir', '%kernel.project_dir%')
             ->arg('$descriptorDir', $config['descriptor_dir']);
         $services->set(ApiGenerateCommand::class);
+        // The resources are given by ResourceLocatorPass
+        $services->set(CallCommand::class)
+            ->args([null, $config['rest']['namespace'], []]);
         $services->set(ResourceMaker::class);
         $services->set(MakeResourceCommand::class)
-            ->args(['$projectDir' => '%kernel.project_dir%', '$namespace' => $config['rest']['namespace'], '$sourceDir' => $config['rest']['source_dir']]);
+            ->args(['$projectDir' => '%kernel.project_dir%', '$namespace' => $config['rest']['namespace'], '$sourceDir' => $config['rest']['source_dir'], '$configDir' => $config['rest']['config_dir']]);
         $services->set(ServeCommand::class)
             ->args(['%kernel.project_dir%', $config['descriptor_dir'], $config['namespace'], $config['source_dir'], $config['config_dir'], '%kernel.environment%']);
         // The webhook routing is set by WebhookSenderPass

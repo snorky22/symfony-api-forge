@@ -5,8 +5,12 @@ parameters:
     level: 6
     paths:
         - src/Core/Rest
+        - src/DependencyInjection/ResourceLocatorPass.php
         - src/Dev/Rest
+        - src/Command/CallCommand.php
         - src/Command/MakeResourceCommand.php
         - tests/Core/Rest
+        - tests/DependencyInjection
         - tests/Dev/Rest
+        - tests/Command/CallCommandTest.php
         - tests/Command/MakeResourceCommandTest.php

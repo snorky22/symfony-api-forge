@@ -38,6 +38,9 @@ $ bin/console api-forge:make:resource
  Class name, relative to App\API (e.g. Paddle\Prices):
  > Paddle\Prices
 
+ Endpoint of the resource, from the docs, e.g. api.paddle.com/prices (empty: none):
+ > api.paddle.com/prices
+
  Path of the resource, relative to the base URI of the API [prices]:
  >
 
@@ -61,14 +64,57 @@ $ bin/console api-forge:make:resource
  [OK] Written: src/API/Paddle/Prices.php
 ```
 
+The endpoint is the URL the docs give, with or without `https://`; a trailing `{id}` (the URL of one item) and the
+query string are ignored. It is split into the path of the class (its last segment by default: answer `v1/prices` to
+take more) and the base URI of the API. The class records the endpoint as the first line of its docblock
+(`Endpoint: https://api.paddle.com/prices`).
+
+The command also writes the configuration of the scoped client, `config/packages/paddle_client.yaml` (named after the
+client service; `api_forge.rest.config_dir`), unless a YAML file of that directory declares the client already. It is
+yours to edit: the authentication depends on the API (`auth_bearer`, `auth_basic` or headers). The base URI and the API
+key come from environment variables, the base URI defaulting to the endpoint's: another one, such as a sandbox, is a
+line of `.env.local`:
+
+```
+PADDLE_BASE_URI=https://sandbox-api.paddle.com/
+PADDLE_API_KEY=...
+```
+
+The key is empty by default, so that the application boots without it. Without an endpoint, the base URI is a placeholder marked TODO, filled in when the endpoint is given
+later.
+
 The class has the interfaces and traits of the chosen actions, the constructor on the client, the path, and TODOs
 for what only the docs can tell: the shapes start as `array<string, mixed>`, to replace with the keys you use, and
 a commented example shows where to add the API's other actions. Each answer can be given as an option instead
-(`--path`, `--client`, `--actions`, `--envelope`, `--docs`); with `--no-interaction`, the defaults are taken. An
-existing file is never overwritten.
+(`--endpoint`, `--path`, `--client`, `--actions`, `--envelope`, `--docs`); with `--no-interaction`, the defaults are taken.
 
-The classes live in `src/API`, namespace `App\API` (the `App\` autoloading of a Symfony project covers it). Both
-can be changed:
+In a terminal, the class name is autocompleted with the namespaces and classes already in `src/API`: type `Pa`, and
+`Paddle\` is proposed (grey text: right arrow or Tab to accept, up and down for the other matches), then `Paddle\Prices`.
+
+Run it again on an existing class to complete it. If the class records no endpoint, it is asked for (and the client
+configuration shown). Then the actions the class does not have yet are listed, and those you choose are added (use
+statements, interfaces, traits, `@implements` lines and the new TODO shapes); an empty answer adds none. The rest of the
+file is kept as it is: your shapes, methods and comments. The envelope key is read from the class's `@implements` lines.
+
+```
+$ bin/console api-forge:make:resource Paddle\\Prices
+
+ Prices.php exists, with: list; endpoint: https://api.paddle.com/prices.
+
+ Actions to add (comma-separated, empty: none):
+  [get   ] GET {path}/{id}
+  [create] POST {path}
+  [update] PATCH {path}/{id}
+  [delete] DELETE {path}/{id}
+ > get
+
+ [OK] Added get to src/API/Paddle/Prices.php
+```
+
+Without interaction, give them with `--actions=get,create`, and the endpoint with `--endpoint`.
+
+The classes live in `src/API`, namespace `App\API` (the `App\` autoloading of a Symfony project covers it), and the
+client configurations in `config/packages`. All can be changed:
 
 ```yaml
 # config/packages/api_forge.yaml
@@ -76,6 +122,7 @@ api_forge:
     rest:
         namespace: 'App\API'
         source_dir: 'src/API'
+        config_dir: 'config/packages'
 ```
 
 The generated code of the other path stays in `src/Api` (`api_forge.namespace`, `api_forge.source_dir`). On macOS
@@ -168,21 +215,40 @@ final class Search extends AbstractResource
 `request($method, $path, $parameters, $query, $json, $body, $headers)` replaces the `{name}` placeholders of the
 path with `$parameters`, and handles the errors as above.
 
-## The HTTP client
+## Trying a method: `api-forge:call`
+
+`api-forge:call` calls a method of a resource and prints the response as JSON: a real request, with the scoped client
+of the resource, so its base URI and key (e.g. a sandbox's, from `.env.local`).
+
+```bash
+bin/console api-forge:call Paddle\\Prices list '{"per_page": 5}'
+bin/console api-forge:call Paddle\\Prices get pri_01h…
+bin/console api-forge:call            # asks: the resource (autocompleted), the method, each argument
+```
+
+- The class is relative to `App\API`, or fully qualified (the generated resources are listed too).
+- The arguments are the method's, in order: JSON when they read as such (`{…}`, `[…]`, numbers, `true`, `false`,
+  `null`), else text. Those not given are asked; an empty answer leaves an optional one to its default.
+- An error of the API is printed with its status and its body. An iterator (`iterate()`) prints its first 20 items
+  (`--max`).
+- A resource whose client is not declared yet is left out, with the missing service said: the container still
+  compiles (`api-forge:make:resource` on the class writes the client).
+
 
 Base URI, authentication, default headers, timeouts and retries belong to a scoped client in the Symfony
-configuration, not to the classes:
+configuration, not to the classes. `api-forge:make:resource` writes it (see above); by hand:
 
 ```yaml
-# config/packages/framework.yaml
+# config/packages/paddle_client.yaml
+parameters:
+    env(PADDLE_BASE_URI): 'https://api.paddle.com/'
+    env(PADDLE_API_KEY): ''
 framework:
     http_client:
         scoped_clients:
             paddle.client:
-                base_uri: 'https://api.paddle.com/'
+                base_uri: '%env(PADDLE_BASE_URI)%'
                 auth_bearer: '%env(PADDLE_API_KEY)%'
-                headers:
-                    Accept: 'application/json'
 ```
 
 ## Not covered yet

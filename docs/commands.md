@@ -167,14 +167,35 @@ bin/console api-forge:make:resource [<class>] [--actions=list,get] [--no-interac
 | Option | Default | |
 |---|---|---|
 | `<class>` | asked | Class name, relative to `api_forge.rest.namespace` (`App\API`), e.g. `Paddle\Prices`; written in `api_forge.rest.source_dir` (`src/API`) |
-| `--path` | from the class name (`prices`, `license-keys`) | Path of the resource, relative to the base URI |
+| `--endpoint` | asked, may stay empty | Endpoint from the docs, `https://` optional (`api.paddle.com/prices`): gives the default path, and the base URI of the client configuration |
+| `--path` | the endpoint's last segment, else from the class name (`prices`, `license-keys`) | Path of the resource, relative to the base URI |
 | `--client` | from the namespace (`paddle.client`) | Service id of the scoped HTTP client |
 | `--actions` | `list,get` | Comma-separated: `list`, `get`, `create`, `update`, `delete`; empty for none |
 | `--envelope` | none | Key wrapping the responses, e.g. `data` |
 | `--docs` | none | URL of the API docs, written as `@see` |
 | `--output` | this project | Project directory to write into |
 
-An existing file is never overwritten.
+The scoped client is written to `api_forge.rest.config_dir` (`config/packages/<client>.yaml`, e.g. `paddle_client.yaml`)
+unless a YAML file there declares it already.
+
+When the class exists, the command asks for its endpoint if the class records none, offers the actions it does not
+have yet and adds those chosen (`--endpoint`, `--actions` without interaction); the rest of the file is kept as it is.
+
+## `api-forge:call`
+
+Calls a method of an API resource, hand-written or generated, and prints the response as JSON
+([Trying a method](rest-resources.md#trying-a-method-api-forgecall)). A real request, with the resource's scoped client.
+
+```bash
+bin/console api-forge:call [<class>] [<method>] [<arguments>...] [--max=20]
+```
+
+| Argument / option | Default | |
+|---|---|---|
+| `<class>` | asked (autocompleted) | Class relative to `api_forge.rest.namespace` (`Paddle\Prices`), or fully qualified |
+| `<method>` | asked | A public method of the class (`list`, `get`, its own…) |
+| `<arguments>` | asked | The method's arguments, in order: JSON when they read as such, else text |
+| `--max` | `20` | Items printed at most when the method returns an iterator |
 
 ## `api-forge:json-to-php`
 

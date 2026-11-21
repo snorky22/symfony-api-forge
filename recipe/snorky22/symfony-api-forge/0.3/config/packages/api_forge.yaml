@@ -12,6 +12,7 @@ api_forge:
     # rest:
     #     namespace: 'App\API'
     #     source_dir: 'src/API'
+    #     config_dir: 'config/packages'   # where the scoped HTTP clients they use are written
 
     # Directory of the generated configuration (HTTP client, webhook routing), relative to the project
     # config_dir: 'config/packages'

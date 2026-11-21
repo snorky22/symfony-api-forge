@@ -73,6 +73,7 @@ api_forge:
     rest:                                               # hand-written REST resources (api-forge:make:resource)
         namespace: 'App\API'
         source_dir: 'src/API'
+        config_dir: 'config/packages'                   # their scoped HTTP clients
 ```
 
 ## Quick start

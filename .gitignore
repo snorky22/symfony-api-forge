@@ -19,3 +19,4 @@
 .fseventsd
 ###< macOS ###
 /test-API/
+.env.local

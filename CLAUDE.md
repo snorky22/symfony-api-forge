@@ -41,11 +41,17 @@ vendor/bin/phpunit
 vendor/bin/phpstan analyse   # phpstan.dist.neon: level 6, the REST resources and their maker for now
 php tests/console api-forge:generate lemonsqueezy --dir=examples/lemonsqueezy/config/api --output=examples/lemonsqueezy
 php tests/console api-forge:make:resource   # writes to test-API/src/API (git-ignored scratch app)
+php tests/console api-forge:call Paddle\\Prices list   # a real request (tests/console: env dev, .env.local)
 ```
 
 - `test-API/` is the user's git-ignored scratch application for hand-written REST resources: the test kernel
   sets `api_forge.rest.source_dir` to `test-API/src/API`, autoloads `App\API\` from it (autoload-dev) and
-  autowires its classes. The user deletes these classes as they like; never commit them.
+  autowires its classes, and imports `test-API/config/packages/*.yaml` (`rest.config_dir`: the scoped clients the
+  command writes; the directory is tracked, a new file rebuilds the container). The user deletes these files as they
+  like; never commit them. `.env.local` (the user's API keys) is git-ignored: never read or stage it.
+- `tests/console` runs the test kernel in the `dev` environment: real HTTP requests, `.env.local` loaded (Dotenv).
+  PHPUnit runs `test`, where the HTTP clients answer from `ApiMock`. Don't run `api-forge:call` against a real API
+  yourself: it sends the user's keys; let the user run it.
 
 - After any generator change, regenerate the example: `ApiGenerateCommandTest` fails if it is out of date.
 - Update `docs/` and the root `README.md` in the same step as the code, and check that documented snippets

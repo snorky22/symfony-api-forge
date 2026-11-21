@@ -95,6 +95,24 @@ final class AbstractRestResourceTest extends TestCase
         }
     }
 
+    public function testAnErrorObjectGivesItsDetails(): void
+    {
+        $prices = new Prices(self::client([new JsonMockResponse(['error' => [
+            'type' => 'request_error',
+            'code' => 'bad_request',
+            'detail' => 'Invalid request.',
+            'errors' => [['field' => 'description', 'message' => 'is required'], 'plain message'],
+        ]], ['http_code' => 400])]));
+
+        try {
+            $prices->create(['product_id' => 'pro_1', 'description' => '']);
+            self::fail('An ApiException was expected.');
+        } catch (ApiException $e) {
+            self::assertSame('HTTP 400 returned for "https://api.test/prices": Invalid request.; description: is required; plain message', $e->getMessage());
+            self::assertSame('bad_request', $e->content['error']['code']);
+        }
+    }
+
     public function testAResourceWithoutInterfaceUsesRequest(): void
     {
         $response = new JsonMockResponse(['data' => [['title' => 'Result']]]);

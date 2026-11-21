@@ -3,6 +3,31 @@
 All notable changes are documented in this file. The project follows [Semantic Versioning](https://semver.org);
 until 1.0, minor versions may contain breaking changes.
 
+## Unreleased
+
+- `api-forge:make:resource` on an existing class: it lists the actions the class does not have yet and adds those
+  chosen (use statements, interfaces, traits, `@implements` lines, TODO shapes), keeping the rest of the file (shapes
+  filled in, methods, comments); the envelope key is read from the class. It used to refuse an existing file.
+- `api-forge:make:resource`: the class name is autocompleted, in a terminal, with the namespaces (`Paddle\`) and the
+  classes (`Paddle\Prices`) already in the directory.
+- `api-forge:make:resource` asks for the endpoint from the docs (`--endpoint`, `https://` optional, a trailing `{id}`
+  and the query string ignored): its last segment is the default path, and the rest the base URI, shown in the scoped
+  client configuration to paste. The class records it (`Endpoint: …`, first line of its docblock); on an existing class
+  that records none, it is asked for.
+- `api-forge:make:resource` writes the scoped client configuration (`config/packages/paddle_client.yaml`, named after
+  the client; `api_forge.rest.config_dir`) unless a YAML file there declares the client already: base URI from the
+  endpoint (a TODO placeholder without it, filled in when the endpoint is given later), API key from an environment
+  variable with an empty default, and the base URI from another one (`PADDLE_BASE_URI`) defaulting to the endpoint's,
+  so that a sandbox is a line of `.env.local`. It used to print the configuration to paste.
+- `api-forge:call`: calls a method of an API resource (hand-written or generated) and prints the response as JSON;
+  the resource, the method and its arguments are given or asked (JSON or text). The resources are tagged
+  `api_forge.resource`; one depending on a missing service (a client not declared yet) is left out and said, instead
+  of stopping the container from compiling.
+- `ApiException` reads an error object, `{"error": {"detail": …, "errors": [{"field": …, "message": …}]}}` (Paddle): its detail
+  and field messages are in the exception message.
+- `tests/console` runs the test application in the `dev` environment: real HTTP requests, `.env.local` loaded (for
+  `api-forge:call`); the tests keep the `test` environment and its mocked APIs.
+
 ## 0.3.0 - 2026-11-21
 
 Hand-written REST resources and `api-forge:make:resource`; docs pages read from their HTML; a web interface in Twig
