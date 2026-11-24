@@ -194,7 +194,7 @@ bin/console api-forge:make:webhook [<api>] [--scheme=paddle] [--events=transacti
 | Argument / option | Default | |
 |---|---|---|
 | `<api>` | asked (autocompleted) | API, relative to `api_forge.rest.namespace` (`Paddle`): files in `src/API/Paddle/Webhook` |
-| `--scheme` | asked | `paddle`, `lemonsqueezy` or `custom` (asks for the constants; interactive only) |
+| `--scheme` | asked | `paddle`, `stripe`, `github`, `shopify`, `mollie`, `lemonsqueezy`, or `custom` (asks for the constants; interactive only) |
 | `--events` | asked (the scheme's suggested) | Comma-separated events to handle |
 | `--type` | from the API (`paddle`) | Webhook type: the end of the URL `/webhook/{type}`, the routing key |
 | `--output` | this project | Project directory to write into |

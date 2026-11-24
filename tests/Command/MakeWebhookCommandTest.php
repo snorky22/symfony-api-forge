@@ -132,7 +132,7 @@ final class MakeWebhookCommandTest extends KernelTestCase
         self::assertSame(Command::FAILURE, $tester->execute(['api' => 'paddle', '--output' => $this->dir], ['interactive' => false]));
         self::assertStringContainsString('is not a namespace', $tester->getDisplay());
         self::assertSame(Command::FAILURE, $tester->execute(['api' => 'Paddle', '--output' => $this->dir], ['interactive' => false]));
-        self::assertStringContainsString('--scheme: paddle, lemonsqueezy, custom', $tester->getDisplay());
+        self::assertStringContainsString('Give the signature scheme with --scheme', $tester->getDisplay());
         self::assertSame(Command::FAILURE, $tester->execute(['api' => 'Paddle', '--scheme' => 'custom', '--output' => $this->dir], ['interactive' => false]));
         self::assertStringContainsString('run the command interactively', $tester->getDisplay());
         self::assertDirectoryDoesNotExist($this->dir.'/test-API/src');

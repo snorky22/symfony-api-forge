@@ -12,7 +12,9 @@ final class WebhookMaker
 {
     /**
      * The signature schemes, enriched with experience: the parser constants of each, and the events of the provider
-     * it comes from (suggested when asking for events). "custom" asks for the constants.
+     * it comes from (suggested when asking for events). "custom" asks for the constants. Not expressible as
+     * constants (a custom parser is needed): Square (the notification URL is signed), PayPal (RSA certificate),
+     * Mollie classic webhooks (unsigned, form-encoded), Standard Webhooks / Svix (id and timestamp in other headers).
      *
      * @var array<string, array{label: string, docs: ?string, constants: array<string, mixed>, events: list<string>}>
      */
@@ -39,12 +41,84 @@ final class WebhookMaker
                 'customer.created', 'customer.updated', 'adjustment.created', 'adjustment.updated',
             ],
         ],
+        'stripe' => [
+            'label' => 'Stripe-Signature: t=…,v1=…, HMAC-SHA256 of "timestamp.body" (Stripe)',
+            'docs' => 'https://docs.stripe.com/webhooks',
+            'constants' => [
+                'SIGNATURE_HEADER' => 'Stripe-Signature',
+                'SIGNATURE_CONTENT' => '{timestamp}.{body}',
+                // Other entries (v0, debug ones) are ignored; several v1 during a secret rotation are all checked
+                'SIGNATURE_PARTS' => ['separator' => ',', 'timestamp' => 't', 'signature' => 'v1'],
+                // Stripe's libraries: 5 minutes
+                'SIGNATURE_TOLERANCE' => 300,
+                'EVENT_NAME_PATH' => 'type',
+                'EVENT_ID_PATH' => 'id',
+            ],
+            'events' => [
+                'checkout.session.completed', 'payment_intent.succeeded', 'payment_intent.payment_failed',
+                'customer.created', 'customer.updated', 'customer.deleted', 'customer.subscription.created',
+                'customer.subscription.updated', 'customer.subscription.deleted', 'customer.subscription.trial_will_end',
+                'invoice.created', 'invoice.paid', 'invoice.payment_failed', 'charge.refunded', 'charge.dispute.created',
+            ],
+        ],
+        'github' => [
+            'label' => 'X-Hub-Signature-256: sha256=<HMAC-SHA256 of the body>, event in X-GitHub-Event (GitHub; content type application/json)',
+            'docs' => 'https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries',
+            'constants' => [
+                'SIGNATURE_HEADER' => 'X-Hub-Signature-256',
+                'SIGNATURE_PREFIX' => 'sha256=',
+                // The event ("issues"); its action ("opened") is in the payload, "action"
+                'EVENT_NAME_HEADER' => 'X-GitHub-Event',
+                // The delivery GUID, the same on a redelivery
+                'EVENT_ID_HEADER' => 'X-GitHub-Delivery',
+            ],
+            'events' => [
+                'push', 'ping', 'issues', 'issue_comment', 'pull_request', 'pull_request_review', 'release',
+                'repository', 'label', 'installation', 'check_run', 'workflow_run',
+            ],
+        ],
+        'shopify' => [
+            'label' => 'X-Shopify-Hmac-Sha256: base64 HMAC-SHA256 of the body, topic in X-Shopify-Topic (Shopify)',
+            'docs' => 'https://shopify.dev/docs/apps/build/webhooks/verify-deliveries',
+            'constants' => [
+                'SIGNATURE_HEADER' => 'X-Shopify-Hmac-Sha256',
+                'SIGNATURE_ENCODING' => 'base64',
+                'EVENT_NAME_HEADER' => 'X-Shopify-Topic',
+                'EVENT_ID_HEADER' => 'X-Shopify-Webhook-Id',
+                'SUCCESS_STATUS' => 200,
+            ],
+            'events' => [
+                'orders/create', 'orders/updated', 'orders/paid', 'orders/cancelled', 'products/create',
+                'products/update', 'products/delete', 'customers/update', 'customers/merge', 'app/uninstalled',
+                'app/scopes_update', 'app_subscriptions/update', 'bulk_operations/finish', 'customers/redact', 'shop/redact',
+            ],
+        ],
+        'mollie' => [
+            'label' => 'X-Mollie-Signature: sha256=<HMAC-SHA256 of the body>, event in "type" (Mollie next-gen webhooks)',
+            'docs' => 'https://docs.mollie.com/reference/webhooks-new',
+            'constants' => [
+                'SIGNATURE_HEADER' => 'X-Mollie-Signature',
+                'SIGNATURE_PREFIX' => 'sha256=',
+                'EVENT_NAME_PATH' => 'type',
+                'EVENT_ID_PATH' => 'id',
+                'SUCCESS_STATUS' => 200,
+            ],
+            'events' => [
+                // refund.refunded, chargeback.received and dispute.updated are beta events (access on request); Mollie
+                // still recommends its classic webhooks for payment updates
+                'payment.paid', 'payment.failed', 'payment.expired', 'payment-link.paid', 'refund.refunded',
+                'chargeback.received', 'payout.completed', 'sales-invoice.issued', 'balance-transaction.created',
+                'dispute.updated',
+            ],
+        ],
         'lemonsqueezy' => [
-            'label' => 'X-Signature: HMAC-SHA256 of the body, event in meta.event_name (Lemon Squeezy)',
-            'docs' => null,
+            'label' => 'X-Signature: HMAC-SHA256 of the body, event in meta.event_name; answered with 200 (Lemon Squeezy)',
+            'docs' => 'https://docs.lemonsqueezy.com/help/webhooks',
             'constants' => [
                 'SIGNATURE_HEADER' => 'X-Signature',
                 'EVENT_NAME_PATH' => 'meta.event_name',
+                // Lemon Squeezy retries a delivery answered with another status than 200
+                'SUCCESS_STATUS' => 200,
             ],
             'events' => [
                 'order_created', 'order_refunded', 'customer_updated', 'subscription_created', 'subscription_updated',

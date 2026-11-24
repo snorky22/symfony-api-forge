@@ -2,6 +2,7 @@
 
 namespace Snorky22\ApiForge\Tests\Dev\Webhook;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Snorky22\ApiForge\Core\Webhook\AbstractSignedRequestParser;
 use Snorky22\ApiForge\Core\Webhook\AbstractWebhookConsumer;
@@ -91,6 +92,80 @@ final class WebhookMakerTest extends TestCase
         // Another secret
         $this->expectException(RejectWebhookException::class);
         $parser->parse(self::paddleRequest($body, time(), 'another'), self::SECRET);
+    }
+
+    /**
+     * Each preset, against a delivery signed as the provider's docs describe it (built here, not with the parser).
+     *
+     * @return iterable<string, array{string, array<string, string>, string, string, int}>
+     */
+    public static function providerDeliveries(): iterable
+    {
+        $body = '{"id":"evt_1","type":"invoice.paid","data":{"object":{"id":"in_1"}}}';
+        $now = time();
+        // Stripe: t=<ts>,v1=<hex HMAC of "ts.body">; a v0 entry is ignored
+        yield 'stripe' => ['stripe', ['Stripe-Signature' => \sprintf('t=%d,v1=%s,v0=ignored', $now, hash_hmac('sha256', $now.'.'.$body, self::SECRET))], $body, 'invoice.paid', 202];
+
+        $push = '{"ref":"refs/heads/main"}';
+        // GitHub: sha256=<hex HMAC of the body>, event and delivery in headers
+        yield 'github' => ['github', [
+            'X-Hub-Signature-256' => 'sha256='.hash_hmac('sha256', $push, self::SECRET),
+            'X-GitHub-Event' => 'push',
+            'X-GitHub-Delivery' => '72d3162e-cc78-11e3-81ab-4c9367dc0958',
+        ], $push, 'push', 202];
+
+        $order = '{"id":820982911946154508,"email":"jon@example.com"}';
+        // Shopify: base64 HMAC of the body, topic in a header
+        yield 'shopify' => ['shopify', [
+            'X-Shopify-Hmac-Sha256' => base64_encode(hash_hmac('sha256', $order, self::SECRET, true)),
+            'X-Shopify-Topic' => 'orders/create',
+            'X-Shopify-Webhook-Id' => 'b54557e4-bdd9-4b37-8a5f-bf7d70bcd043',
+        ], $order, 'orders/create', 200];
+
+        $mollie = '{"resource":"event","id":"event_GvJ8WHrp5isUdRub9CJyH","type":"payment-link.paid","entityId":"pl_qng5gbbv8NAZ5gpM5ZYgx"}';
+        // Mollie next-gen: sha256=<hex HMAC of the body>
+        yield 'mollie' => ['mollie', ['X-Mollie-Signature' => 'sha256='.hash_hmac('sha256', $mollie, self::SECRET)], $mollie, 'payment-link.paid', 200];
+
+        $lemon = '{"meta":{"event_name":"order_created"},"data":{"type":"orders","id":"1"}}';
+        // Lemon Squeezy: <hex HMAC of the body>, answered with 200
+        yield 'lemonsqueezy' => ['lemonsqueezy', ['X-Signature' => hash_hmac('sha256', $lemon, self::SECRET)], $lemon, 'order_created', 200];
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    #[DataProvider('providerDeliveries')]
+    public function testThePresetsAcceptTheProvidersDeliveries(string $scheme, array $headers, string $body, string $event, int $status): void
+    {
+        $preset = WebhookMaker::SCHEMES[$scheme];
+        $namespace = 'Probe\Scheme'.ucfirst($scheme);
+        self::load((new WebhookMaker())->parser($namespace.'\RequestParser', $scheme, $preset['constants'], $preset['docs']));
+        $parser = self::instance($namespace.'\RequestParser');
+        self::assertInstanceOf(AbstractSignedRequestParser::class, $parser);
+        $server = ['REQUEST_METHOD' => 'POST', 'CONTENT_TYPE' => 'application/json'];
+        foreach ($headers as $name => $value) {
+            $server['HTTP_'.strtoupper(str_replace('-', '_', $name))] = $value;
+        }
+
+        $remote = $parser->parse(new Request(server: $server, content: $body), self::SECRET);
+
+        self::assertInstanceOf(RemoteEvent::class, $remote);
+        self::assertSame($event, $remote->getName());
+        self::assertSame($status, $parser->createSuccessfulResponse()->getStatusCode());
+        // A tampered body is rejected
+        $this->expectException(RejectWebhookException::class);
+        $parser->parse(new Request(server: $server, content: $body.' '), self::SECRET);
+    }
+
+    public function testGithubOfficialTestVector(): void
+    {
+        $preset = WebhookMaker::SCHEMES['github'];
+        self::load((new WebhookMaker())->parser('Probe\GithubVector\RequestParser', 'github', $preset['constants']));
+        $parser = self::instance('Probe\GithubVector\RequestParser');
+        self::assertInstanceOf(AbstractSignedRequestParser::class, $parser);
+
+        // https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries#testing-the-webhook-payload-validation
+        self::assertSame('sha256=757107ea0eb2509fc211221cce984b8a37570b6d7586c22c46f4379c8b043e17', $parser->sign('Hello, World!', "It's a Secret to Everybody"));
     }
 
     public function testAParserNeedsAHeaderAndAnEventName(): void

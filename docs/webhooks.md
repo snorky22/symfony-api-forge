@@ -206,7 +206,11 @@ $ bin/console api-forge:make:webhook
 
  Signature scheme:
   [paddle      ] Paddle-Signature: ts=…;h1=…, HMAC-SHA256 of "timestamp:body"; answered with 200 (Paddle)
-  [lemonsqueezy] X-Signature: HMAC-SHA256 of the body, event in meta.event_name (Lemon Squeezy)
+  [stripe      ] Stripe-Signature: t=…,v1=…, HMAC-SHA256 of "timestamp.body" (Stripe)
+  [github      ] X-Hub-Signature-256: sha256=<HMAC-SHA256 of the body>, event in X-GitHub-Event (GitHub; content type application/json)
+  [shopify     ] X-Shopify-Hmac-Sha256: base64 HMAC-SHA256 of the body, topic in X-Shopify-Topic (Shopify)
+  [mollie      ] X-Mollie-Signature: sha256=<HMAC-SHA256 of the body>, event in "type" (Mollie next-gen webhooks)
+  [lemonsqueezy] X-Signature: HMAC-SHA256 of the body, event in meta.event_name; answered with 200 (Lemon Squeezy)
   [custom      ] another scheme: answer the questions (header, signed content, event name…)
  > paddle
 
@@ -216,7 +220,28 @@ $ bin/console api-forge:make:webhook
 ```
 
 The schemes are a list in the bundle (`WebhookMaker::SCHEMES`), enriched as providers are used: each gives the
-parser constants and the provider's events (suggested, autocompleted). `custom` asks for the constants: the signature
+parser constants and the provider's events (suggested, autocompleted).
+
+| Scheme | Signature | Event name, id | Answer |
+|---|---|---|---|
+| `paddle` | `Paddle-Signature: ts=…;h1=…`, HMAC-SHA256 hex of `ts:body`, 5 s tolerance | `event_type`, `event_id` | 200 |
+| `stripe` | `Stripe-Signature: t=…,v1=…`, HMAC-SHA256 hex of `t.body`, 300 s tolerance | `type`, `id` | 2xx (202) |
+| `github` | `X-Hub-Signature-256: sha256=…`, HMAC-SHA256 hex of the body | headers `X-GitHub-Event`, `X-GitHub-Delivery` | 2xx (202) |
+| `shopify` | `X-Shopify-Hmac-Sha256`, HMAC-SHA256 base64 of the body | headers `X-Shopify-Topic`, `X-Shopify-Webhook-Id` | 200 |
+| `mollie` | `X-Mollie-Signature: sha256=…`, HMAC-SHA256 hex of the body (next-gen webhooks) | `type`, `id` | 200 |
+| `lemonsqueezy` | `X-Signature`, HMAC-SHA256 hex of the body | `meta.event_name` (no id: a hash of the body) | 200 |
+
+- GitHub: the webhook's content type must be `application/json` (the form-encoded one is rejected); the event is the
+  header (`issues`), its action is in the payload (`action`): branch on it in the method. A `ping` event arrives when
+  the webhook is created.
+- Shopify: HTTPS subscriptions only (EventBridge and Pub/Sub deliveries are not signed this way); the secret is the
+  app's client secret.
+- Mollie: next-gen webhooks only. Three of the suggested events are in beta (`refund.refunded`,
+  `chargeback.received`, `dispute.updated`), and Mollie still recommends its classic webhooks for payment updates.
+- Lemon Squeezy: its docs say it no longer accepts new sign-ups and shuts down on March 31, 2027.
+- Not expressible as constants, a parser of your own is needed: Square (the notification URL is part of the signed
+  content), PayPal (RSA signature, certificate), Mollie's classic webhooks (unsigned, form-encoded, the object is
+  fetched from the API), Standard Webhooks / Svix (id and timestamp in other headers than the signature). `custom` asks for the constants: the signature
 header, whether it holds a timestamp (`t=…,v1=…`, `ts=…;h1=…`), the signed content, a prefix (`sha256=`), the
 algorithm and encoding, where the event name and id are, and the status of the response. The parser is only
 constants: check them against the provider's docs (its `@see`), and correct them there.

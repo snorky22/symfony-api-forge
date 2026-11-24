@@ -3,6 +3,14 @@
 All notable changes are documented in this file. The project follows [Semantic Versioning](https://semver.org);
 until 1.0, minor versions may contain breaking changes.
 
+## Unreleased
+
+- `api-forge:make:webhook`: signature schemes for Stripe (`t=…,v1=…`), GitHub (`sha256=` prefix, event in
+  `X-GitHub-Event`), Shopify (base64, topic in `X-Shopify-Topic`) and Mollie's next-gen webhooks (`sha256=` prefix),
+  each with its provider's events suggested; each checked against a delivery signed as its docs describe (GitHub: its
+  official test vector), and their constants and events verified against the official docs.
+- The `lemonsqueezy` scheme answers 200: Lemon Squeezy retries a delivery answered with another status.
+
 ## 0.5.0 - 2026-11-24
 
 Hand-written webhooks: `api-forge:make:webhook` and a list of signature schemes; the success status of the parsers
