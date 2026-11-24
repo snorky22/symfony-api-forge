@@ -3,7 +3,10 @@
 All notable changes are documented in this file. The project follows [Semantic Versioning](https://semver.org);
 until 1.0, minor versions may contain breaking changes.
 
-## Unreleased
+## 0.7.0 - 2026-11-24
+
+`api-forge:make:resource` and `api-forge:make:webhook` have priority over the generated path for one API; declarations
+read from the YAML of the configuration directories.
 
 - `api-forge:make:resource` and `api-forge:make:webhook` have priority over the generated path (`api-forge:generate`
   and the web interface) for one API. `make:resource` reuses the scoped client declared already for the API, also by a
