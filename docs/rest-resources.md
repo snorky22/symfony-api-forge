@@ -251,6 +251,11 @@ framework:
                 auth_bearer: '%env(PADDLE_API_KEY)%'
 ```
 
+## Webhooks
+
+The webhooks of an API are written the same way, by hand and only for the events you handle:
+`api-forge:make:webhook` (see [Hand-written webhooks](webhooks.md#hand-written-webhooks)).
+
 ## Not covered yet
 
 - Following the pages of a list: `list()` returns one page.

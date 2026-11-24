@@ -3,18 +3,22 @@
 namespace Snorky22\ApiForge\Tests\Dev\Webhook;
 
 use PHPUnit\Framework\Attributes\DataProvider;
+use Snorky22\ApiForge\Core\Webhook\AbstractSignedRequestParser;
+use Snorky22\ApiForge\Core\Webhook\AbstractWebhookConsumer;
 use Snorky22\ApiForge\Dev\Doctor\Check;
 use Snorky22\ApiForge\Dev\Webhook\WebhookDiagnostics;
 use Snorky22\ApiForge\Dev\Webhook\WebhookSender;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\DependencyInjection\ServiceLocator;
 use Snorky22\ApiForge\Tests\App\TestKernel;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpClient\Exception\TransportException;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
+use Symfony\Component\RemoteEvent\RemoteEvent;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 /**
@@ -43,6 +47,33 @@ final class WebhookDiagnosticsTest extends KernelTestCase
             'warning: No delivery from the provider recorded yet (api-forge:webhook:inbox): nothing has reached the endpoint.',
             'warning: Events queued on the "async" transport: a worker must run (messenger:consume async), or they are never consumed.',
         ], self::summary(self::getContainer()->get(WebhookDiagnostics::class)->check('lemonsqueezy')));
+    }
+
+    public function testCoverageOfAHandWrittenConsumer(): void
+    {
+        self::bootKernel();
+        $sender = self::getContainer()->get(WebhookSender::class);
+        $diagnostics = new WebhookDiagnostics($sender, new ServiceLocator(['paddle' => static fn () => new HandWrittenConsumer()]));
+
+        // HANDLERS and the methods in one class: the methods present count, a missing one doesn't (and doesn't break)
+        self::assertSame(['handled' => ['transaction.completed'], 'events' => ['transaction.completed', 'transaction.paid']], $diagnostics->coverage('paddle'));
+    }
+
+    public function testPingOfAnEndpointAnswering200(): void
+    {
+        self::bootKernel();
+        $container = self::getContainer();
+        $client = new MockHttpClient([new MockResponse('', ['http_code' => 200]), new MockResponse('', ['http_code' => 202])]);
+        // A parser whose SUCCESS_STATUS is 200 (Paddle): its endpoint answers 200, and 202 is then another page
+        $parsers = ['paddle' => ['parser' => new OkPaddleParser(), 'secret' => 's3cret']];
+        $sender = new WebhookSender($parsers, $container->get(UrlGeneratorInterface::class), $container->get(HttpKernelInterface::class), $client);
+        $diagnostics = new WebhookDiagnostics($sender);
+
+        self::assertSame(200, $sender->successStatus('paddle'));
+        self::assertSame('ok', $diagnostics->ping('paddle', 'https://abcd.ngrok-free.app/webhook/paddle')->level);
+        $check = $diagnostics->ping('paddle', 'https://abcd.ngrok-free.app/');
+        self::assertSame('error', $check->level);
+        self::assertStringContainsString('answers HTTP 202, not the webhook endpoint (200)', $check->message);
     }
 
     public function testUnknownType(): void
@@ -113,4 +144,28 @@ final class WebhookDiagnosticsTest extends KernelTestCase
         self::assertStringContainsString('Consumer registered', $tester->getDisplay());
         self::assertStringContainsString('The webhook chain is ready.', $tester->getDisplay());
     }
+}
+
+/**
+ * A hand-written consumer: HANDLERS and its methods in one class; "transaction.paid" has no method yet.
+ */
+final class HandWrittenConsumer extends AbstractWebhookConsumer
+{
+    protected const HANDLERS = [
+        'transaction.completed' => 'onTransactionCompleted',
+        'transaction.paid' => 'onTransactionPaid',
+    ];
+
+    protected function onTransactionCompleted(array $payload, RemoteEvent $event): void
+    {
+    }
+}
+
+final class OkPaddleParser extends AbstractSignedRequestParser
+{
+    protected const SIGNATURE_HEADER = 'Paddle-Signature';
+    protected const SIGNATURE_CONTENT = '{timestamp}:{body}';
+    protected const SIGNATURE_PARTS = ['separator' => ';', 'timestamp' => 'ts', 'signature' => 'h1'];
+    protected const EVENT_NAME_PATH = 'event_type';
+    protected const SUCCESS_STATUS = 200;
 }

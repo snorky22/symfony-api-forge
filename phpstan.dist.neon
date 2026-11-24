@@ -9,8 +9,13 @@ parameters:
         - src/Dev/Rest
         - src/Command/CallCommand.php
         - src/Command/MakeResourceCommand.php
+        - src/Command/MakeWebhookCommand.php
+        - src/Core/Webhook
+        - src/Dev/Webhook/WebhookMaker.php
         - tests/Core/Rest
         - tests/DependencyInjection
         - tests/Dev/Rest
         - tests/Command/CallCommandTest.php
         - tests/Command/MakeResourceCommandTest.php
+        - tests/Command/MakeWebhookCommandTest.php
+        - tests/Dev/Webhook/WebhookMakerTest.php

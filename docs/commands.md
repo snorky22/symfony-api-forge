@@ -181,6 +181,26 @@ unless a YAML file there declares it already.
 When the class exists, the command asks for its endpoint if the class records none, offers the actions it does not
 have yet and adds those chosen (`--endpoint`, `--actions` without interaction); the rest of the file is kept as it is.
 
+## `api-forge:make:webhook`
+
+Writes the hand-written webhooks of an API ([Hand-written webhooks](webhooks.md#hand-written-webhooks)): the request
+parser (constants of a signature scheme), the consumer (one method per event), the routing of the webhook type and,
+when missing, the route `/webhook/{type}`. Run again on the same API, it adds events to the consumer.
+
+```bash
+bin/console api-forge:make:webhook [<api>] [--scheme=paddle] [--events=transaction.completed] [--no-interaction]
+```
+
+| Argument / option | Default | |
+|---|---|---|
+| `<api>` | asked (autocompleted) | API, relative to `api_forge.rest.namespace` (`Paddle`): files in `src/API/Paddle/Webhook` |
+| `--scheme` | asked | `paddle`, `lemonsqueezy` or `custom` (asks for the constants; interactive only) |
+| `--events` | asked (the scheme's suggested) | Comma-separated events to handle |
+| `--type` | from the API (`paddle`) | Webhook type: the end of the URL `/webhook/{type}`, the routing key |
+| `--output` | this project | Project directory to write into |
+
+Existing files are never overwritten; the routing is written unless the type is routed already.
+
 ## `api-forge:call`
 
 Calls a method of an API resource, hand-written or generated, and prints the response as JSON

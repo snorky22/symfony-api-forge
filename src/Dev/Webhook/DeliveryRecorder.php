@@ -69,7 +69,8 @@ final class DeliveryRecorder implements EventSubscriberInterface
                 'status' => match (true) {
                     404 === $status => DeliveryInbox::UNKNOWN_TYPE,
                     $status >= 500 => DeliveryInbox::FAILED,
-                    202 === $status && [] !== $this->sender->asyncTransports($type) => DeliveryInbox::QUEUED,
+                    // Any 2xx: the API may expect another status than Symfony's 202 (SUCCESS_STATUS)
+                    $status >= 200 && $status < 300 && [] !== $this->sender->asyncTransports($type) => DeliveryInbox::QUEUED,
                     $status >= 200 && $status < 300 => DeliveryInbox::CONSUMED,
                     default => DeliveryInbox::REJECTED,
                 },

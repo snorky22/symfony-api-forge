@@ -7,12 +7,14 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestMatcher\IsJsonRequestMatcher;
 use Symfony\Component\HttpFoundation\RequestMatcher\MethodRequestMatcher;
 use Symfony\Component\HttpFoundation\RequestMatcherInterface;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RemoteEvent\RemoteEvent;
 use Symfony\Component\Webhook\Client\AbstractRequestParser;
 use Symfony\Component\Webhook\Exception\RejectWebhookException;
 
 /**
- * Base class of the generated webhook request parsers: JSON webhooks signed with an HMAC of the raw body.
+ * Base class of the webhook request parsers, generated or hand-written: JSON webhooks signed with an HMAC of the raw
+ * body.
  *
  * Subclasses describe the API's scheme with the constants below. Each valid request becomes a RemoteEvent,
  * whose id is the delivery id when the API sends one, or a hash of the body (so a retried delivery keeps its id).
@@ -43,6 +45,8 @@ abstract class AbstractSignedRequestParser extends AbstractRequestParser
     protected const EVENT_NAME_HEADER = null;
     protected const EVENT_ID_PATH = null;
     protected const EVENT_ID_HEADER = null;
+    /** Status of the response to an accepted delivery: Symfony's 202, or the one the API expects (e.g. 200 for Paddle). */
+    protected const SUCCESS_STATUS = 202;
 
     /**
      * Value of the signature header for a payload, as the API computes it. The timestamp (default: now) only
@@ -111,6 +115,11 @@ abstract class AbstractSignedRequestParser extends AbstractRequestParser
             'name' => $this->find($request, $payload, static::EVENT_NAME_PATH, static::EVENT_NAME_HEADER),
             'id' => $this->find($request, $payload, static::EVENT_ID_PATH, static::EVENT_ID_HEADER) ?? hash('sha256', $request->getContent()),
         ];
+    }
+
+    public function createSuccessfulResponse(/* ?Request $request = null */): Response
+    {
+        return new Response('', static::SUCCESS_STATUS);
     }
 
     protected function getRequestMatcher(): RequestMatcherInterface

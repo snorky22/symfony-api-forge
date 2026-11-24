@@ -81,11 +81,12 @@ final class TestKernel extends Kernel
         $container->parameters()->set('env(LEMONSQUEEZY_WEBHOOK_SECRET)', self::WEBHOOK_SECRET);
         $services = $container->services();
         $services->defaults()->autowire()->autoconfigure()->load('App\\', self::EXAMPLE.'/src/');
-        if (is_dir(self::REST)) {
+        // The scratch application test-API (tests/console, "dev"): not in the tests, which must not depend on it
+        if (!$test && is_dir(self::REST)) {
             $services->load('App\\API\\', self::REST.'/');
         }
         // The directory is tracked (its YAML files, or its creation): a new file rebuilds the container
-        if ($builder->fileExists(self::REST_CONFIG, '/\.yaml$/') && [] !== glob(self::REST_CONFIG.'/*.yaml')) {
+        if (!$test && $builder->fileExists(self::REST_CONFIG, '/\.yaml$/') && [] !== glob(self::REST_CONFIG.'/*.yaml')) {
             $container->import(self::REST_CONFIG.'/*.yaml');
         }
         // Rejected webhooks are logged as errors: keep the test output clean

@@ -10,6 +10,9 @@ POST /webhook/lemonsqueezy
   → worker: LemonSqueezyWebhookConsumer::onOrderCreated($payload)              (your code)
 ```
 
+The parser and the consumer are generated from the descriptors (`api-forge:import-webhook`, `api-forge:generate`),
+or written by hand with `api-forge:make:webhook` (see [Hand-written webhooks](#hand-written-webhooks)).
+
 ## Setup
 
 1. Register the webhook URL in the API's dashboard: `https://<your-host>/webhook/lemonsqueezy`.
@@ -82,7 +85,7 @@ id, so consumers can detect duplicates by storing the ids they have processed.
 
 | Situation | Status |
 |---|---|
-| Valid webhook, queued | 202 |
+| Valid webhook, queued | 202, or the parser's `SUCCESS_STATUS` (200 for Paddle, which retries any other status) |
 | Invalid or missing signature, not JSON, no event name, not POST | 406 |
 | Webhook secret not configured | 500 |
 | Unknown API name in the URL | 404 |
@@ -182,3 +185,77 @@ directly.
 
 Consumers can be tested directly: `$consumer->consume(new RemoteEvent('order_created', '1', $payload))`.
 See `tests/Example/` in the bundle.
+
+## Hand-written webhooks
+
+Without descriptors nor generated code, as for the [hand-written REST resources](rest-resources.md):
+`api-forge:make:webhook` writes, next to the resources of the API (`src/API/<Api>/Webhook`):
+
+| File | Content |
+|---|---|
+| `<Api>RequestParser.php` | The signature scheme, as constants of `AbstractSignedRequestParser` |
+| `<Api>WebhookConsumer.php` | `#[AsRemoteEventConsumer('<type>')]`, `HANDLERS` and one method per event you handle, with TODOs |
+| `config/packages/<type>_webhook.yaml` | The webhook type: its parser and its secret (`<TYPE>_WEBHOOK_SECRET`, empty by default) |
+| `config/routes/webhook.yaml` | The route `POST /webhook/{type}`, when the application doesn't have it |
+
+```
+$ bin/console api-forge:make:webhook
+
+ API, relative to App\API (e.g. Paddle):
+ > Paddle
+
+ Signature scheme:
+  [paddle      ] Paddle-Signature: ts=…;h1=…, HMAC-SHA256 of "timestamp:body"; answered with 200 (Paddle)
+  [lemonsqueezy] X-Signature: HMAC-SHA256 of the body, event in meta.event_name (Lemon Squeezy)
+  [custom      ] another scheme: answer the questions (header, signed content, event name…)
+ > paddle
+
+ Known events: transaction.created, transaction.ready, transaction.paid, transaction.completed, …
+ Events to handle (comma-separated, empty: none for now):
+ > transaction.completed
+```
+
+The schemes are a list in the bundle (`WebhookMaker::SCHEMES`), enriched as providers are used: each gives the
+parser constants and the provider's events (suggested, autocompleted). `custom` asks for the constants: the signature
+header, whether it holds a timestamp (`t=…,v1=…`, `ts=…;h1=…`), the signed content, a prefix (`sha256=`), the
+algorithm and encoding, where the event name and id are, and the status of the response. The parser is only
+constants: check them against the provider's docs (its `@see`), and correct them there.
+
+The written parser for Paddle:
+
+```php
+final class PaddleRequestParser extends AbstractSignedRequestParser
+{
+    protected const SIGNATURE_HEADER = 'Paddle-Signature';
+    protected const SIGNATURE_CONTENT = '{timestamp}:{body}';
+    protected const SIGNATURE_PARTS = ['separator' => ';', 'timestamp' => 'ts', 'signature' => 'h1'];
+    protected const SIGNATURE_TOLERANCE = 5;
+    protected const EVENT_NAME_PATH = 'event_type';
+    protected const EVENT_ID_PATH = 'event_id';
+    protected const SUCCESS_STATUS = 200;
+}
+```
+
+Run the command again on the same API to add events to the consumer: it lists those it has, suggests the others,
+and adds the chosen ones (`HANDLERS` entries and empty methods), keeping the rest of the file as it is. Without
+interaction: `--scheme`, `--events`, `--type` (the end of the URL, default from the API: `paddle`).
+
+Then:
+
+1. Set the secret in `.env.local`: `PADDLE_WEBHOOK_SECRET=...` (for Paddle, the secret key of the notification
+   destination, in *Paddle > Events > Notifications*).
+2. Try a delivery signed like the provider, without the provider (the command prints a minimal payload):
+   ```bash
+   bin/console api-forge:webhook:send paddle var/paddle-event.json
+   bin/console api-forge:webhook:inbox paddle
+   bin/console api-forge:webhook:check paddle
+   ```
+3. For real deliveries, the provider needs a public HTTPS URL to `/webhook/paddle`: in development, a tunnel
+   (Hookdeck, ngrok, Cloudflare Tunnel). Paddle's simulator (*Paddle > Events > Simulations*) sends signed test
+   events to a destination, without a real payment.
+
+Queue the events (`ConsumeRemoteEventMessage: async`, see [Setup](#setup)) when the provider waits for the answer:
+Paddle waits 5 seconds, then retries. The tools of this page (`webhook:send`, the inbox, `webhook:replay`,
+`webhook:check`, `WebhookTestTrait`) work the same with hand-written webhooks; `webhook:check` counts as handled
+the events of `HANDLERS` whose method exists.
+

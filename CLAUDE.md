@@ -24,10 +24,11 @@ GitHub: https://github.com/snorky22/symfony-api-forge (public, default branch `m
 - `src/Dev/`: importers (`Api/Import`), curl parser, descriptor schema/loader/store, generator, naming,
   `LenientJsonDecoder`, `ArrayShapeGenerator`.
 - `src/Command/`: `api-forge:import`, `import-object`, `import-webhook`, `generate`, `json-to-php`,
-  `make:resource`.
+  `make:resource`, `make:webhook`, `call`.
 - `src/Core/Rest/`: hand-written REST resources (CRUD interfaces, traits, `AbstractRestResource`), no generated
   code; `src/Dev/Rest/ResourceMaker.php` writes them for `api-forge:make:resource`, in `src/API` (`App\API`,
-  config `api_forge.rest`).
+  config `api_forge.rest`). `src/Dev/Webhook/WebhookMaker.php` (signature schemes list `SCHEMES`, enriched with
+  experience) writes hand-written webhooks for `api-forge:make:webhook`, in `src/API/<Api>/Webhook`.
 - `examples/lemonsqueezy/`: an application's files for Lemon Squeezy (descriptors, generated code and
   config, hand-written webhook consumer). Autoloaded as `App\` in dev only.
 - `tests/`: unit tests, `tests/App/TestKernel.php` (bundle + example), `tests/console`, `tests/Fixtures/`
@@ -48,7 +49,8 @@ php tests/console api-forge:call Paddle\\Prices list   # a real request (tests/c
   sets `api_forge.rest.source_dir` to `test-API/src/API`, autoloads `App\API\` from it (autoload-dev) and
   autowires its classes, and imports `test-API/config/packages/*.yaml` (`rest.config_dir`: the scoped clients the
   command writes; the directory is tracked, a new file rebuilds the container). The user deletes these files as they
-  like; never commit them. `.env.local` (the user's API keys) is git-ignored: never read or stage it.
+  like; never commit them. Not loaded in the `test` environment (the tests must not depend on it). `.env.local` (the
+  user's API keys) is git-ignored: never read or stage it.
 - `tests/console` runs the test kernel in the `dev` environment: real HTTP requests, `.env.local` loaded (Dotenv).
   PHPUnit runs `test`, where the HTTP clients answer from `ApiMock`. Don't run `api-forge:call` against a real API
   yourself: it sends the user's keys; let the user run it.

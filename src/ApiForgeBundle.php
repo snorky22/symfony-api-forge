@@ -11,6 +11,7 @@ use Snorky22\ApiForge\Command\DoctorCommand;
 use Snorky22\ApiForge\Command\GuideCommand;
 use Snorky22\ApiForge\Command\JsonToPhpCommand;
 use Snorky22\ApiForge\Command\MakeResourceCommand;
+use Snorky22\ApiForge\Command\MakeWebhookCommand;
 use Snorky22\ApiForge\Command\ServeCommand;
 use Snorky22\ApiForge\Command\WebhookCheckCommand;
 use Snorky22\ApiForge\Command\WebhookInboxCommand;
@@ -48,6 +49,7 @@ use Snorky22\ApiForge\Dev\Rest\ResourceMaker;
 use Snorky22\ApiForge\Dev\Webhook\DeliveryInbox;
 use Snorky22\ApiForge\Dev\Webhook\DeliveryRecorder;
 use Snorky22\ApiForge\Dev\Webhook\WebhookDiagnostics;
+use Snorky22\ApiForge\Dev\Webhook\WebhookMaker;
 use Snorky22\ApiForge\Dev\Webhook\WebhookSender;
 use Snorky22\ApiForge\Dev\YamlToPhpConverter;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
@@ -177,6 +179,14 @@ final class ApiForgeBundle extends AbstractBundle
         $services->set(CallCommand::class)
             ->args([null, $config['rest']['namespace'], []]);
         $services->set(ResourceMaker::class);
+        $services->set(WebhookMaker::class);
+        $services->set(MakeWebhookCommand::class)
+            ->args([
+                '$projectDir' => '%kernel.project_dir%',
+                '$namespace' => $config['rest']['namespace'],
+                '$sourceDir' => $config['rest']['source_dir'],
+                '$configDir' => $config['rest']['config_dir'],
+            ]);
         $services->set(MakeResourceCommand::class)
             ->args(['$projectDir' => '%kernel.project_dir%', '$namespace' => $config['rest']['namespace'], '$sourceDir' => $config['rest']['source_dir'], '$configDir' => $config['rest']['config_dir']]);
         $services->set(ServeCommand::class)

@@ -148,6 +148,12 @@ final class AbstractSignedRequestParserTest extends TestCase
         }
     }
 
+    public function testTheStatusOfAnAcceptedDelivery(): void
+    {
+        self::assertSame(202, (new PathParser())->createSuccessfulResponse()->getStatusCode());
+        self::assertSame(200, (new OkParser())->createSuccessfulResponse()->getStatusCode());
+    }
+
     public function testGetRequestIsRejected(): void
     {
         $this->expectException(RejectWebhookException::class);
@@ -180,4 +186,14 @@ final class TimestampParser extends AbstractSignedRequestParser
     protected const SIGNATURE_TOLERANCE = 300;
     protected const EVENT_NAME_PATH = 'event_type';
     protected const EVENT_ID_PATH = 'event_id';
+}
+
+/**
+ * An API answered with 200, not Symfony's 202 (Paddle).
+ */
+final class OkParser extends AbstractSignedRequestParser
+{
+    protected const SIGNATURE_HEADER = 'X-Signature';
+    protected const EVENT_NAME_PATH = 'type';
+    protected const SUCCESS_STATUS = 200;
 }
