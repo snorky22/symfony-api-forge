@@ -3,7 +3,9 @@
 All notable changes are documented in this file. The project follows [Semantic Versioning](https://semver.org);
 until 1.0, minor versions may contain breaking changes.
 
-## Unreleased
+## 0.6.0 - 2026-11-24
+
+Signature schemes for Stripe, GitHub, Shopify and Mollie in `api-forge:make:webhook`; Lemon Squeezy answers 200.
 
 - `api-forge:make:webhook`: signature schemes for Stripe (`t=…,v1=…`), GitHub (`sha256=` prefix, event in
   `X-GitHub-Event`), Shopify (base64, topic in `X-Shopify-Topic`) and Mollie's next-gen webhooks (`sha256=` prefix),
