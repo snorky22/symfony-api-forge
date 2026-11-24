@@ -3,7 +3,10 @@
 All notable changes are documented in this file. The project follows [Semantic Versioning](https://semver.org);
 until 1.0, minor versions may contain breaking changes.
 
-## Unreleased
+## 0.5.0 - 2026-11-24
+
+Hand-written webhooks: `api-forge:make:webhook` and a list of signature schemes; the success status of the parsers
+(200 for Paddle).
 
 - `api-forge:make:webhook`: hand-written webhooks, without descriptors nor generated code. In `src/API/<Api>/Webhook`:
   the request parser (the constants of a signature scheme chosen in a list, `WebhookMaker::SCHEMES`: `paddle`,
