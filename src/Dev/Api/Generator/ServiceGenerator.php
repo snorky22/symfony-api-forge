@@ -4,6 +4,8 @@ namespace Snorky22\ApiForge\Dev\Api\Generator;
 
 use Snorky22\ApiForge\Dev\Api\Descriptor\ApiDefinition;
 use Snorky22\ApiForge\Dev\Api\Naming;
+use Snorky22\ApiForge\Dev\ConfigDeclarations;
+use Symfony\Component\Filesystem\Path;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -31,7 +33,36 @@ final class ServiceGenerator
         private readonly string $namespace = 'App\\Api',
         private readonly string $sourceDir = 'src/Api',
         private readonly string $configDir = 'config/packages',
+        private readonly ?string $restConfigDir = null,
     ) {
+    }
+
+    /**
+     * What a file written by hand (api-forge:make:resource, api-forge:make:webhook) declares already for an API, in
+     * the configuration directories of the generated code and of the hand-written resources, for every environment:
+     * the scoped client and the webhook type, matched whatever the case and separators ("lemon_squeezy.client" for
+     * the API "lemonsqueezy"). They have priority: the generated file leaves them out, and the generated resources use
+     * that client.
+     *
+     * @return array{client?: string, client_id?: string, webhook?: string, webhook_type?: string} files relative to the project
+     */
+    public function declaredElsewhere(ApiDefinition $definition, string $projectDir): array
+    {
+        $declarations = new ConfigDeclarations();
+        $directories = array_values(array_unique(array_map(static fn (string $directory): string => rtrim($projectDir, '/').'/'.trim($directory, '/'), array_filter([$this->configDir, $this->restConfigDir]))));
+        $elsewhere = [];
+        $clients = $declarations->handWrittenEverywhere($declarations->clients($directories));
+        if (null !== $id = $declarations->matching($clients, $definition->name, '.client')[0] ?? null) {
+            $elsewhere['client'] = Path::makeRelative($clients[$id][0]['file'], $projectDir);
+            $elsewhere['client_id'] = $id;
+        }
+        $webhooks = $declarations->handWrittenEverywhere($declarations->webhooks($directories));
+        if (null !== $type = $declarations->matching($webhooks, $definition->name)[0] ?? null) {
+            $elsewhere['webhook'] = Path::makeRelative($webhooks[$type][0]['file'], $projectDir);
+            $elsewhere['webhook_type'] = $type;
+        }
+
+        return $elsewhere;
     }
 
     /**
@@ -43,16 +74,18 @@ final class ServiceGenerator
     }
 
     /**
-     * @param string $descriptorDir descriptor directory as shown in the generated file headers
+     * @param string                                   $descriptorDir descriptor directory as shown in the generated file headers
+     * @param array{client?: string, client_id?: string, webhook?: string, webhook_type?: string} $elsewhere what a file
+     *        written by hand declares already for the API (see declaredElsewhere()): left out, its client used
      *
      * @return array<string, string> file path relative to the project directory => content
      */
-    public function generate(ApiDefinition $definition, string $descriptorDir): array
+    public function generate(ApiDefinition $definition, string $descriptorDir, array $elsewhere = []): array
     {
         $directory = $this->generatedDirectory($definition);
         $files = [];
         foreach ($definition->resources as $name => $resource) {
-            $files[$directory.'/Resource/'.Naming::className($name).'.php'] = $this->resourceClass($definition, $name, $resource, $descriptorDir.'/'.$name.'.yaml');
+            $files[$directory.'/Resource/'.Naming::className($name).'.php'] = $this->resourceClass($definition, $name, $resource, $descriptorDir.'/'.$name.'.yaml', $elsewhere['client_id'] ?? self::serviceId($definition->name));
         }
         $files[$directory.'/'.$definition->namespace.'Api.php'] = $this->entryPoint($definition, $descriptorDir);
         $files[$directory.'/'.$definition->namespace.'Doctor.php'] = $this->doctor($definition, $descriptorDir.'/_api.yaml');
@@ -62,9 +95,17 @@ final class ServiceGenerator
             $files[$directory.'/Webhook/'.$definition->namespace.'WebhookEvents.php'] = $this->webhookEvents($definition, $source);
             $files[$directory.'/Webhook/Abstract'.$definition->namespace.'WebhookConsumer.php'] = $this->webhookConsumer($definition, $source);
         }
-        $files[trim($this->configDir, '/').'/api_'.$definition->name.'.yaml'] = $this->clientConfig($definition, $descriptorDir);
+        $files[$this->configFile($definition)] = $this->clientConfig($definition, $descriptorDir, $elsewhere);
 
         return $files;
+    }
+
+    /**
+     * The configuration file of an API (scoped client, webhook routing), relative to the project directory.
+     */
+    public function configFile(ApiDefinition $definition): string
+    {
+        return trim($this->configDir, '/').'/api_'.$definition->name.'.yaml';
     }
 
     public static function serviceId(string $apiName): string
@@ -72,7 +113,7 @@ final class ServiceGenerator
         return $apiName.'.client';
     }
 
-    private function resourceClass(ApiDefinition $definition, string $name, array $resource, string $source): string
+    private function resourceClass(ApiDefinition $definition, string $name, array $resource, string $source, string $clientId): string
     {
         $jsonApi = 'jsonapi' === $definition->api['format'];
         $class = Naming::className($name);
@@ -89,7 +130,7 @@ final class ServiceGenerator
             $members[] = '    protected const TYPE = '.$this->export($resource['type']).';';
         }
         $members[] = <<<PHP
-                public function __construct(#[Autowire(service: {$this->export(self::serviceId($definition->name))})] HttpClientInterface \$client)
+                public function __construct(#[Autowire(service: {$this->export($clientId)})] HttpClientInterface \$client)
                 {
                     parent::__construct(\$client);
                 }
@@ -385,7 +426,10 @@ final class ServiceGenerator
             ."}\n";
     }
 
-    private function clientConfig(ApiDefinition $definition, string $source): string
+    /**
+     * @param array{client?: string, client_id?: string, webhook?: string, webhook_type?: string} $elsewhere
+     */
+    private function clientConfig(ApiDefinition $definition, string $source, array $elsewhere = []): string
     {
         $api = $definition->api;
         $client = ['base_uri' => $api['base_uri']];
@@ -411,8 +455,18 @@ final class ServiceGenerator
             $client['headers'] = $headers;
         }
 
-        $framework = ['http_client' => ['scoped_clients' => [self::serviceId($definition->name) => $client]]];
-        if (null !== $webhooks = $definition->webhooks) {
+        $notes = [];
+        $framework = [];
+        if (isset($elsewhere['client'])) {
+            // Declared by api-forge:make:resource: its parameters too
+            $notes[] = \sprintf('The scoped client "%s" is declared in %s: left to it.', $elsewhere['client_id'] ?? self::serviceId($definition->name), $elsewhere['client']);
+            $parameters = [];
+        } else {
+            $framework['http_client']['scoped_clients'][self::serviceId($definition->name)] = $client;
+        }
+        if (null !== ($webhooks = $definition->webhooks) && isset($elsewhere['webhook'])) {
+            $notes[] = \sprintf('The webhook type "%s" is routed in %s: left to it.', $elsewhere['webhook_type'] ?? $definition->name, $elsewhere['webhook']);
+        } elseif (null !== $webhooks) {
             $env = $webhooks['signature']['env'];
             $parameters['env('.$env.')'] = '';
             $framework['webhook']['routing'][$definition->name] = [
@@ -421,10 +475,11 @@ final class ServiceGenerator
             ];
         }
 
-        $config = ([] !== $parameters ? ['parameters' => $parameters] : []) + ['framework' => $framework];
+        $config = ([] !== $parameters ? ['parameters' => $parameters] : []) + ([] !== $framework ? ['framework' => $framework] : []);
 
-        return '# '.self::MARKER." from {$source}.\n# Do not edit: changes are lost on regeneration. Edit the descriptor instead.\n\n"
-            .Yaml::dump($config, 10, 4);
+        return '# '.self::MARKER." from {$source}.\n# Do not edit: changes are lost on regeneration. Edit the descriptor instead.\n"
+            .implode('', array_map(static fn (string $note): string => '# '.$note."\n", $notes))."\n"
+            .([] !== $config ? Yaml::dump($config, 10, 4) : '');
     }
 
     private function requestParser(ApiDefinition $definition, string $source): string

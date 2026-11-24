@@ -33,6 +33,7 @@ final class ServeCommand
         private readonly string $sourceDir,
         private readonly string $configDir,
         private readonly string $environment,
+        private readonly string $restConfigDir = 'config/packages',
     ) {
     }
 
@@ -68,6 +69,7 @@ final class ServeCommand
             [\PHP_BINARY, Path::makeAbsolute($script, (string) getcwd())],
             bin2hex(random_bytes(16)),
             ['127.0.0.1:'.$port, 'localhost:'.$port],
+            $this->restConfigDir,
         );
         $public = \dirname(__DIR__).'/Web/public';
         $command = [\PHP_BINARY, '-S', '127.0.0.1:'.$port, '-t', $public, $public.'/index.php'];

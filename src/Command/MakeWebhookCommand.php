@@ -2,6 +2,7 @@
 
 namespace Snorky22\ApiForge\Command;
 
+use Snorky22\ApiForge\Dev\ConfigDeclarations;
 use Snorky22\ApiForge\Dev\Rest\ResourceMaker;
 use Snorky22\ApiForge\Dev\Webhook\WebhookMaker;
 use Snorky22\ApiForge\Dev\Webhook\WebhookSender;
@@ -41,6 +42,7 @@ final class MakeWebhookCommand
         private readonly string $namespace,
         private readonly string $sourceDir,
         private readonly string $configDir = 'config/packages',
+        private readonly string $generatedConfigDir = 'config/packages',
     ) {
     }
 
@@ -85,7 +87,7 @@ final class MakeWebhookCommand
             if (null === $type && preg_match("/#\\[AsRemoteEventConsumer\\(\\s*(?:name:\\s*)?'([^']+)'/", $code, $m)) {
                 $type = $m[1];
             }
-            $type ??= $this->maker->defaultType($api);
+            $type ??= $this->declaredType($io, $root, $api) ?? $this->maker->defaultType($api);
             try {
                 $present = $this->maker->eventsOf($code);
             } catch (\InvalidArgumentException $e) {
@@ -115,7 +117,7 @@ final class MakeWebhookCommand
 
             return Command::SUCCESS;
         }
-        $type ??= $this->maker->defaultType($api);
+        $type ??= $this->declaredType($io, $root, $api) ?? $this->maker->defaultType($api);
 
         // A new consumer: the scheme, then the events
         if (null === $scheme && $interactive) {
@@ -245,19 +247,53 @@ final class MakeWebhookCommand
     }
 
     /**
-     * Writes the routing of the webhook type, unless it is routed already.
+     * Writes the routing of the webhook type, unless a file of the configuration directory routes it already. A file
+     * written by api-forge:generate doesn't count: make:webhook has priority, the generator leaves the type to it.
      */
     private function routing(SymfonyStyle $io, string $root, string $type, string $parserClass, ?string $hint): void
     {
         $directory = $root.'/'.trim($this->configDir, '/');
         $file = $directory.'/'.$type.'_webhook.yaml';
-        if (\in_array($type, $this->sender->types(), true) || file_exists($file)) {
-            $io->text(\sprintf('The webhook type "%s" is routed already.', $type));
+        $declarations = new ConfigDeclarations();
+        $all = $declarations->everywhere($declarations->webhooks($this->configDirectories($root)));
+        $own = $declarations->handWrittenEverywhere($all)[$type] ?? [];
+        $declared = array_values(array_filter($all[$type] ?? [], static fn (array $entry): bool => $entry['generated']));
+        if ([] !== $own || file_exists($file)) {
+            $io->text(\sprintf('The webhook type "%s" is routed already (%s).', $type, $own[0]['file'] ?? $file));
 
             return;
         }
         (new Filesystem())->dumpFile($file, $this->maker->routing($type, $parserClass, $hint));
         $io->success(\sprintf('Written: %s (the webhook type "%s", its secret %s)', $file, $type, $this->maker->secretVariable($type)));
+        foreach ($declared as $generated) {
+            $io->warning(\sprintf('%s (api-forge:generate) routes "%s" too: generate it again, it leaves the type to %s.', $generated['file'], $type, basename($file)));
+        }
+    }
+
+    /**
+     * The webhook type routed already for an API, whatever the case and separators ("LemonSqueezy" and
+     * "lemonsqueezy"), or null.
+     */
+    private function declaredType(SymfonyStyle $io, string $root, string $api): ?string
+    {
+        $declarations = new ConfigDeclarations();
+        $type = $declarations->matching($declarations->everywhere($declarations->webhooks($this->configDirectories($root))), basename(str_replace('\\', '/', $api)))[0] ?? null;
+        if (null !== $type) {
+            $io->text(\sprintf('The webhook type "%s" is routed already for this API: it is the default.', $type));
+        }
+
+        return $type;
+    }
+
+    /**
+     * The configuration directories where a webhook type may be routed: the one of this command, and the one of the
+     * generated code.
+     *
+     * @return list<string>
+     */
+    private function configDirectories(string $root): array
+    {
+        return array_values(array_unique([$root.'/'.trim($this->configDir, '/'), $root.'/'.trim($this->generatedConfigDir, '/')]));
     }
 
     /**

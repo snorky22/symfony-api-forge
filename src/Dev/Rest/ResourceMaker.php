@@ -2,6 +2,7 @@
 
 namespace Snorky22\ApiForge\Dev\Rest;
 
+use Snorky22\ApiForge\Dev\ConfigDeclarations;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\String\Inflector\EnglishInflector;
 
@@ -153,21 +154,30 @@ final class ResourceMaker
     }
 
     /**
-     * The YAML file of a directory (and its subdirectories) declaring a client, or null.
+     * The YAML file of directories (and their subdirectories) declaring a scoped client for every environment, or
+     * null; a file written by api-forge:generate counts too (the client is then reused, not declared twice).
+     *
+     * @param string|list<string> $directories
      */
-    public function declaringFile(string $directory, string $client): ?string
+    public function declaringFile(string|array $directories, string $client): ?string
     {
-        if (!is_dir($directory)) {
-            return null;
-        }
-        $pattern = \sprintf('/^\s+[\'"]?%s[\'"]?:\s*(#.*)?$/m', preg_quote($client, '/'));
-        foreach ((new Finder())->in($directory)->name(['*.yaml', '*.yml'])->files()->sortByName() as $file) {
-            if (preg_match($pattern, $file->getContents())) {
-                return $file->getPathname();
-            }
-        }
+        $declarations = new ConfigDeclarations();
 
-        return null;
+        return $declarations->everywhere($declarations->clients($directories))[$client][0]['file'] ?? null;
+    }
+
+    /**
+     * The scoped client already declared (for every environment) in directories for the API of a class, whatever the
+     * case and separators ("LemonSqueezy\Customers" and "lemonsqueezy.client"), or null.
+     *
+     * @param string|list<string> $directories
+     */
+    public function declaredClient(string|array $directories, string $class): ?string
+    {
+        $parts = explode('\\', trim($class, '\\'));
+        $declarations = new ConfigDeclarations();
+
+        return $declarations->matching($declarations->everywhere($declarations->clients($directories)), $parts[\count($parts) > 1 ? \count($parts) - 2 : 0], '.client')[0] ?? null;
     }
 
     /**

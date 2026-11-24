@@ -17,13 +17,15 @@ final class WebhookDiagnostics
     private const RECENT = 10;
 
     /**
-     * @param ?ContainerInterface $consumers the registered RemoteEvent consumers, by type
+     * @param ?ContainerInterface           $consumers          the registered RemoteEvent consumers, by type
+     * @param array<string, list<string>> $duplicateConsumers the types with several consumers: their services
      * @param ?DeliveryInbox      $inbox     the deliveries received, when the inbox is enabled
      */
     public function __construct(
         private readonly WebhookSender $sender,
         private readonly ?ContainerInterface $consumers = null,
         private readonly ?DeliveryInbox $inbox = null,
+        private readonly array $duplicateConsumers = [],
     ) {
     }
 
@@ -138,6 +140,9 @@ final class WebhookDiagnostics
             $checks[] = Check::error($e->getMessage());
         }
 
+        if (isset($this->duplicateConsumers[$type])) {
+            $checks[] = Check::error(\sprintf('Several consumers are named "%s" (%s): Symfony calls only the last one (%s), the others are ignored. Keep one #[AsRemoteEventConsumer(\'%s\')].', $type, implode(', ', $this->duplicateConsumers[$type]), array_slice($this->duplicateConsumers[$type], -1)[0], $type));
+        }
         $checks[] = $this->consumers?->has($type)
             ? Check::ok(\sprintf('Consumer registered (#[AsRemoteEventConsumer(\'%s\')]).', $type))
             : Check::error(\sprintf('No consumer registered with #[AsRemoteEventConsumer(\'%s\')]: deliveries are accepted, then fail.', $type));

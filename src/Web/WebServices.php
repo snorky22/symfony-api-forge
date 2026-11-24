@@ -46,7 +46,7 @@ final class WebServices
         $this->importer = new EndpointImporter($this->decoder, new ArrayShapeGenerator());
         $importer = $this->importer;
         $loader = new DescriptorLoader($this->store, new ShapeValidator());
-        $generator = new ServiceGenerator($config->namespace, $config->sourceDir, $config->configDir);
+        $generator = new ServiceGenerator($config->namespace, $config->sourceDir, $config->configDir, $config->restConfigDir);
 
         $objects = new ObjectSources($this->examples);
         $this->import = new ImportRunner($this->curl, $importer, new DescriptorMerger(), $this->store, $this->examples, $objects, $config->projectDir);

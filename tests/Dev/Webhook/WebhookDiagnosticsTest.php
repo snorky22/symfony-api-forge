@@ -76,6 +76,14 @@ final class WebhookDiagnosticsTest extends KernelTestCase
         self::assertStringContainsString('answers HTTP 202, not the webhook endpoint (200)', $check->message);
     }
 
+    public function testSeveralConsumersOfOneTypeAreAnError(): void
+    {
+        self::bootKernel();
+        $diagnostics = new WebhookDiagnostics(self::getContainer()->get(WebhookSender::class), null, null, ['lemonsqueezy' => ['App\A', 'App\B']]);
+
+        self::assertContains('error: Several consumers are named "lemonsqueezy" (App\A, App\B): Symfony calls only the last one (App\\B), the others are ignored. Keep one #[AsRemoteEventConsumer(\'lemonsqueezy\')].', self::summary($diagnostics->check('lemonsqueezy')));
+    }
+
     public function testUnknownType(): void
     {
         self::bootKernel();

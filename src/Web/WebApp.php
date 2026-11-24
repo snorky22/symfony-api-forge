@@ -1942,7 +1942,7 @@ final class WebApp
     private function generate(string $api): Response
     {
         $result = $this->services->generate->run($api);
-        $result = new GenerateResult(DescriptorErrors::explainAll($result->errors, $this->config->projectDir), $result->review, $result->changes, $result->files);
+        $result = new GenerateResult(DescriptorErrors::explainAll($result->errors, $this->config->projectDir), $result->review, $result->changes, $result->files, $result->blocked);
 
         return $this->page('generate', ['api' => $api, 'result' => $result, 'progress' => $this->progress($api), 'command' => $this->commandLine('api-forge:generate', $api)], 'Generate');
     }

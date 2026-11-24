@@ -3,6 +3,24 @@
 All notable changes are documented in this file. The project follows [Semantic Versioning](https://semver.org);
 until 1.0, minor versions may contain breaking changes.
 
+## Unreleased
+
+- `api-forge:make:resource` and `api-forge:make:webhook` have priority over the generated path (`api-forge:generate`
+  and the web interface) for one API. `make:resource` reuses the scoped client declared already for the API, also by a
+  generated file (`LemonSqueezy` → `lemonsqueezy.client`); `make:webhook` reuses its webhook type and writes its own
+  routing even when a generated file routes the type. The generator leaves out of `api_<name>.yaml` the client and the
+  webhook type declared in another file, with a comment, and never overwrites an `api_<name>.yaml` it didn't write
+  (the command and the web interface say so, apart from invalid descriptors).
+- The declarations are read by parsing the YAML of the configuration directory (`when@<env>` included): a webhook
+  routing key was taken for a scoped client by the text search, and `make:webhook` read the routing of the running
+  application instead of the target project's (`--output`).
+- Only the declarations of a client or a webhook type for every environment count (not those of a `when@<env>`
+  section or an environment directory, which only replace a value there), in the configuration directories of both
+  paths (`api_forge.config_dir`, `api_forge.rest.config_dir`), and whatever the case and separators: the generator gives
+  way to `lemon_squeezy.client` for the API `lemonsqueezy`, and its resources then use that client.
+- `api-forge:webhook:check` reports several consumers with the same `#[AsRemoteEventConsumer]` name (Symfony calls only
+  the last one).
+
 ## 0.6.0 - 2026-11-24
 
 Signature schemes for Stripe, GitHub, Shopify and Mollie in `api-forge:make:webhook`; Lemon Squeezy answers 200.

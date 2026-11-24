@@ -29,15 +29,19 @@ final class WebhookSenderPass implements CompilerPassInterface
         $container->getDefinition(WebhookSender::class)->setArgument('$parsers', $parsers);
 
         if ($container->hasDefinition(WebhookDiagnostics::class)) {
-            $consumers = [];
+            $consumers = $ids = [];
             foreach ($container->findTaggedServiceIds('remote_event.consumer') as $id => $tags) {
                 foreach ($tags as $tag) {
                     if (isset($tag['consumer'])) {
+                        // The last one, as Symfony's consumer locator: it replaces the others of the same name
                         $consumers[$tag['consumer']] = new Reference($id);
+                        $ids[$tag['consumer']][] = $id;
                     }
                 }
             }
-            $container->getDefinition(WebhookDiagnostics::class)->setArgument('$consumers', ServiceLocatorTagPass::register($container, $consumers));
+            $container->getDefinition(WebhookDiagnostics::class)
+                ->setArgument('$consumers', ServiceLocatorTagPass::register($container, $consumers))
+                ->setArgument('$duplicateConsumers', array_filter($ids, static fn (array $list): bool => \count($list) > 1));
         }
     }
 }

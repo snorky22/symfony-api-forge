@@ -25,6 +25,7 @@ final class WebConfig
         public readonly array $console,
         public readonly string $secret,
         public readonly array $hosts,
+        public readonly string $restConfigDir = 'config/packages',
     ) {
     }
 
@@ -38,7 +39,7 @@ final class WebConfig
      */
     public static function fromArray(array $data): self
     {
-        return new self($data['projectDir'], $data['descriptorDir'], $data['namespace'], $data['sourceDir'], $data['configDir'], $data['console'], $data['secret'], $data['hosts']);
+        return new self($data['projectDir'], $data['descriptorDir'], $data['namespace'], $data['sourceDir'], $data['configDir'], $data['console'], $data['secret'], $data['hosts'], $data['restConfigDir'] ?? 'config/packages');
     }
 
     public function toJson(): string

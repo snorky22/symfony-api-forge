@@ -220,7 +220,8 @@ final class Guide
     private function staleFiles(ApiDefinition $definition, string $output): array
     {
         $stale = [];
-        foreach ($this->generator->generate($definition, 'x') as $file => $content) {
+        // As GenerateRunner: what a file written by hand declares already is left out
+        foreach ($this->generator->generate($definition, 'x', $this->generator->declaredElsewhere($definition, $output)) as $file => $content) {
             $path = $output.'/'.$file;
             // The header names the descriptor directory: compare without it
             if (!is_file($path) || self::withoutHeader((string) file_get_contents($path)) !== self::withoutHeader($content)) {

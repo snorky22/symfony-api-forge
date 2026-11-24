@@ -457,6 +457,26 @@ final class WebAppTest extends TestCase
         self::assertStringContainsString('Run the doctor', $page);
     }
 
+    public function testGenerationGivesWayToMakeResourceAndRefusesToOverwrite(): void
+    {
+        $this->createApi();
+        $this->example();
+        // make:resource declared the client of the API: left out of the generated file
+        (new Filesystem())->dumpFile($this->project.'/config/packages/shop_client.yaml', "framework:\n    http_client:\n        scoped_clients:\n            shop.client: { base_uri: 'https://shop.test/' }\n");
+
+        $this->post('/api/shop/generate');
+
+        self::assertStringContainsString('# The scoped client "shop.client" is declared in config/packages/shop_client.yaml: left to it.', (string) file_get_contents($this->project.'/config/packages/api_shop.yaml'));
+
+        // A file of the same name not written by the generator: nothing generated, and said so
+        file_put_contents($this->project.'/config/packages/api_shop.yaml', "# mine\n");
+        $response = $this->post('/api/shop/generate');
+
+        self::assertStringContainsString('Nothing generated:', $response->body);
+        self::assertStringNotContainsString('The descriptors are invalid', $response->body);
+        self::assertSame("# mine\n", file_get_contents($this->project.'/config/packages/api_shop.yaml'));
+    }
+
     public function testTheGeneratePageSaysWhatItRuns(): void
     {
         $this->createApi();

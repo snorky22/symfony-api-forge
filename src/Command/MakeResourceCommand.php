@@ -47,6 +47,7 @@ final class MakeResourceCommand
         private readonly string $namespace,
         private readonly string $sourceDir,
         private readonly string $configDir = 'config/packages',
+        private readonly string $generatedConfigDir = 'config/packages',
     ) {
     }
 
@@ -104,7 +105,7 @@ final class MakeResourceCommand
 
         if ($interactive) {
             $path ??= $io->ask('Path of the resource, relative to the base URI of the API', $defaultPath, self::required(...));
-            $client ??= $io->ask('Service id of the scoped HTTP client', $this->maker->defaultClient($class), self::required(...));
+            $client ??= $io->ask('Service id of the scoped HTTP client', $this->defaultClient($io, $class, $output), self::required(...));
             if (null === $actions) {
                 $question = new ChoiceQuestion('Actions (comma-separated)', self::CHOICES, 'list,get');
                 $question->setMultiselect(true);
@@ -116,7 +117,7 @@ final class MakeResourceCommand
         }
 
         $path ??= $defaultPath;
-        $client ??= $this->maker->defaultClient($class);
+        $client ??= $this->defaultClient($io, $class, $output);
         $list = array_values(array_filter(array_map('trim', explode(',', $actions ?? 'list,get'))));
 
         try {
@@ -136,6 +137,33 @@ final class MakeResourceCommand
         $io->text(\sprintf('Next: fill the TODOs of %s (the keys you use).', basename($file)));
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * The client of the API: the one declared already (by a generated file too), else from the namespace.
+     */
+    private function defaultClient(SymfonyStyle $io, string $class, ?string $output): string
+    {
+        if (null !== $declared = $this->maker->declaredClient($this->configDirectories($output), $class)) {
+            $io->text(\sprintf('The scoped client "%s" is declared already for this API: it is the default.', $declared));
+
+            return $declared;
+        }
+
+        return $this->maker->defaultClient($class);
+    }
+
+    /**
+     * The configuration directories where a client may be declared: the one of this command, and the one of the
+     * generated code.
+     *
+     * @return list<string>
+     */
+    private function configDirectories(?string $output): array
+    {
+        $root = rtrim($output ?? $this->projectDir, '/');
+
+        return array_values(array_unique([$root.'/'.trim($this->configDir, '/'), $root.'/'.trim($this->generatedConfigDir, '/')]));
     }
 
     private function sourceRoot(?string $output): string
@@ -272,7 +300,7 @@ final class MakeResourceCommand
             $io->warning(\sprintf('The endpoint "%s" does not end with the path "%s": write the base URI of the client by hand.', $endpoint, $path ?? ''));
         }
 
-        if (null !== $declared = $this->maker->declaringFile($directory, $client)) {
+        if (null !== $declared = $this->maker->declaringFile($this->configDirectories($output), $client)) {
             $content = (string) file_get_contents($declared);
             if (null !== $baseUri && $declared === $file && null !== $filled = $this->maker->withBaseUri($content, $baseUri)) {
                 (new Filesystem())->dumpFile($file, $filled);

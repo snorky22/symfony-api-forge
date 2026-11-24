@@ -5,6 +5,7 @@ parameters:
     level: 6
     paths:
         - src/Core/Rest
+        - src/Dev/ConfigDeclarations.php
         - src/DependencyInjection/ResourceLocatorPass.php
         - src/Dev/Rest
         - src/Command/CallCommand.php
@@ -13,6 +14,7 @@ parameters:
         - src/Core/Webhook
         - src/Dev/Webhook/WebhookMaker.php
         - tests/Core/Rest
+        - tests/Dev/ConfigDeclarationsTest.php
         - tests/DependencyInjection
         - tests/Dev/Rest
         - tests/Command/CallCommandTest.php

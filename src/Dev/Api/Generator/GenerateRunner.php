@@ -42,7 +42,14 @@ final class GenerateRunner
         if (Path::isBasePath($this->projectDir, $descriptorDir)) {
             $descriptorDir = Path::makeRelative($descriptorDir, $this->projectDir);
         }
-        $files = $this->generator->generate($definition, $descriptorDir);
+        // A file of the configuration directory not written by api-forge:generate declares the client or the webhook
+        // type of the API already (api-forge:make:resource, api-forge:make:webhook): it has priority
+        $configFile = $this->generator->configFile($definition);
+        if (is_file($output.'/'.$configFile) && !str_contains((string) file_get_contents($output.'/'.$configFile), ServiceGenerator::MARKER)) {
+            return new GenerateResult(blocked: \sprintf('%s exists and was not written by api-forge:generate: it is not overwritten. Rename it, or move what it declares to another file (a scoped client or a webhook type declared elsewhere is left out of the generated file).', $configFile));
+        }
+        $elsewhere = $this->generator->declaredElsewhere($definition, $output);
+        $files = $this->generator->generate($definition, $descriptorDir, $elsewhere);
 
         $changes = [];
         foreach ($files as $file => $content) {

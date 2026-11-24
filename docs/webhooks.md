@@ -261,6 +261,10 @@ final class PaddleRequestParser extends AbstractSignedRequestParser
 }
 ```
 
+When the API's webhooks are generated already (`api_<name>.yaml` routes the type), `make:webhook` reuses the type and
+writes its own routing to its parser: it has priority, and the next `api-forge:generate` leaves the type to it. See
+[With the generated path](rest-resources.md#with-the-generated-path-in-the-same-application).
+
 Run the command again on the same API to add events to the consumer: it lists those it has, suggests the others,
 and adds the chosen ones (`HANDLERS` entries and empty methods), keeping the rest of the file as it is. Without
 interaction: `--scheme`, `--events`, `--type` (the end of the URL, default from the API: `paddle`).

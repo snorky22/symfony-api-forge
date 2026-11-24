@@ -209,7 +209,8 @@ final class ResourceMakerTest extends TestCase
 
         try {
             self::assertSame($dir.'/framework.yaml', $maker->declaringFile($dir, 'kagi.client'));
-            self::assertSame($dir.'/prod/paddle.yml', $maker->declaringFile($dir, 'paddle.client'));
+            // config/packages/prod/: that environment only, not a declaration of the client
+            self::assertNull($maker->declaringFile($dir, 'paddle.client'));
             self::assertNull($maker->declaringFile($dir, 'unsplash.client'));
             self::assertNull($maker->declaringFile($dir.'/none', 'kagi.client'));
         } finally {

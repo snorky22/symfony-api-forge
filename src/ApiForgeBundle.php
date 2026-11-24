@@ -167,7 +167,7 @@ final class ApiForgeBundle extends AbstractBundle
         $services->set(DescriptorStore::class)->arg('$directory', $config['descriptor_dir']);
         $services->set(ImportRunner::class)->arg('$projectDir', '%kernel.project_dir%');
         $services->set(WebhookImportRunner::class)->arg('$projectDir', '%kernel.project_dir%');
-        $services->set(ServiceGenerator::class)->args([$config['namespace'], $config['source_dir'], $config['config_dir']]);
+        $services->set(ServiceGenerator::class)->args([$config['namespace'], $config['source_dir'], $config['config_dir'], $config['rest']['config_dir']]);
         $services->set(Guide::class)
             ->arg('$projectDir', '%kernel.project_dir%')
             ->arg('$descriptorDir', $config['descriptor_dir']);
@@ -186,11 +186,12 @@ final class ApiForgeBundle extends AbstractBundle
                 '$namespace' => $config['rest']['namespace'],
                 '$sourceDir' => $config['rest']['source_dir'],
                 '$configDir' => $config['rest']['config_dir'],
+                '$generatedConfigDir' => $config['config_dir'],
             ]);
         $services->set(MakeResourceCommand::class)
-            ->args(['$projectDir' => '%kernel.project_dir%', '$namespace' => $config['rest']['namespace'], '$sourceDir' => $config['rest']['source_dir'], '$configDir' => $config['rest']['config_dir']]);
+            ->args(['$projectDir' => '%kernel.project_dir%', '$namespace' => $config['rest']['namespace'], '$sourceDir' => $config['rest']['source_dir'], '$configDir' => $config['rest']['config_dir'], '$generatedConfigDir' => $config['config_dir']]);
         $services->set(ServeCommand::class)
-            ->args(['%kernel.project_dir%', $config['descriptor_dir'], $config['namespace'], $config['source_dir'], $config['config_dir'], '%kernel.environment%']);
+            ->args(['%kernel.project_dir%', $config['descriptor_dir'], $config['namespace'], $config['source_dir'], $config['config_dir'], '%kernel.environment%', $config['rest']['config_dir']]);
         // The webhook routing is set by WebhookSenderPass
         if ($config['webhook_inbox']['enabled']) {
             $services->set(DeliveryInbox::class)->args([$config['webhook_inbox']['directory'], $config['webhook_inbox']['keep']]);

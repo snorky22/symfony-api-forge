@@ -42,6 +42,11 @@ final class ApiGenerateCommand
     ): int {
         // The notes are known before anything is written: --strict must fail without generating
         $result = $this->runner->run($api, $dir, $output, true);
+        if ($result->isBlocked()) {
+            $io->error((string) $result->blocked);
+
+            return Command::FAILURE;
+        }
         if (!$result->isValid()) {
             $io->error(array_merge(['Invalid API descriptors:'], $result->errors));
 

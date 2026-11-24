@@ -15,6 +15,9 @@ fix the examples and generate again. The button runs <code>{{ command }}</code> 
         <input type="hidden" name="_token" value="{{ token }}">
         <button class="btn btn-primary">Generate</button> <a class="btn btn-link" href="/api/{{ api }}">Back</a>
     </form>
+{% elseif result.isBlocked() %}
+    <div class="alert alert-danger"><strong>Nothing generated:</strong> {{ result.blocked|replace({(projectDir ~ '/'): ''}) }}</div>
+    <a class="btn btn-outline-secondary" href="/api/{{ api }}">Back</a>
 {% elseif not result.isValid() %}
     <div class="alert alert-danger"><strong>The descriptors are invalid:</strong><ul class="mb-0">{% for error in result.errors %}<li>{{ error|replace({(projectDir ~ '/'): ''}) }}</li>{% endfor %}</ul></div>
     <a class="btn btn-outline-secondary" href="/api/{{ api }}">Back</a>
