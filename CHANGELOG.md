@@ -3,7 +3,9 @@
 All notable changes are documented in this file. The project follows [Semantic Versioning](https://semver.org);
 until 1.0, minor versions may contain breaking changes.
 
-## Unreleased
+## 0.7.1 - 2026-11-25
+
+The URL to give the provider, and explicit TODOs in the generated webhook consumers.
 
 - `api-forge:make:webhook` and `api-forge:webhook:check` print the URL to give the provider
   (`https://<your public host>/webhook/<type>`): the type comes after `/webhook/`, a path in the other order answers 404.
