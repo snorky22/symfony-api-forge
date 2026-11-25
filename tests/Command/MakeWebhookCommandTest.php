@@ -54,6 +54,7 @@ final class MakeWebhookCommandTest extends KernelTestCase
         $display = $tester->getDisplay();
         self::assertStringContainsString('PADDLE_WEBHOOK_SECRET=...', $display);
         self::assertStringContainsString('api-forge:webhook:send paddle var/paddle-event.json', $display);
+        self::assertStringContainsString('https://<your public host>/webhook/paddle', $display);
         // The test application has the route /webhook/{type}: no route file
         self::assertFileDoesNotExist($this->dir.'/test-API/config/routes/webhook.yaml');
     }
@@ -85,6 +86,8 @@ final class MakeWebhookCommandTest extends KernelTestCase
         self::assertStringContainsString('Already there, left as they are: transaction.completed.', $display);
         self::assertStringContainsString('The webhook type "paddle" is routed already (', $display);
         self::assertStringContainsString("'transaction.paid' => 'onTransactionPaid',", $this->file('src/API/Paddle/Webhook/PaddleWebhookConsumer.php'));
+        // The added event's TODO knows the scheme, recognized from the parser
+        self::assertSame(2, substr_count($this->file('src/API/Paddle/Webhook/PaddleWebhookConsumer.php'), "// \$object = \$payload['data'];"));
         self::assertSame($parser, $this->file('src/API/Paddle/Webhook/PaddleRequestParser.php'));
     }
 

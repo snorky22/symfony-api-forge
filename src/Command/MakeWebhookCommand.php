@@ -103,7 +103,8 @@ final class MakeWebhookCommand
             }
             $added = array_values(array_diff($list, $present));
             if ([] !== $added) {
-                $filesystem->dumpFile($consumerFile, $this->maker->addEvents($code, $added));
+                $scheme = file_exists($parserFile) ? $this->maker->schemeOf((string) file_get_contents($parserFile)) : null;
+                $filesystem->dumpFile($consumerFile, $this->maker->addEvents($code, $added, null === $scheme ? null : WebhookMaker::SCHEMES[$scheme]['payload']));
                 $io->success(\sprintf('Added %s to %s', implode(', ', $added), $consumerFile));
             } else {
                 $io->success('Nothing to add to the consumer.');
@@ -153,7 +154,7 @@ final class MakeWebhookCommand
             $filesystem->dumpFile($parserFile, $parser);
             $io->success(\sprintf('Written: %s (scheme "%s")', $parserFile, $scheme));
         }
-        $filesystem->dumpFile($consumerFile, $this->maker->consumer($consumerClass, $type, $list));
+        $filesystem->dumpFile($consumerFile, $this->maker->consumer($consumerClass, $type, $list, $preset['payload']));
         $io->success(\sprintf('Written: %s%s', $consumerFile, [] === $list ? '' : ' ('.implode(', ', $list).')'));
         $this->routing($io, $root, $type, $parserClass, 'paddle' === $scheme ? 'Paddle: the secret key of the notification destination (Paddle > Events > Notifications).' : null);
         $this->checks($io, $root, $type);
@@ -169,7 +170,8 @@ final class MakeWebhookCommand
             ' - try a delivery signed like the provider, locally:',
             \sprintf("     printf '%%s' '%s' > var/%s-event.json", $sample, $type),
             \sprintf('     bin/console api-forge:webhook:send %s var/%s-event.json%s   (then api-forge:webhook:inbox)', $type, $type, $eventOption),
-            \sprintf(' - for real deliveries, the provider needs a public URL to /webhook/%s (a tunnel in development).', $type),
+            ' - for real deliveries, give the provider this URL (in development, your tunnel\'s address):',
+            \sprintf('     https://<your public host>/webhook/%s      (/webhook/ first, then the type)', $type),
         ]);
 
         return Command::SUCCESS;
@@ -203,14 +205,9 @@ final class MakeWebhookCommand
      */
     private function knownEvents(string $parser): array
     {
-        foreach (WebhookMaker::SCHEMES as $preset) {
-            $header = $preset['constants']['SIGNATURE_HEADER'] ?? null;
-            if (\is_string($header) && str_contains($parser, "'".$header."'")) {
-                return $preset['events'];
-            }
-        }
+        $scheme = $this->maker->schemeOf($parser);
 
-        return [];
+        return null === $scheme ? [] : WebhookMaker::SCHEMES[$scheme]['events'];
     }
 
     /**

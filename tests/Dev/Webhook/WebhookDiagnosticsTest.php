@@ -40,7 +40,7 @@ final class WebhookDiagnosticsTest extends KernelTestCase
         self::bootKernel();
 
         self::assertSame([
-            'ok: Endpoint: http://localhost/webhook/lemonsqueezy (path /webhook/lemonsqueezy)',
+            "ok: Endpoint: http://localhost/webhook/lemonsqueezy (path /webhook/lemonsqueezy). The URL to give the provider: https://<your public host>/webhook/lemonsqueezy (a tunnel's address in development).",
             'ok: Request parser routed, signing secret set.',
             "ok: Consumer registered (#[AsRemoteEventConsumer('lemonsqueezy')]).",
             'ok: The consumer handles 1 of the 17 events: order_created.',

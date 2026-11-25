@@ -190,7 +190,7 @@ final class WebhookMakerTest extends TestCase
         self::assertStringContainsString("#[AsRemoteEventConsumer('shop')]", $code);
         self::assertSame(['order_created'], $maker->eventsOf($code));
         // A method written by hand is kept; an event present is not added twice
-        $code = str_replace('// TODO: what the application does', 'throw new \DomainException(\'order_created handled\');', $code);
+        $code = (string) preg_replace('/        \/\/ TODO: what the application does when "order_created".*\n/', "        throw new \\DomainException('order_created handled');\n", $code);
         $added = $maker->addEvents($code, ['order_refunded', 'order_created']);
         self::assertSame(['order_created', 'order_refunded'], $maker->eventsOf($added));
         self::assertStringContainsString("throw new \\DomainException('order_created handled');", $added);
@@ -223,6 +223,23 @@ final class WebhookMakerTest extends TestCase
 
         self::load($added);
         self::assertInstanceOf(AbstractWebhookConsumer::class, self::instance('Probe\Clash\ClashWebhookConsumer'));
+    }
+
+    public function testTheTodoSaysWhereTheSchemeHoldsTheData(): void
+    {
+        $maker = new WebhookMaker();
+
+        $paddle = $maker->consumer('Probe\Todo\A', 'paddle', ['transaction.completed'], WebhookMaker::SCHEMES['paddle']['payload']);
+        self::assertStringContainsString("     * The delivery, decoded: the entity in \$payload['data'] (a transaction for transaction.*,", $paddle);
+        self::assertStringContainsString("        // TODO: what the application does when \"transaction.completed\" happens, e.g. starting from:\n        // \$object = \$payload['data'];\n", $paddle);
+        self::assertStringContainsString('// - $event->getId() is the event id: skip an event handled already', $paddle);
+        self::assertStringContainsString("// \$object = \$payload['data']['object'];", $maker->consumer('Probe\Todo\B', 'stripe', ['invoice.paid'], WebhookMaker::SCHEMES['stripe']['payload']));
+        // No scheme (custom): the provider's docs
+        self::assertStringContainsString("// \$object = \$payload; // see the provider's docs", $maker->consumer('Probe\Todo\C', 'x', ['a.b']));
+        // Added events get the same TODO
+        self::assertStringContainsString("// \$action = \$payload['action'] ?? null;", $maker->addEvents($maker->consumer('Probe\Todo\D', 'github', []), ['issues'], WebhookMaker::SCHEMES['github']['payload']));
+        self::assertSame('paddle', $maker->schemeOf("protected const SIGNATURE_HEADER = 'Paddle-Signature';"));
+        self::assertNull($maker->schemeOf("protected const SIGNATURE_HEADER = 'X-Other';"));
     }
 
     public function testRoutingAndSamplePayload(): void

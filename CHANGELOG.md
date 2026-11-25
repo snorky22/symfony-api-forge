@@ -3,6 +3,15 @@
 All notable changes are documented in this file. The project follows [Semantic Versioning](https://semver.org);
 until 1.0, minor versions may contain breaking changes.
 
+## Unreleased
+
+- `api-forge:make:webhook` and `api-forge:webhook:check` print the URL to give the provider
+  (`https://<your public host>/webhook/<type>`): the type comes after `/webhook/`, a path in the other order answers 404.
+- `api-forge:make:webhook`: each consumer method says, in its docblock and its TODO, where the scheme's payload holds
+  its data (Paddle `$payload['data']`, Stripe `$payload['data']['object']`, GitHub `$payload['action']`…), with a line to
+  start from, and the rules of a handler: skip an event id handled already, don't rely on the delivery order, an
+  exception makes the provider (or the Messenger worker) try again.
+
 ## 0.7.0 - 2026-11-24
 
 `api-forge:make:resource` and `api-forge:make:webhook` have priority over the generated path for one API; declarations

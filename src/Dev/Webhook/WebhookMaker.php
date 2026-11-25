@@ -16,12 +16,13 @@ final class WebhookMaker
      * constants (a custom parser is needed): Square (the notification URL is signed), PayPal (RSA certificate),
      * Mollie classic webhooks (unsigned, form-encoded), Standard Webhooks / Svix (id and timestamp in other headers).
      *
-     * @var array<string, array{label: string, docs: ?string, constants: array<string, mixed>, events: list<string>}>
+     * @var array<string, array{label: string, docs: ?string, payload: ?array{code: string, about: string}, constants: array<string, mixed>, events: list<string>}>
      */
     public const SCHEMES = [
         'paddle' => [
             'label' => 'Paddle-Signature: ts=…;h1=…, HMAC-SHA256 of "timestamp:body"; answered with 200 (Paddle)',
             'docs' => 'https://developer.paddle.com/webhooks/about/signature-verification',
+            'payload' => ['code' => '$object = $payload[\'data\'];', 'about' => 'the entity in $payload[\'data\'] (a transaction for transaction.*, a subscription for subscription.*…), the event id in $payload[\'event_id\']'],
             'constants' => [
                 'SIGNATURE_HEADER' => 'Paddle-Signature',
                 'SIGNATURE_CONTENT' => '{timestamp}:{body}',
@@ -44,6 +45,7 @@ final class WebhookMaker
         'stripe' => [
             'label' => 'Stripe-Signature: t=…,v1=…, HMAC-SHA256 of "timestamp.body" (Stripe)',
             'docs' => 'https://docs.stripe.com/webhooks',
+            'payload' => ['code' => '$object = $payload[\'data\'][\'object\'];', 'about' => 'the API object in $payload[\'data\'][\'object\'] (a checkout session, an invoice…), the event id in $payload[\'id\']'],
             'constants' => [
                 'SIGNATURE_HEADER' => 'Stripe-Signature',
                 'SIGNATURE_CONTENT' => '{timestamp}.{body}',
@@ -64,6 +66,7 @@ final class WebhookMaker
         'github' => [
             'label' => 'X-Hub-Signature-256: sha256=<HMAC-SHA256 of the body>, event in X-GitHub-Event (GitHub; content type application/json)',
             'docs' => 'https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries',
+            'payload' => ['code' => '$action = $payload[\'action\'] ?? null;', 'about' => 'the action in $payload[\'action\'] (e.g. "opened"), the objects at the top level ($payload[\'issue\'], $payload[\'pull_request\']…)'],
             'constants' => [
                 'SIGNATURE_HEADER' => 'X-Hub-Signature-256',
                 'SIGNATURE_PREFIX' => 'sha256=',
@@ -80,6 +83,7 @@ final class WebhookMaker
         'shopify' => [
             'label' => 'X-Shopify-Hmac-Sha256: base64 HMAC-SHA256 of the body, topic in X-Shopify-Topic (Shopify)',
             'docs' => 'https://shopify.dev/docs/apps/build/webhooks/verify-deliveries',
+            'payload' => ['code' => '$object = $payload;', 'about' => 'the resource itself (an order for orders/*, a product for products/*…)'],
             'constants' => [
                 'SIGNATURE_HEADER' => 'X-Shopify-Hmac-Sha256',
                 'SIGNATURE_ENCODING' => 'base64',
@@ -96,6 +100,7 @@ final class WebhookMaker
         'mollie' => [
             'label' => 'X-Mollie-Signature: sha256=<HMAC-SHA256 of the body>, event in "type" (Mollie next-gen webhooks)',
             'docs' => 'https://docs.mollie.com/reference/webhooks-new',
+            'payload' => ['code' => '$object = $payload[\'_embedded\'][\'entity\'] ?? null;', 'about' => 'the resource in $payload[\'_embedded\'][\'entity\'] (full payloads), its id in $payload[\'entityId\']'],
             'constants' => [
                 'SIGNATURE_HEADER' => 'X-Mollie-Signature',
                 'SIGNATURE_PREFIX' => 'sha256=',
@@ -114,6 +119,7 @@ final class WebhookMaker
         'lemonsqueezy' => [
             'label' => 'X-Signature: HMAC-SHA256 of the body, event in meta.event_name; answered with 200 (Lemon Squeezy)',
             'docs' => 'https://docs.lemonsqueezy.com/help/webhooks',
+            'payload' => ['code' => '$object = $payload[\'data\'];', 'about' => 'the JSON:API object in $payload[\'data\'] (its fields in $payload[\'data\'][\'attributes\']), the checkout\'s custom data in $payload[\'meta\'][\'custom_data\']'],
             'constants' => [
                 'SIGNATURE_HEADER' => 'X-Signature',
                 'EVENT_NAME_PATH' => 'meta.event_name',
@@ -131,6 +137,7 @@ final class WebhookMaker
         'custom' => [
             'label' => 'another scheme: answer the questions (header, signed content, event name…)',
             'docs' => null,
+            'payload' => null,
             'constants' => [],
             'events' => [],
         ],
@@ -153,6 +160,21 @@ final class WebhookMaker
         'EVENT_ID_HEADER' => null,
         'SUCCESS_STATUS' => 202,
     ];
+
+    /**
+     * The scheme of an existing parser, recognized by its signature header, or null.
+     */
+    public function schemeOf(string $parserCode): ?string
+    {
+        foreach (self::SCHEMES as $name => $preset) {
+            $header = $preset['constants']['SIGNATURE_HEADER'] ?? null;
+            if (\is_string($header) && str_contains($parserCode, "'".$header."'")) {
+                return $name;
+            }
+        }
+
+        return null;
+    }
 
     /**
      * Routing type of an API, the last segment of the URL /webhook/{type}: "Paddle" gives "paddle", "LemonSqueezy"
@@ -224,10 +246,11 @@ final class WebhookMaker
     }
 
     /**
-     * @param string       $class  fully qualified class name of the consumer
-     * @param list<string> $events
+     * @param string                              $class   fully qualified class name of the consumer
+     * @param list<string>                        $events
+     * @param ?array{code: string, about: string} $payload where the scheme's payload holds its data (see SCHEMES)
      */
-    public function consumer(string $class, string $type, array $events): string
+    public function consumer(string $class, string $type, array $events, ?array $payload = null): string
     {
         [$namespace, $short] = self::split($class);
 
@@ -260,7 +283,7 @@ final class WebhookMaker
                 }
             }
 
-            PHP, $namespace, $type, $type, $type, $short, $this->handlerLines($methods = $this->methodNames($events, [])), $this->methods($methods));
+            PHP, $namespace, $type, $type, $type, $short, $this->handlerLines($methods = $this->methodNames($events, [])), $this->methods($methods, $payload));
     }
 
     /**
@@ -310,9 +333,10 @@ final class WebhookMaker
      * Adds events to an existing consumer: their HANDLERS entries and empty methods, named so as not to clash with
      * the methods of the class. The rest is kept as it is.
      *
-     * @param list<string> $events
+     * @param list<string>                        $events
+     * @param ?array{code: string, about: string} $payload where the scheme's payload holds its data (see SCHEMES)
      */
-    public function addEvents(string $code, array $events): string
+    public function addEvents(string $code, array $events, ?array $payload = null): string
     {
         $events = array_values(array_diff(array_unique($events), $this->eventsOf($code)));
         if ([] === $events) {
@@ -330,7 +354,7 @@ final class WebhookMaker
             return $entries."\n".$this->handlerLines($methods).$m[2];
         }, $code, 1);
         $code = str_replace("\r\n", "\n", $code);
-        $written = $this->methods($methods);
+        $written = $this->methods($methods, $payload);
         $at = strpos($code, '    protected function onUnknownEvent(');
         if (false === $at) {
             $at = (int) strrpos($code, '}');
@@ -444,25 +468,34 @@ final class WebhookMaker
     }
 
     /**
-     * @param array<string, string> $methods event => method
+     * @param array<string, string>                   $methods event => method
+     * @param ?array{code: string, about: string} $payload where the scheme's payload holds its data
      */
-    private function methods(array $methods): string
+    private function methods(array $methods, ?array $payload = null): string
     {
+        $about = $payload['about'] ?? 'its fields, as the provider documents them';
+        $example = $payload['code'] ?? '$object = $payload; // see the provider\'s docs';
         $code = '';
         foreach ($methods as $event => $method) {
             $code .= \sprintf(<<<'PHP'
                     /**
-                     * "%s"
+                     * "%1$s"
+                     *
+                     * %3$s
                      *
                      * @param array<string, mixed> $payload
                      */
-                    protected function %s(array $payload, RemoteEvent $event): void
+                    protected function %2$s(array $payload, RemoteEvent $event): void
                     {
-                        // TODO: what the application does
+                        // TODO: what the application does when "%1$s" happens, e.g. starting from:
+                        // %4$s
+                        // - $event->getId() is the event id: skip an event handled already (a provider may deliver it twice);
+                        // - deliveries may come in any order: fetch the current state through the API when it matters;
+                        // - an exception fails the delivery: the provider (or the Messenger worker) tries it again later.
                     }
 
 
-                PHP, $event, $method);
+                PHP, $event, $method, wordwrap('The delivery, decoded: '.$about.'.', 110, "\n     * "), $example);
         }
 
         return $code;

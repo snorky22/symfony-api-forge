@@ -128,7 +128,8 @@ final class WebhookDiagnostics
         $checks = [];
         try {
             $url = $this->sender->url($type);
-            $checks[] = Check::ok(\sprintf('Endpoint: %s (path %s)', $url, parse_url($url, \PHP_URL_PATH)));
+            $path = parse_url($url, \PHP_URL_PATH);
+            $checks[] = Check::ok(\sprintf('Endpoint: %s (path %s). The URL to give the provider: https://<your public host>%s (a tunnel\'s address in development).', $url, $path, $path));
         } catch (\InvalidArgumentException $e) {
             return [Check::error($e->getMessage())];
         }

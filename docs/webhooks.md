@@ -194,7 +194,7 @@ Without descriptors nor generated code, as for the [hand-written REST resources]
 | File | Content |
 |---|---|
 | `<Api>RequestParser.php` | The signature scheme, as constants of `AbstractSignedRequestParser` |
-| `<Api>WebhookConsumer.php` | `#[AsRemoteEventConsumer('<type>')]`, `HANDLERS` and one method per event you handle, with TODOs |
+| `<Api>WebhookConsumer.php` | `#[AsRemoteEventConsumer('<type>')]`, `HANDLERS` and one method per event you handle, with TODOs saying where the payload holds the data (Paddle `$payload['data']`…) and the rules of a handler |
 | `config/packages/<type>_webhook.yaml` | The webhook type: its parser and its secret (`<TYPE>_WEBHOOK_SECRET`, empty by default) |
 | `config/routes/webhook.yaml` | The route `POST /webhook/{type}`, when the application doesn't have it |
 
@@ -279,8 +279,9 @@ Then:
    bin/console api-forge:webhook:inbox paddle
    bin/console api-forge:webhook:check paddle
    ```
-3. For real deliveries, the provider needs a public HTTPS URL to `/webhook/paddle`: in development, a tunnel
-   (Hookdeck, ngrok, Cloudflare Tunnel). Paddle's simulator (*Paddle > Events > Simulations*) sends signed test
+3. For real deliveries, give the provider the URL `https://<your public host>/webhook/paddle`: `/webhook/` first, then
+   the type (`/paddle/webhook` answers 404). In development, the public host is a tunnel's address (Hookdeck, ngrok,
+   Cloudflare Tunnel). `api-forge:webhook:check paddle` prints this URL too. Paddle's simulator (*Paddle > Events > Simulations*) sends signed test
    events to a destination, without a real payment.
 
 Queue the events (`ConsumeRemoteEventMessage: async`, see [Setup](#setup)) when the provider waits for the answer:
